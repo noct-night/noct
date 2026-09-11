@@ -1,0 +1,703 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>NOCT · this weekend</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0B0B0B;--chalk:#FFFFFF;--d1:rgba(255,255,255,.66);--d2:rgba(255,255,255,.40);
+--hair:rgba(255,255,255,.22);--f:'Archivo','Helvetica Neue',Helvetica,Arial,sans-serif;--pad:20px}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#000;height:100%}
+body{font-family:var(--f);color:var(--chalk);-webkit-font-smoothing:antialiased;display:flex;justify-content:center}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:left}
+a{color:inherit}
+:focus-visible{outline:1px solid var(--chalk);outline-offset:3px}
+.app{position:relative;width:100%;max-width:440px;height:100vh;height:100dvh;overflow:hidden;background:var(--ink)}
+@media (min-width:520px){.app{border-left:.7px solid rgba(255,255,255,.12);border-right:.7px solid rgba(255,255,255,.12)}}
+.sm{font-size:14px;line-height:1.55}
+.lnk{font-size:14px;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
+.lnk:hover{opacity:.62}
+
+.topscrim{position:absolute;top:0;left:0;right:0;height:172px;z-index:21;pointer-events:none;opacity:0;transition:opacity .28s ease;
+ backdrop-filter:blur(18px) saturate(.85);-webkit-backdrop-filter:blur(18px) saturate(.85);
+ background:linear-gradient(180deg,rgba(11,11,11,.86) 0%,rgba(11,11,11,.7) 56%,rgba(11,11,11,0) 100%);
+ -webkit-mask-image:linear-gradient(180deg,#000 0%,#000 60%,transparent 100%);mask-image:linear-gradient(180deg,#000 0%,#000 60%,transparent 100%)}
+.topscrim.on{opacity:1}
+.botscrim{position:absolute;bottom:0;left:0;right:0;height:136px;z-index:19;pointer-events:none;opacity:0;transition:opacity .28s ease;
+ backdrop-filter:blur(18px) saturate(.85);-webkit-backdrop-filter:blur(18px) saturate(.85);
+ background:linear-gradient(0deg,rgba(11,11,11,.88) 0%,rgba(11,11,11,.72) 54%,rgba(11,11,11,0) 100%);
+ -webkit-mask-image:linear-gradient(0deg,#000 0%,#000 58%,transparent 100%);mask-image:linear-gradient(0deg,#000 0%,#000 58%,transparent 100%)}
+.botscrim.on{opacity:1}
+.top{position:absolute;top:0;left:0;right:0;z-index:22;padding:18px var(--pad) 0;pointer-events:none}
+.brand{display:flex;justify-content:space-between;width:100%;pointer-events:none}
+.brand span{font-size:46px;font-weight:700;letter-spacing:-.018em;line-height:.86;pointer-events:auto;cursor:pointer;transition:opacity .16s}
+.brand span:hover{opacity:.62}
+.brand span:active{opacity:.4}
+.ctrl{display:flex;align-items:center;gap:14px;margin-top:16px;pointer-events:auto}
+.ctrl button{font-size:16px;display:flex;align-items:center;gap:7px;white-space:nowrap;min-width:0}
+.ctrl button i{font-style:normal;font-size:10px;opacity:.55;transform:translateY(1px)}
+.ctrl .sep{width:.7px;height:15px;background:var(--hair);flex:none}
+.ctrl b{font-weight:400;overflow:hidden;text-overflow:ellipsis}
+.ctrl[hidden]{display:none}
+#backRow button{gap:11px}
+.vtitle{font-size:29px;font-weight:700;letter-spacing:-.03em;padding:0 var(--pad);margin-bottom:26px}
+.view{position:absolute;inset:0}
+.view[hidden]{display:none}
+
+#imageView{overflow:hidden;touch-action:pan-y}
+.slide{position:absolute;inset:0;opacity:0;transition:opacity .45s ease}
+.slide.on{opacity:1}
+.tex{position:absolute;inset:0}
+.tex::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,11,11,.82) 0%,rgba(11,11,11,0) 28%,rgba(11,11,11,.24) 50%,rgba(11,11,11,.95) 100%)}
+.x1{background:repeating-linear-gradient(90deg,#070707 0 5px,#242424 5px 9px,#949494 9px 10px,#3B3B3B 10px 14px),linear-gradient(180deg,#000,#141414)}
+.x2{background-image:radial-gradient(circle,#7E7E7E 1px,transparent 1.3px);background-size:9px 9px;background-color:#0E0E0E}
+.x3{background:radial-gradient(115% 62% at 75% 17%,rgba(255,255,255,.36) 0%,rgba(255,255,255,0) 58%),repeating-linear-gradient(0deg,rgba(255,255,255,.06) 0 1px,transparent 1px 6px),#0C0C0C}
+.x4{background:repeating-linear-gradient(72deg,#0A0A0A 0 11px,#1F1F1F 11px 22px),repeating-linear-gradient(108deg,rgba(255,255,255,.075) 0 11px,transparent 11px 22px),#0B0B0B}
+.x5{background:radial-gradient(60% 40% at 31% 61%,rgba(255,255,255,.44) 0%,rgba(255,255,255,.07) 42%,rgba(255,255,255,0) 71%),linear-gradient(200deg,#1A1A1A,#050505)}
+.x6{background:repeating-linear-gradient(90deg,transparent 0 2px,rgba(255,255,255,.17) 2px 3px,transparent 3px 16px),linear-gradient(160deg,#1D1D1D,#060606)}
+
+.caption{position:absolute;left:var(--pad);right:var(--pad);bottom:126px;z-index:15}
+.caption .idx{color:var(--d1);margin-bottom:12px}
+.caption .name{font-size:29px;font-weight:500;letter-spacing:-.032em;line-height:1.08;margin-bottom:11px;
+ display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.caption .gen{font-size:15px;margin-bottom:9px}
+.caption .meta{color:var(--d1);margin-bottom:9px}
+.caption .go{color:var(--chalk);margin-bottom:16px}
+.swipe{position:absolute;left:50%;transform:translateX(-50%);bottom:74px;z-index:15;display:flex;align-items:center;gap:16px;border:.7px solid var(--hair);padding:8px 16px;color:var(--d1)}
+.swipe button{color:var(--chalk);font-size:14px;line-height:1}
+.zone{position:absolute;top:120px;bottom:200px;width:34%;z-index:12}
+.zone.l{left:0}.zone.r{right:0}
+
+#listView{overflow-y:auto;padding:158px 0 124px;-webkit-overflow-scrolling:touch}
+.srcline{padding:0 var(--pad) 20px;font-size:13px;color:var(--d2);line-height:1.5}
+.dayhead{padding:22px var(--pad) 6px;font-size:13px;color:var(--d2)}
+.row{display:grid;grid-template-columns:minmax(0,1fr) 104px;gap:3px 14px;width:100%;padding:14px var(--pad)}
+.row:active{background:#141414}
+.rt{font-size:13.5px;color:var(--d2);grid-column:1;grid-row:1}
+.rn{font-size:19px;font-weight:500;letter-spacing:-.026em;line-height:1.18;grid-column:1;grid-row:2;margin:3px 0 4px;
+ display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.rg{font-size:13.5px;grid-column:1;grid-row:3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rv{font-size:13.5px;color:var(--d1);grid-column:1;grid-row:4;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rp{font-size:15px;text-align:right;white-space:nowrap;grid-column:2;grid-row:1/3;align-self:start}
+.rp.gone{color:var(--d2);font-size:13.5px}
+.rs{font-size:12px;color:var(--d2);text-align:right;grid-column:2;grid-row:3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rgo{font-size:12px;color:var(--d1);text-align:right;white-space:nowrap;grid-column:2;grid-row:4;margin-top:1px}
+
+#savedView,#venuesView,#profileView{overflow-y:auto;padding:158px 0 124px}
+.slab{font-size:13px;color:var(--d2);padding:0 var(--pad);margin-bottom:14px}
+.blk{margin-bottom:44px}
+.frow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:baseline;width:100%;padding:14px var(--pad)}
+.frow:active{background:#141414}
+.fn{font-size:19px;font-weight:500;letter-spacing:-.026em;line-height:1.2}
+.fm{font-size:13.5px;color:var(--d1);margin-top:5px}
+.tg{font-size:14px;color:var(--d2);white-space:nowrap}
+.tg[aria-pressed="true"]{color:var(--chalk)}
+
+.bottom{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:flex-end;padding:0 var(--pad) 22px;z-index:20;pointer-events:none}
+.bottom>*{pointer-events:auto}
+.cr{display:flex;flex-direction:column;gap:7px;align-items:flex-end}
+.cr button{font-size:14px;color:var(--d2);display:flex;align-items:center;gap:10px}
+.cr button[aria-pressed="true"]{color:var(--chalk)}
+.rd{width:7px;height:7px;border-radius:50%;border:.8px solid var(--d2)}
+.cr button[aria-pressed="true"] .rd{background:var(--chalk);border-color:var(--chalk)}
+
+.sheet{position:absolute;inset:0;background:var(--ink);z-index:50;transform:translateY(101%);transition:transform .4s cubic-bezier(.5,0,.15,1);overflow-y:auto;padding:0 var(--pad) 40px}
+.sheet.open{transform:translateY(0)}
+.sheet.down{transform:translateY(-101%)}
+.sheet.down.open{transform:translateY(0)}
+#signSheet{z-index:58}
+.sx{margin:22px 0 24px;font-size:22px;line-height:1;width:28px}
+.sh2{font-size:29px;font-weight:700;letter-spacing:-.03em;margin-bottom:14px}
+.lede{font-size:15.5px;line-height:1.6;color:var(--d1);margin-bottom:24px}
+.grp{margin-top:30px}
+.grp h3{font-size:13px;color:var(--d2);font-weight:400;margin-bottom:13px}
+.opts{display:flex;flex-wrap:wrap;gap:11px 22px}
+.opts button{font-size:16px;color:var(--d2)}
+.opts button[aria-pressed="true"]{color:var(--chalk);text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
+.opts button[disabled]{color:rgba(255,255,255,.18);cursor:default;text-decoration:none}
+.stack button{display:flex;justify-content:space-between;align-items:baseline;width:100%;font-size:18px;padding:14px 0;border-bottom:.7px solid var(--hair)}
+.stack button span{font-size:13.5px;color:var(--d2)}
+.pick{width:100%;padding:16px 0;border-bottom:.7px solid var(--hair);display:block}
+.pick .t{font-size:19px}
+.pick .d{font-size:13.5px;color:var(--d2);margin-top:6px;line-height:1.5}
+.pick[aria-pressed="true"] .t{text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
+.pick[aria-pressed="true"] .d{color:var(--d1)}
+.foot{display:flex;gap:26px;margin-top:34px}
+.field{display:flex;align-items:baseline;gap:8px;border-bottom:.7px solid var(--hair);padding:12px 0}
+.field b{font-weight:400;font-size:20px;color:var(--d2)}
+.field input{flex:1;min-width:0;background:none;border:0;color:#fff;font:inherit;font-size:20px;outline:none;padding:0}
+.field input::placeholder{color:rgba(255,255,255,.24)}
+.note{font-size:13px;color:var(--d2);line-height:1.55;margin-top:12px}
+
+.page{position:absolute;inset:0;background:var(--ink);transform:translateY(101%);transition:transform .4s cubic-bezier(.5,0,.15,1);overflow-y:auto}
+.page.open{transform:translateY(0)}
+#det{z-index:54}
+#ven{z-index:56}
+.dhero{position:relative;height:34%;min-height:220px}
+.dx{position:absolute;top:20px;right:var(--pad);z-index:5;font-size:22px;line-height:1}
+.dbody{padding:26px var(--pad) 50px}
+.dname{font-size:27px;font-weight:500;letter-spacing:-.032em;line-height:1.1}
+.dsup{font-size:15px;color:var(--d1);margin-top:10px;line-height:1.5}
+.specs{display:grid;grid-template-columns:104px minmax(0,1fr);gap:9px 18px;margin-top:28px;font-size:15px;line-height:1.5}
+.specs .k{color:var(--d2)}
+.specs .go{text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
+.tk{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:16px;align-items:baseline;padding:12px 0}
+.tk .src{font-size:17px}
+.tk .st{font-size:13px;color:var(--d2);margin-top:4px;line-height:1.45}
+.tk .amt{font-size:16px;text-align:right}
+.tk.dead{color:var(--d2)}
+.gapnote{font-size:14px;color:var(--d1);margin-top:12px;line-height:1.55}
+.ro{display:grid;grid-template-columns:88px minmax(0,1fr);gap:12px 16px;padding:6px 0;align-items:baseline}
+.ro .t{font-size:13.5px;color:var(--d2)}
+.ro .who{font-size:16px;line-height:1.35}
+.prose{font-size:15.5px;line-height:1.6;color:var(--d1)}
+.dacts{display:flex;gap:24px;margin-top:34px;flex-wrap:wrap}
+.dacts button[aria-pressed="true"]{color:#fff}
+.empty{padding:40px var(--pad);font-size:15.5px;color:var(--d1);line-height:1.6}
+.crowd{display:flex;flex-wrap:wrap;gap:9px 15px;font-size:15px;color:var(--d1)}
+.crowd .me{color:var(--chalk);text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
+.crowd .more{color:var(--d2)}
+.goline{font-size:14px;color:var(--d1);margin-top:14px;line-height:1.55}
+.links a,.links button{display:flex;justify-content:space-between;align-items:baseline;padding:14px 0;border-bottom:.7px solid var(--hair);font-size:17px;text-decoration:none;width:100%}
+.links a span,.links button span{font-size:13.5px;color:var(--d2);text-align:right;padding-left:14px}
+.strip{display:flex;gap:3px;overflow-x:auto;margin:0 calc(-1 * var(--pad));padding:0 var(--pad);scrollbar-width:none}
+.strip::-webkit-scrollbar{display:none}
+.ph{flex:none;width:158px;aspect-ratio:3/4;position:relative;overflow:hidden}
+.ph .cp{position:absolute;left:10px;right:10px;bottom:9px;font-size:11.5px;color:rgba(255,255,255,.9);z-index:3;line-height:1.35}
+.shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,11,11,0) 45%,rgba(11,11,11,.85) 100%)}
+.iggrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px}
+.igt{position:relative;aspect-ratio:1;overflow:hidden;display:block;width:100%}
+.igt .kind{position:absolute;top:7px;right:8px;font-size:11px;z-index:3;color:#fff}
+.igt .cp{position:absolute;left:8px;right:8px;bottom:7px;font-size:11px;color:rgba(255,255,255,.88);z-index:3;line-height:1.3}
+.mini{font-size:13px;color:var(--d2);margin-top:12px;line-height:1.5}
+.flag{font-size:12.5px;color:var(--d2);line-height:1.5;padding:0 var(--pad);margin-top:-6px;margin-bottom:18px}
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="topscrim" id="topscrim"></div>
+  <div class="botscrim" id="botscrim"></div>
+  <div class="top">
+    <button class="brand" onclick="goHome()" aria-label="Back to events"><span>NO</span><span>CT</span></button>
+    <div class="ctrl" id="ctrlRow">
+      <button id="btnLoc"><b id="locLbl">New York</b><i>▼</i></button>
+      <div class="sep"></div>
+      <button id="btnDate"><b id="dateLbl">Tonight</b><i>▼</i></button>
+    </div>
+    <div class="ctrl" id="backRow" hidden>
+      <button onclick="goBack()"><i style="font-size:14px;opacity:1">←</i><b id="backLbl">Events</b></button>
+    </div>
+  </div>
+
+  <section class="view" id="imageView">
+    <div id="slides"></div>
+    <button class="zone l" aria-label="Previous" onclick="step(-1)"></button>
+    <button class="zone r" aria-label="Next" onclick="step(1)"></button>
+    <div class="caption" id="caption"></div>
+    <div class="swipe sm"><button onclick="step(-1)">←</button><span id="swipeLbl">Swipe</span><button onclick="step(1)">→</button></div>
+  </section>
+
+  <section class="view" id="listView" hidden>
+    <div class="srcline" id="srcLine"></div>
+    <div id="rows"></div>
+  </section>
+
+  <section class="view" id="savedView" hidden>
+    <div class="vtitle">Saved</div>
+    <div class="blk"><div class="slab">Going</div><div id="goingList"></div></div>
+    <div class="blk"><div class="slab">Saved</div><div id="savedList"></div></div>
+    <div class="blk"><div class="slab">Where we pull from</div><div id="srcList"></div></div>
+  </section>
+
+  <section class="view" id="venuesView" hidden>
+    <div class="vtitle">Venues</div>
+    <div class="blk"><div class="slab">Venues this weekend</div><div id="venueList"></div></div>
+  </section>
+
+  <section class="view" id="profileView" hidden><div id="profileBody"></div></section>
+
+  <div class="bottom">
+    <button class="lnk" id="openMenu">Menu</button>
+    <div class="cr">
+      <button data-mode="image" aria-pressed="true">Image view <i class="rd"></i></button>
+      <button data-mode="list" aria-pressed="false">List view <i class="rd"></i></button>
+    </div>
+  </div>
+
+  <div class="sheet down" id="menu">
+    <button class="sx" onclick="closeAll()" aria-label="Close">✕</button>
+    <div class="stack" id="mNav"></div>
+  </div>
+
+  <div class="sheet" id="locSheet">
+    <button class="sx" onclick="closeAll()" aria-label="Close">✕</button>
+    <div class="sh2">Where</div>
+    <div class="stack"><button onclick="useGeo()">Use my location<span id="geoState">Off</span></button></div>
+    <div class="grp"><h3>City</h3><div class="opts" id="oCity"></div></div>
+    <div class="grp"><h3>Area</h3><div class="opts" id="oArea"></div></div>
+    <div class="foot"><button class="lnk" onclick="closeAll()">Show results</button><button class="lnk" style="color:var(--d2)" onclick="resetLoc()">Reset</button></div>
+  </div>
+
+  <div class="sheet" id="dateSheet">
+    <button class="sx" onclick="closeAll()" aria-label="Close">✕</button>
+    <div class="sh2">When</div>
+    <div class="opts" id="oPreset"></div>
+    <div id="rcal"></div>
+    <div class="foot"><button class="lnk" onclick="closeAll()">Show results</button></div>
+  </div>
+
+  <div class="sheet" id="filt">
+    <button class="sx" onclick="closeAll()" aria-label="Close">✕</button>
+    <div class="sh2">Filter</div>
+    <div class="grp"><h3>Genre</h3><div class="opts" id="fGen"></div></div>
+    <div class="grp"><h3>Doors</h3><div class="opts" id="fDoor"></div></div>
+    <div class="grp"><h3>Availability</h3><div class="opts" id="fAvail"></div></div>
+    <div class="grp"><h3>Platform</h3><div class="opts" id="fPlat"></div></div>
+    <div class="foot"><button class="lnk" onclick="closeAll()">Show results</button><button class="lnk" style="color:var(--d2)" onclick="clearAll()">Reset</button></div>
+  </div>
+
+  <div class="sheet" id="signSheet"><div id="signBody"></div></div>
+
+  <div class="page" id="det"></div>
+  <div class="page" id="ven"></div>
+</div>
+
+<script>
+/* ---------- real data, RA New York City, Fri 28 to Sun 30 Aug 2026 ---------- */
+const DAYS=[['Fri','Aug 28','Tonight'],['Sat','Aug 29','Tomorrow'],['Sun','Aug 30','Sunday']];
+const EV=[
+{id:1,d:0,head:'Vladimir Ivkovic All Night',lineup:['Vladimir Ivkovic'],venue:'Nowadays',
+ door:'22:00',close:'06:00',genre:['Electro','Electronica'],gsrc:'RA tags',age:'21+',interested:544,
+ srcs:[['Nowadays RSVP',10,'$10 before 23:00, $15 before midnight. Does not guarantee entry.'],['RA ticket',20,'On sale, $20 and up']],
+ ra:'https://ra.co/events/2478685',tex:'x1',full:true,
+ note:'Nowadays resident and Offen Music founder, playing the full night. Low tempo, psychedelic, drawing on coldwave and outsider dance music.'},
+
+{id:2,d:0,head:'Warm Up: TDJ, De Schuurman, keiyaA, DJ WORKING CLASS',lineup:['TDJ','De Schuurman','keiyaA','DJ WORKING CLASS'],venue:'MoMA PS1',
+ door:'16:00',close:'22:00',genre:['Bubbling','R&B','Baile funk','Trance'],gsrc:'line-up and venue notes',age:'',interested:451,
+ srcs:[['Eventbrite advance',25,'Advance admission, includes the galleries'],['Student or member',20,'Advance, valid ID required'],['Eventbrite day-of',35,'On the door']],
+ ra:'https://ra.co/events/2491125',eb:'https://www.eventbrite.com/e/warm-up-tdj-de-schuurmankeiyaa-dj-working-class-tickets-1991423044935',tex:'x3',full:true,
+ note:'The last Friday of the 28th Warm Up season, outdoors in the PS1 courtyard. Long Island City residents in 11101, 11106 and 11109 get one free ticket per event.'},
+
+{id:3,d:0,head:'Night & Day: Eli Escobar, The Carry Nation, Dee Diggs, Arvin T b2b Sissies of Mercy',
+ lineup:['Eli Escobar','The Carry Nation','Dee Diggs','Arvin T b2b Sissies of Mercy'],venue:'Signal',
+ door:'22:00',close:'',genre:['House','Disco','Ballroom'],gsrc:'line-up',age:'',interested:456,
+ srcs:[['Dice',22.66,'From $22.66'],['RA',null,'On sale']],
+ ra:'https://ra.co/events/2479515',dice:'https://dice.fm/venue/signal-8ee9w',tex:'x5',full:true,
+ note:'A long one. The Night & Day parties at Signal run from late Friday into Saturday afternoon.'},
+
+{id:4,d:0,head:'SHEILA',lineup:[],venue:'H0L0',
+ door:'',close:'',genre:[],gsrc:'',age:'',interested:260,
+ srcs:[['RA',null,'See listing']],ra:'https://ra.co/events/2506666',tex:'x2',full:false,note:''},
+
+{id:5,d:0,head:'Magnetic ft Artwork, Alex McCracken, Victor Florescu, UMA DJ, Boat Neck, Lee Cash, whydan',
+ lineup:['Artwork','Alex McCracken','Victor Florescu','UMA DJ','Boat Neck','Lee Cash','whydan'],venue:'Good Room',
+ door:'',close:'',genre:[],gsrc:'',age:'',interested:208,
+ srcs:[['RA',null,'See listing']],ra:'https://ra.co/events/2499263',tex:'x6',full:false,note:''},
+
+{id:6,d:1,head:'Yonti, Beste Hira, Annie Lew / Jason Kendig b2b James Axon, Kilopatrah Jones, Immy',
+ lineup:['Yonti','Beste Hira','Annie Lew','Jason Kendig b2b James Axon','Kilopatrah Jones','Immy'],venue:'BASEMENT',
+ door:'22:30',close:'07:00',genre:['Techno'],gsrc:'listing text',age:'21+',interested:1800,
+ srcs:[['RA',null,'Sold out. Resale queue is active.']],ra:'https://ra.co/events/2482516',tex:'x4',full:true,soldout:true,
+ note:'Two rooms. Yonti headlines the main room with Beste Hira and Annie Lew. Jason Kendig goes back to back with James Axon in STUDIO. No phones on the dancefloor.'},
+
+{id:7,d:1,head:"Chaos In The CBD presents 'Dust Till Dawn'",lineup:['Chaos In The CBD','Joe Claussell','Floorplan','Shy One','Suze Ijo','DJ Ray','Extra Andrew'],venue:'Knockdown Center',
+ door:'15:00',close:'',genre:['Deep house','House'],gsrc:'RA tags',age:'21+',interested:793,
+ srcs:[['Dice',38.17,'From $38.17'],['RA',null,'On sale']],
+ ra:'https://ra.co/events/2473602',dice:'https://dice.fm/event/eoxvey-chaos-in-the-cbd-joe-claussell-floorplan-more-day-night-29th-aug-knockdown-center-new-york-ruins-at-knockdown-center-new-york-tickets',tex:'x1',full:true,
+ note:'Starts in The Ruins as the sun goes down and moves into the Main Hall until dawn.'},
+
+{id:8,d:1,head:'Nonstop: Leeon, LOKA, MCMLXXXV, Ne/Re/A, Solofan, Voices From The Lake (live)',
+ lineup:['Solofan','LOKA (US)','MCMLXXXV','Ne/Re/A','Leeon','Voices From The Lake (live)'],venue:'Nowadays',
+ door:'22:00',close:'15:00',genre:['Techno','Electro'],gsrc:'RA tags',age:'',interested:1300,
+ set:[['22:00','Solofan'],['01:00','LOKA (US)'],['03:30','MCMLXXXV'],['06:00','Ne/Re/A'],['09:00','Leeon'],['12:00','Voices From The Lake (live)']],
+ srcs:[['RA',null,'On sale']],ra:'https://ra.co/events/2478702',tex:'x4',full:true,
+ note:'Seventeen hours, Saturday night into Sunday afternoon. High-energy techno, acid and electro.'},
+
+{id:9,d:1,head:'Luar presents: Vessels Chapter 2 - Alexis De La Rosa, Morenxxx, Sevyn Love, Bobby Beethoven, Alfonso Javier',
+ lineup:['Alexis De La Rosa','Morenxxx','Sevyn Love','Bobby Beethoven','Alfonso Javier'],venue:'Signal',
+ door:'22:00',close:'',genre:['House','DnB','Latin'],gsrc:'line-up',age:'',interested:440,
+ srcs:[['Dice',28.33,'$28.33'],['RA',null,'On sale']],
+ ra:'https://ra.co/events/2500400',dice:'https://dice.fm/venue/signal-8ee9w',tex:'x6',full:true,note:''},
+
+{id:10,d:1,head:'RALLY 2026: Blood Orange, Smerz, Daniel Avery, james K, Coco & Clair Clair, Optimo',
+ lineup:['Blood Orange','Smerz','Daniel Avery','james K','Coco & Clair Clair','Optimo'],venue:'Festival',
+ door:'',close:'',genre:[],gsrc:'',age:'',interested:0,
+ srcs:[['Dice',null,'See listing']],ra:'',dice:'https://dice.fm/bundles/music-festivals-2025-72bp',tex:'x2',full:false,note:''},
+
+{id:11,d:2,head:'Mister Sunday: Eamon Harkin All Day',lineup:['Eamon Harkin'],venue:'Nowadays',
+ door:'15:00',close:'21:00',genre:[],gsrc:'',age:'',interested:411,
+ srcs:[['Nowadays RSVP',null,'$10 off the door before 16:00, $5 off before 17:00'],['RA ticket',null,'On sale']],
+ ra:'https://ra.co/events/2481435',tex:'x5',full:true,
+ note:'Harkin plays start to finish, which happens once a year. Phones away on the dancefloor. Doors close at 20:30.'}
+];
+
+/* venues. Addresses and handles confirmed only where marked. */
+const VENUES={
+'Nowadays':{addr:'56-06 Cooper Ave, Ridgewood, NY 11385',hood:'Ridgewood',boro:'Queens',ig:'nowadaysnyc',site:'https://www.nowadays.nyc',ra:'https://ra.co/clubs/105873',verified:true,tones:['x1','x5','x3','x2']},
+'BASEMENT':{addr:'52-19 Flushing Ave, Maspeth, NY 11378',hood:'Maspeth',boro:'Queens',ig:'',site:'https://basementny.net/house-rules',ra:'https://ra.co/clubs/165976',verified:true,tones:['x4','x6','x2','x1']},
+'Knockdown Center':{addr:'',hood:'Maspeth',boro:'Queens',ig:'',site:'',ra:'https://ra.co/clubs/69401',verified:false,tones:['x1','x4','x6','x3']},
+'Signal':{addr:'',hood:'Bushwick',boro:'Brooklyn',ig:'',site:'',ra:'https://ra.co/clubs/256148',verified:false,tones:['x5','x2','x6','x1']},
+'MoMA PS1':{addr:'',hood:'Long Island City',boro:'Queens',ig:'',site:'',ra:'https://ra.co/clubs/2495',verified:false,tones:['x3','x1','x5','x4']},
+'H0L0':{addr:'',hood:'Ridgewood',boro:'Queens',ig:'',site:'',ra:'https://ra.co/clubs/137550',verified:false,tones:['x2','x6','x3','x5']},
+'Good Room':{addr:'',hood:'Greenpoint',boro:'Brooklyn',ig:'',site:'',ra:'https://ra.co/clubs/97606',verified:false,tones:['x6','x4','x1','x2']},
+'Festival':{addr:'',hood:'Venue on Dice',boro:'',ig:'',site:'',ra:'',verified:false,tones:['x2','x1','x5','x6']}};
+
+const GENRES=['House','Deep house','Techno','Electro','Electronica','Disco','Ballroom','DnB','Latin','R&B','Bubbling','Baile funk','Trance'];
+const DOORS=[['EARLY','Before 10pm'],['LATE','10pm to 1am'],['UNK','Time not listed']];
+const AVAIL=[['on','On sale'],['out','Sold out']];
+const PLATS=['RA','Dice','Eventbrite','Nowadays RSVP'];
+const AREAS=['All','Queens','Brooklyn'];
+const CITIES=[['nyc','New York',true],['la','Los Angeles',false],['ldn','London',false],['ber','Berlin',false]];
+const PRESETS=[['fri','Friday'],['sat','Saturday'],['sun','Sunday'],['all','All weekend']];
+const SOURCES=[['Resident Advisor','10 events, genres and set times',true],['Dice','4 events, prices only',true],['Eventbrite','1 event, full pricing',true],['Venue calendars','Nowadays, Signal, MoMA PS1',true],['Tixr','Not connected',false]];
+const HANDLES=['sunroommate','kj.wav','ninetyeight','lo.fidelity','marta.exe','pdrbk','yuna.tape','third.shift','glasshouse.ny','avenue.c','bk.basement','sable.tt','mmmoire','vhs.night','pale.route','okjune','tenpm.club','ridgewood.rave','soft.opening','nine.volt','curfew.bk','late.bloom'];
+const VIS=[['count','Count only','You add to the number. Nobody sees your handle, and you only see numbers back.'],
+           ['mutuals','People I follow','Your handle shows to people you follow. You see theirs, if they opted in too.'],
+           ['public','Everyone','Your handle shows to anyone on the event. You see everyone who chose the same.']];
+const IGPOSTS=[['Reel','Last Saturday'],['Post','This weekend'],['Reel','Main room'],['Post','Door notice'],['Reel','Closing set'],['Post','New dates']];
+const PHOTOS=['Main room','The bar','Doors','Outside'];
+
+const S={mode:'image',view:'image',from:0,to:0,i:0,city:'nyc',area:'All',geo:false,
+ gen:new Set(),door:new Set(),avail:new Set(),plat:new Set(),
+ saved:new Set(),going:new Set(),signedIn:false,ig:'',vis:'count',signStep:1};
+const $=s=>document.querySelector(s);
+const dayName=i=>DAYS[i][2];
+const dayFull=i=>`${DAYS[i][0]} ${DAYS[i][1]}`;
+const band=e=>!e.door?'UNK':(+e.door.slice(0,2)<22?'EARLY':'LATE');
+const prices=e=>e.srcs.map(s=>s[1]).filter(v=>v!==null);
+const low=e=>prices(e).length?Math.min(...prices(e)):null;
+const high=e=>prices(e).length?Math.max(...prices(e)):null;
+const priceLbl=e=>e.soldout?'Sold out':(low(e)===null?'See RA':(high(e)!==low(e)?'From $':'$')+low(e));
+const PLATNAMES=['Eventbrite','Dice','RA','Nowadays','Tixr'];
+const platformOf=l=>l.indexOf('Student')===0?'Eventbrite':(PLATNAMES.find(x=>l.indexOf(x)===0)||l.split(' ')[0]);
+const platsOf=e=>[...new Set(e.srcs.map(s=>platformOf(s[0])))].join(', ');
+const genOf=e=>e.genre.length?e.genre.join(', '):'Not tagged';
+const esc=s=>String(s).replace(/'/g,"\\'");
+const vInfo=v=>VENUES[v]||{hood:'',boro:'',tones:['x1','x2','x3','x4'],verified:false};
+
+/* going, with reciprocity */
+const crowdOf=id=>{const n=3+(id*11)%16,o=[];for(let k=0;k<n;k++)o.push(HANDLES[(id*7+k*3)%HANDLES.length]);return[...new Set(o)]};
+const attVis=h=>{const n=h.length*3+h.charCodeAt(0);return n%10<4?'public':n%10<7?'mutuals':'count'};
+const iFollow=h=>(h.charCodeAt(1)+h.length)%3===0;
+function visibleTo(id){
+  const c=crowdOf(id);
+  if(!S.signedIn||S.vis==='count')return [];
+  if(S.vis==='mutuals')return c.filter(h=>iFollow(h)&&attVis(h)!=='count');
+  return c.filter(h=>attVis(h)==='public'||(attVis(h)==='mutuals'&&iFollow(h)));
+}
+const goCount=id=>crowdOf(id).length+(S.going.has(id)?1:0);
+
+function ok(e){
+  if(e.d<S.from||e.d>S.to)return false;
+  const vi=vInfo(e.venue);
+  if(S.area!=='All'&&vi.boro!==S.area)return false;
+  if(S.gen.size&&!e.genre.some(g=>S.gen.has(g)))return false;
+  if(S.door.size&&!S.door.has(band(e)))return false;
+  if(S.avail.size&&!S.avail.has(e.soldout?'out':'on'))return false;
+  if(S.plat.size&&!e.srcs.some(x=>S.plat.has(platformOf(x[0]))))return false;
+  return true;
+}
+const results=()=>EV.filter(ok).sort((a,b)=>a.d-b.d||(a.door||'99').localeCompare(b.door||'99'));
+const nF=()=>S.gen.size+S.door.size+S.avail.size+S.plat.size;
+const dateLabel=()=>S.from===S.to?dayName(S.from):(S.from===0&&S.to===2?'All weekend':`${DAYS[S.from][1]} – ${DAYS[S.to][1]}`);
+const locLabel=()=>S.area==='All'?CITIES.find(c=>c[0]===S.city)[1]:`New York, ${S.area}`;
+
+function renderImage(){
+  const list=results();
+  if(S.i>=list.length)S.i=0;
+  $('#slides').innerHTML=list.map((e,n)=>`<div class="slide ${n===S.i?'on':''}"><div class="tex ${e.tex}"></div></div>`).join('');
+  $('#swipeLbl').textContent=list.length?`Swipe ${dateLabel().toLowerCase()}`:'Nothing here';
+  if(!list.length){$('#caption').innerHTML=`<div class="sm">Nothing matches.</div><button class="lnk" onclick="clearAll()" style="margin-top:10px">Clear filters</button>`;return}
+  const e=list[S.i];
+  $('#caption').innerHTML=`
+    <div class="idx sm">${S.i+1} of ${list.length} · ${dayFull(e.d)}</div>
+    <div class="name">${e.head}</div>
+    <div class="gen">${genOf(e)}</div>
+    <div class="meta sm">${e.venue}${vInfo(e.venue).hood?', '+vInfo(e.venue).hood:''}${e.door?' · '+e.door:''}</div>
+    <div class="go sm">${goCount(e.id)} going${S.going.has(e.id)?' · you':''}</div>
+    <button class="lnk" onclick="openDet(${e.id})">View event</button>`;
+}
+function step(n){const l=results();if(!l.length)return;S.i=(S.i+n+l.length)%l.length;renderImage()}
+
+function renderList(){
+  const list=results();
+  $('#srcLine').innerHTML=list.length?`${list.length} events, ${dateLabel().toLowerCase()}. Pulled from Resident Advisor and Dice. Times and prices fill in as each listing is opened.`:'';
+  let out='',cur=-1;
+  list.forEach(e=>{
+    if(e.d!==cur){cur=e.d;out+=`<div class="dayhead">${dayName(e.d)} · ${dayFull(e.d)}</div>`}
+    out+=`<div class="row" role="button" tabindex="0" onclick="openDet(${e.id})" onkeydown="if(event.key==='Enter'){openDet(${e.id})}">
+      <div class="rt">${e.door||'Time on listing'}</div>
+      <div class="rn">${e.head}</div>
+      <div class="rg">${genOf(e)}</div>
+      <div class="rv">${e.venue}</div>
+      <div class="rp ${e.soldout||low(e)===null?'gone':''}">${priceLbl(e)}</div>
+      <div class="rs">${platsOf(e)}</div>
+      <div class="rgo">${goCount(e.id)} going</div>
+    </div>`;
+  });
+  $('#rows').innerHTML=list.length?out:`<div class="empty">Nothing matches. <button class="lnk" onclick="clearAll()">Clear filters</button></div>`;
+}
+
+function renderSaved(){
+  const go=EV.filter(e=>S.going.has(e.id));
+  $('#goingList').innerHTML=go.length?go.map(e=>`<button class="frow" onclick="openDet(${e.id})"><div><div class="fn">${e.head}</div><div class="fm">${dayFull(e.d)} · ${e.venue}</div></div><div class="tg">${priceLbl(e)}</div></button>`).join('')
+    :`<div class="empty">Not going to anything yet.</div>`;
+  const sv=EV.filter(e=>S.saved.has(e.id));
+  $('#savedList').innerHTML=sv.length?sv.map(e=>`<button class="frow" onclick="openDet(${e.id})"><div><div class="fn">${e.head}</div><div class="fm">${dayFull(e.d)} · ${e.venue}</div></div><div class="tg">${priceLbl(e)}</div></button>`).join(''):`<div class="empty">Nothing saved yet.</div>`;
+  $('#srcList').innerHTML=SOURCES.map(s=>`<div class="frow"><div><div class="fn">${s[0]}</div><div class="fm">${s[1]}</div></div><button class="tg" aria-pressed="${s[2]}">${s[2]?'On':'Off'}</button></div>`).join('');
+}
+
+function renderVenues(){
+  const vs=[...new Set(EV.map(e=>e.venue))].sort();
+  $('#venueList').innerHTML=vs.map(v=>{
+    const i=vInfo(v),n=EV.filter(e=>e.venue===v).length;
+    return `<button class="frow" onclick="openVenue('${esc(v)}')"><div><div class="fn">${v}</div><div class="fm">${i.hood}${i.boro?', '+i.boro:''}</div></div><div class="tg">${n} event${n===1?'':'s'}</div></button>`;
+  }).join('');
+}
+
+function openDet(eid){
+  const e=EV.find(x=>x.id===eid);
+  const p=prices(e),gap=p.length>1?Math.max(...p)-Math.min(...p):0;
+  const crowd=crowdOf(e.id),vis=visibleTo(e.id),hidden=crowd.length-vis.length,me=S.going.has(e.id);
+  let guest;
+  if(!S.signedIn){
+    guest=`<div class="prose">${goCount(e.id)} people on NOCT are going. <button class="lnk" onclick="openSign()">Sign in to see who</button></div>`;
+  }else if(S.vis==='count'){
+    guest=`<div class="prose">${goCount(e.id)} going. You are set to Count only, so you see numbers and nobody sees you.</div>
+      <div class="goline"><button class="lnk" onclick="setView('profile')">Change this in Profile</button> to see who else is going.</div>`;
+  }else{
+    guest=`<div class="crowd">${me?`<span class="me">@${S.ig||'you'}</span>`:''}${vis.slice(0,12).map(h=>`<span>@${h}</span>`).join('')}${vis.length>12?`<span class="more">+${vis.length-12} more</span>`:''}</div>
+      <div class="goline">${vis.length?`${vis.length} of ${goCount(e.id)} chose to be visible to you. `:'Nobody here has opted in to be seen by you yet. '}${hidden?`${hidden} are going quietly.`:''}</div>`;
+  }
+  $('#det').innerHTML=`
+  <div class="dhero"><div class="tex ${e.tex}"></div><button class="dx" onclick="closePage('det')" aria-label="Close">✕</button></div>
+  <div class="dbody">
+    <div class="dname">${e.head}</div>
+    <div class="dsup">${dayFull(e.d)}${e.door?` · ${e.door} to ${e.close}`:''} · ${e.venue}</div>
+    <div class="specs">
+      <div class="k">Genre</div><div>${e.genre.length
+        ?`${genOf(e)} <span style="color:var(--d2)">· ${e.gsrc}</span>`
+        :`<span style="color:var(--d2)">No genre on any source.</span> <button class="go" onclick="suggestGenre(${e.id})">Suggest one</button>`}</div>
+      <div class="k">Venue</div><div><button class="go" onclick="openVenue('${esc(e.venue)}')">${e.venue} →</button></div>
+      ${vInfo(e.venue).hood?`<div class="k">Area</div><div>${vInfo(e.venue).hood}${vInfo(e.venue).boro?', '+vInfo(e.venue).boro:''}</div>`:''}
+      ${e.age?`<div class="k">Ages</div><div>${e.age}</div>`:''}
+      ${e.interested?`<div class="k">Interested</div><div>${e.interested.toLocaleString()} on RA</div>`:''}
+    </div>
+    <div class="grp"><h3>Going on NOCT · ${goCount(e.id)}</h3>${guest}
+      <div class="foot" style="margin-top:18px"><button class="lnk" aria-pressed="${me}" onclick="toggleGoing(${e.id})">${me?"You're going":"I'm going"}</button></div>
+    </div>
+    <div class="grp"><h3>Tickets · ${e.srcs.length} way${e.srcs.length===1?'':'s'} in</h3>
+      ${e.srcs.map(s=>`<div class="tk ${e.soldout?'dead':''}"><div><div class="src">${s[0]}</div><div class="st">${s[2]}</div></div><div class="amt">${s[1]===null?'':'$'+s[1]}</div><a class="lnk" href="${e.ra||e.dice||'#'}" target="_blank" rel="noopener">${e.soldout?'Resale':'Open'}</a></div>`).join('')}
+      ${gap>0?`<div class="gapnote">Two prices for the same night, $${gap} apart. The RSVP is cheaper but does not guarantee entry.</div>`:''}
+      ${!e.full?`<div class="gapnote">Price and set times are not on the city listing page. Open the event on RA for the full record.</div>`:''}
+    </div>
+    ${e.set?`<div class="grp"><h3>Set times</h3>${e.set.map(t=>`<div class="ro"><div class="t">${t[0]}</div><div class="who">${t[1]}</div></div>`).join('')}</div>`
+      :e.lineup.length?`<div class="grp"><h3>Line-up</h3>${e.lineup.map(a=>`<div class="ro"><div class="t"></div><div class="who">${a}</div></div>`).join('')}</div>`:''}
+    ${e.note?`<div class="grp"><h3>About</h3><p class="prose">${e.note}</p></div>`:''}
+    <div class="dacts">
+      <button class="lnk" onclick="toggleSave(${e.id});openDet(${e.id})">${S.saved.has(e.id)?'Saved':'Save'}</button>
+      <a class="lnk" href="${e.ra||e.dice}" target="_blank" rel="noopener">Open on ${e.ra?'RA':'Dice'}</a>
+      <button class="lnk">Add to calendar</button>
+      <button class="lnk">Share</button>
+    </div>
+  </div>`;
+  $('#det').classList.add('open');$('#det').scrollTop=0;
+}
+
+function openVenue(v){
+  const i=vInfo(v),ev=EV.filter(e=>e.venue===v);
+  const q=i.addr?`${v} ${i.addr}`:`${v} ${i.hood} New York`;
+  const maps=`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+  const ig=i.ig?`https://www.instagram.com/${i.ig}/`:`https://www.instagram.com/explore/search/keyword/?q=${encodeURIComponent(v)}`;
+  $('#ven').innerHTML=`
+  <div class="dhero"><div class="tex ${i.tones[0]}"></div><button class="dx" onclick="closePage('ven')" aria-label="Close">✕</button></div>
+  <div class="dbody">
+    <div class="dname">${v}</div>
+    <div class="dsup">${i.addr||(i.hood?i.hood+(i.boro?', '+i.boro:''):'Address not on file')}</div>
+    ${!i.verified?`<div class="mini" style="margin-top:14px">Address and handle not yet confirmed for this venue.</div>`:''}
+    <div class="grp"><h3>Go there</h3>
+      <div class="links">
+        <a href="${maps}" target="_blank" rel="noopener">Google Maps<span>${i.addr?'Exact address':'Search'}</span></a>
+        <a href="${ig}" target="_blank" rel="noopener">Instagram<span>${i.ig?'@'+i.ig:'Search'}</span></a>
+        ${i.ra?`<a href="${i.ra}" target="_blank" rel="noopener">RA venue page<span>All dates</span></a>`:''}
+        ${i.site?`<a href="${i.site}" target="_blank" rel="noopener">Website<span>Door policy</span></a>`:''}
+      </div>
+    </div>
+    <div class="grp"><h3>Photos</h3>
+      <div class="strip">${PHOTOS.map((p,n)=>`<div class="ph"><div class="tex ${i.tones[n%i.tones.length]}"></div><div class="shade"></div><div class="cp">${p}</div></div>`).join('')}</div>
+      <div class="mini">Placeholder. Real venue photography goes here.</div>
+    </div>
+    <div class="grp"><h3>From their Instagram</h3>
+      <div class="iggrid">${IGPOSTS.map((p,n)=>`<a class="igt" href="${ig}" target="_blank" rel="noopener"><div class="tex ${i.tones[(n+1)%i.tones.length]}"></div><div class="shade"></div><div class="kind">${p[0]==='Reel'?'▶':'▣'}</div><div class="cp">${p[1]}</div></a>`).join('')}</div>
+    </div>
+    <div class="grp"><h3>This weekend here</h3>
+      ${ev.map(e=>`<div class="row" style="padding-left:0;padding-right:0" role="button" tabindex="0" onclick="openDet(${e.id})">
+        <div class="rt">${dayFull(e.d)}${e.door?' · '+e.door:''}</div>
+        <div class="rn">${e.head}</div>
+        <div class="rg">${genOf(e)}</div>
+        <div class="rv">${platsOf(e)}</div>
+        <div class="rp ${e.soldout?'gone':''}">${priceLbl(e)}</div>
+      </div>`).join('')}
+    </div>
+  </div>`;
+  $('#ven').classList.add('open');$('#ven').scrollTop=0;
+}
+function closePage(id){$('#'+id).classList.remove('open')}
+function suggestGenre(id){
+  const e=EV.find(x=>x.id===id);
+  const g=prompt(`No source tagged a genre for "${e.head}". What would you call it?`);
+  if(g&&g.trim()){e.genre=g.split(',').map(x=>x.trim()).filter(Boolean);e.gsrc='suggested by you';openDet(id);render()}
+}
+
+/* sign in, two steps */
+function openSign(){S.signStep=1;renderSign();$('#signSheet').classList.add('open');setTimeout(()=>{const el=$('#igInput');if(el)el.focus()},340)}
+function renderSign(){
+  if(S.signStep===1){
+    $('#signBody').innerHTML=`
+      <button class="sx" onclick="closeAll()" aria-label="Close">✕</button>
+      <div class="sh2">Sign in</div>
+      <p class="lede">Your Instagram handle is how people recognise each other on a guest list.</p>
+      <div class="field"><b>@</b><input id="igInput" value="${S.ig}" placeholder="yourhandle" autocomplete="off" spellcheck="false"></div>
+      <p class="note">We only read your public profile. We never post, and we never follow anyone for you.</p>
+      <div class="foot"><button class="lnk" onclick="signStep2()">Continue</button><button class="lnk" style="color:var(--d2)" onclick="closeAll()">Not now</button></div>`;
+  }else{
+    $('#signBody').innerHTML=`
+      <button class="sx" onclick="S.signStep=1;renderSign()" aria-label="Back">←</button>
+      <div class="sh2">Who can see you</div>
+      <p class="lede">This works both ways. You see the people who chose to be seen by you, and nothing more. Change it any time.</p>
+      ${VIS.map(v=>`<button class="pick" aria-pressed="${S.vis===v[0]}" onclick="S.vis='${v[0]}';renderSign()"><div class="t">${v[1]}</div><div class="d">${v[2]}</div></button>`).join('')}
+      <div class="foot"><button class="lnk" onclick="finishSign()">Done</button></div>`;
+  }
+}
+function signStep2(){const el=$('#igInput');S.ig=(el?el.value:'').trim().replace(/^@/,'');S.signStep=2;renderSign()}
+function finishSign(){S.signedIn=true;closeAll();setView('profile')}
+function saveHandle(){const el=$('#igEdit');S.ig=(el?el.value:'').trim().replace(/^@/,'');renderProfile()}
+function signOut(){S.signedIn=false;S.ig='';S.going.clear();S.vis='count';renderProfile()}
+function toggleGoing(id){if(!S.signedIn){openSign();return}S.going.has(id)?S.going.delete(id):S.going.add(id);openDet(id);render()}
+function toggleSave(id){S.saved.has(id)?S.saved.delete(id):S.saved.add(id);render()}
+
+function renderProfile(){
+  const b=$('#profileBody');
+  if(!S.signedIn){
+    b.innerHTML=`<div><div class="vtitle">Profile</div><div style="padding:0 var(--pad)">
+      <p class="lede">Sign in to mark yourself going and see who else is.</p>
+      <div class="foot" style="margin-top:0"><button class="lnk" onclick="openSign()">Sign in with Instagram</button></div>
+      <div class="grp"><h3>Without an account</h3><div class="prose">You can still browse the weekend, filter, and buy tickets. None of that is locked.</div></div></div></div>`;
+    return;
+  }
+  const cur=VIS.find(v=>v[0]===S.vis);
+  b.innerHTML=`<div><div class="vtitle">${S.ig?'@'+S.ig:'Profile'}</div><div style="padding:0 var(--pad)">
+    ${S.ig?`<p class="lede"><a href="https://instagram.com/${encodeURIComponent(S.ig)}" target="_blank" rel="noopener" style="text-decoration:underline;text-underline-offset:4px">View on Instagram</a></p>`:'<p class="lede">No handle set. Add one to appear on guest lists.</p>'}
+    <div class="grp"><h3>Instagram handle</h3>
+      <div class="field"><b>@</b><input id="igEdit" value="${S.ig}" placeholder="yourhandle" autocomplete="off" spellcheck="false"></div>
+      <div class="foot" style="margin-top:16px"><button class="lnk" onclick="saveHandle()">Save handle</button></div>
+    </div>
+    <div class="grp"><h3>Who can see you</h3>
+      ${VIS.map(v=>`<button class="pick" aria-pressed="${S.vis===v[0]}" onclick="S.vis='${v[0]}';renderProfile()"><div class="t">${v[1]}</div><div class="d">${v[2]}</div></button>`).join('')}
+      <div class="note">Right now: ${cur[2]}</div>
+    </div>
+    <div class="grp"><h3>Your weekend</h3>
+      <div class="specs">
+        <div class="k">Going</div><div>${S.going.size}</div>
+        <div class="k">Saved</div><div>${S.saved.size}</div>
+        <div class="k">City</div><div>New York</div>
+      </div>
+    </div>
+    <div class="foot"><button class="lnk" style="color:var(--d2)" onclick="signOut()">Sign out</button></div></div></div>`;
+}
+
+function opt(el,items,isOn,onPick){
+  el.innerHTML='';
+  items.forEach(it=>{
+    const val=Array.isArray(it)?it[0]:it,label=Array.isArray(it)?it[1]:it;
+    const b=document.createElement('button');b.textContent=label;
+    b.setAttribute('aria-pressed',isOn(val));
+    b.onclick=()=>{onPick(val);buildAll();render()};
+    el.appendChild(b);
+  });
+}
+function buildAll(){
+  opt($('#oCity'),CITIES.map(c=>[c[0],c[2]?c[1]:c[1]+' (soon)']),v=>S.city===v,v=>{if(CITIES.find(c=>c[0]===v)[2])S.city=v});
+  opt($('#oArea'),AREAS,v=>S.area===v,v=>S.area=v);
+  opt($('#oPreset'),PRESETS,v=>(v==='fri'&&S.from===0&&S.to===0)||(v==='sat'&&S.from===1&&S.to===1)||(v==='sun'&&S.from===2&&S.to===2)||(v==='all'&&S.from===0&&S.to===2),
+    v=>{S.i=0;if(v==='fri'){S.from=0;S.to=0}if(v==='sat'){S.from=1;S.to=1}if(v==='sun'){S.from=2;S.to=2}if(v==='all'){S.from=0;S.to=2}});
+  opt($('#fGen'),GENRES,v=>S.gen.has(v),v=>S.gen.has(v)?S.gen.delete(v):S.gen.add(v));
+  opt($('#fDoor'),DOORS,v=>S.door.has(v),v=>S.door.has(v)?S.door.delete(v):S.door.add(v));
+  opt($('#fAvail'),AVAIL,v=>S.avail.has(v),v=>S.avail.has(v)?S.avail.delete(v):S.avail.add(v));
+  opt($('#fPlat'),PLATS,v=>S.plat.has(v),v=>S.plat.has(v)?S.plat.delete(v):S.plat.add(v));
+  $('#rcal').innerHTML=`<div class="grp"><h3>Nights loaded</h3><div class="prose" style="font-size:14px">${DAYS.map((d,i)=>`${d[0]} ${d[1]} · ${EV.filter(e=>e.d===i).length} events`).join('<br>')}</div><div class="note">This build covers the current weekend only.</div></div>`;
+}
+function clearAll(){S.gen.clear();S.door.clear();S.avail.clear();S.plat.clear();S.i=0;buildAll();render()}
+function useGeo(){S.geo=!S.geo;$('#geoState').textContent=S.geo?'On':'Off';render()}
+function resetLoc(){S.city='nyc';S.area='All';S.geo=false;buildAll();render()}
+
+function renderMenu(){
+  $('#mNav').innerHTML=[['Events','Back to the feed'],['Venues',''],['Saved',''],['Profile',S.signedIn?(S.ig?'@'+S.ig:'Signed in'):'Sign in'],['Filter',nF()?`${nF()} on`:''],['Where we pull from','5 sources']]
+    .map(n=>`<button onclick="menuGo('${n[0]}')">${n[0]}<span>${n[1]}</span></button>`).join('');
+}
+function menuGo(n){closeAll();
+  if(n==='Events')setView(S.mode);
+  if(n==='Venues')setView('venues');
+  if(n==='Saved'||n==='Where we pull from')setView('saved');
+  if(n==='Profile')setView('profile');
+  if(n==='Filter')$('#filt').classList.add('open');
+}
+function closeAll(){document.querySelectorAll('.sheet').forEach(el=>el.classList.remove('open'))}
+function goBack(){setView(S.mode)}
+function goHome(){
+  closeAll();closePage('det');closePage('ven');
+  S.i=0;setView(S.mode);
+  ['listView','savedView','venuesView','profileView'].forEach(id=>{const el=$('#'+id);if(el)el.scrollTop=0});
+  $('#topscrim').classList.remove('on');
+}
+function setView(v){
+  S.view=v;if(v==='image'||v==='list')S.mode=v;
+  const secondary=(v==='saved'||v==='venues'||v==='profile');
+  $('#ctrlRow').hidden=secondary;
+  $('#backRow').hidden=!secondary;
+  $('#backLbl').textContent=S.mode==='list'?'List view':'Events';
+  $('#imageView').hidden=v!=='image';$('#listView').hidden=v!=='list';
+  $('#savedView').hidden=v!=='saved';$('#venuesView').hidden=v!=='venues';$('#profileView').hidden=v!=='profile';
+  document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mode===S.mode&&(v==='image'||v==='list')));
+  $('#topscrim').classList.remove('on');
+  $('#botscrim').classList.toggle('on',v!=='image');
+  render();
+}
+document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>setView(b.dataset.mode));
+['listView','savedView','venuesView','profileView'].forEach(id=>{
+  $('#'+id).addEventListener('scroll',e=>{$('#topscrim').classList.toggle('on',e.target.scrollTop>6)},{passive:true});
+});
+$('#btnLoc').onclick=()=>$('#locSheet').classList.add('open');
+$('#btnDate').onclick=()=>$('#dateSheet').classList.add('open');
+$('#openMenu').onclick=()=>{renderMenu();$('#menu').classList.add('open')};
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Escape')return;
+  const detOpen=$('#det').classList.contains('open'),venOpen=$('#ven').classList.contains('open');
+  const sheetOpen=[...document.querySelectorAll('.sheet')].some(el=>el.classList.contains('open'));
+  if(venOpen){closePage('ven');return}
+  if(detOpen){closePage('det');return}
+  if(sheetOpen){closeAll();return}
+  if(S.view==='saved'||S.view==='venues'||S.view==='profile')goBack();
+});
+let x0=null;
+$('#imageView').addEventListener('pointerdown',e=>x0=e.clientX);
+$('#imageView').addEventListener('pointerup',e=>{if(x0===null)return;const dx=e.clientX-x0;x0=null;if(Math.abs(dx)>40)step(dx<0?1:-1)});
+
+function render(){
+  $('#locLbl').textContent=locLabel();
+  $('#dateLbl').textContent=dateLabel();
+  if(S.view==='image')renderImage();
+  if(S.view==='list')renderList();
+  if(S.view==='saved')renderSaved();
+  if(S.view==='venues')renderVenues();
+  if(S.view==='profile')renderProfile();
+}
+buildAll();setView('image');
+</script>
+</body>
+</html>
