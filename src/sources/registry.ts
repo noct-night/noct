@@ -9,9 +9,10 @@ import { publicrecords } from './publicrecords.js';
 import { ticketmaster } from './ticketmaster.js';
 import { edmtrain } from './edmtrain.js';
 import { silo } from './silo.js';
+import { hz19 } from './hz19.js';
 
 /** Order = default run order. Priorities live on each adapter. */
-export const ADAPTERS: SourceAdapter[] = [ra, dice, elsewhere, goodroom, publicrecords, silo, ticketmaster, edmtrain];
+export const ADAPTERS: SourceAdapter[] = [ra, dice, elsewhere, goodroom, publicrecords, silo, hz19, ticketmaster, edmtrain];
 
 export function getAdapter(key: string): SourceAdapter {
   const a = ADAPTERS.find((x) => x.key === key);

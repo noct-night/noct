@@ -6,7 +6,7 @@
 import type { Env } from '../lib/env.js';
 import type { Logger } from '../lib/log.js';
 
-export type SourceKey = 'ra' | 'dice' | 'edmtrain' | 'ticketmaster' | 'elsewhere' | 'goodroom' | 'publicrecords' | 'silo';
+export type SourceKey = 'ra' | 'dice' | 'edmtrain' | 'ticketmaster' | 'elsewhere' | 'goodroom' | 'publicrecords' | 'silo' | '19hz';
 
 export type ListingStatus = 'scheduled' | 'cancelled' | 'postponed' | 'rescheduled' | 'unknown';
 
