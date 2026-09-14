@@ -1,0 +1,459 @@
+{
+  "_embedded": {
+    "events": [
+      {
+        "name": "Vela Ortiz: Night Signal Tour",
+        "type": "event",
+        "id": "vvG1HZb8Lk0Qxa",
+        "test": false,
+        "url": "https://www.ticketmaster.com/vela-ortiz-night-signal-tour-brooklyn-new-york-10-02-2026/event/3B006315A7A21C4B",
+        "locale": "en-us",
+        "images": [
+          { "ratio": "16_9", "url": "https://s1.ticketm.net/dam/a/1f3/0d2e3a1b-1f3a-4c8e-9b1e-6a3f2c8e0001_RETINA_PORTRAIT_16_9.jpg", "width": 640, "height": 360, "fallback": false },
+          { "ratio": "3_2", "url": "https://s1.ticketm.net/dam/a/1f3/0d2e3a1b-1f3a-4c8e-9b1e-6a3f2c8e0001_ARTIST_PAGE_3_2.jpg", "width": 2048, "height": 1365, "fallback": false },
+          { "ratio": "16_9", "url": "https://s1.ticketm.net/dam/a/1f3/0d2e3a1b-1f3a-4c8e-9b1e-6a3f2c8e0001_RETINA_LANDSCAPE_16_9.jpg", "width": 1136, "height": 639, "fallback": false },
+          { "ratio": "16_9", "url": "https://s1.ticketm.net/dam/a/1f3/0d2e3a1b-1f3a-4c8e-9b1e-6a3f2c8e0001_TABLET_LANDSCAPE_16_9.jpg", "width": 1024, "height": 576, "fallback": false },
+          { "ratio": "4_3", "url": "https://s1.ticketm.net/dam/a/1f3/0d2e3a1b-1f3a-4c8e-9b1e-6a3f2c8e0001_CUSTOM.jpg", "width": 305, "height": 225, "fallback": false }
+        ],
+        "sales": {
+          "public": { "startDateTime": "2026-08-14T14:00:00Z", "startTBD": false, "startTBA": false, "endDateTime": "2026-10-03T02:00:00Z" }
+        },
+        "dates": {
+          "start": { "localDate": "2026-10-02", "localTime": "22:00:00", "dateTime": "2026-10-03T02:00:00Z", "dateTBD": false, "dateTBA": false, "timeTBA": false, "noSpecificTime": false },
+          "end": { "localDate": "2026-10-03", "localTime": "04:00:00", "dateTime": "2026-10-03T08:00:00Z", "approximate": true, "noSpecificTime": false },
+          "timezone": "America/New_York",
+          "status": { "code": "onsale" },
+          "spanMultipleDays": false
+        },
+        "classifications": [
+          {
+            "primary": true,
+            "segment": { "id": "KZFzniwnSyZfZ7v7nJ", "name": "Music" },
+            "genre": { "id": "KnvZfZ7vAvF", "name": "Dance/Electronic" },
+            "subGenre": { "id": "KnvZfZ7vAvJ", "name": "House" },
+            "type": { "id": "KZAyXgnZfZ7v7nI", "name": "Undefined" },
+            "subType": { "id": "KZFzBErXgnZfZ7v7lJ", "name": "Undefined" },
+            "family": false
+          }
+        ],
+        "promoter": { "id": "494", "name": "LIVE NATION MUSIC", "description": "LIVE NATION MUSIC / NTL / USA" },
+        "promoters": [ { "id": "494", "name": "LIVE NATION MUSIC", "description": "LIVE NATION MUSIC / NTL / USA" } ],
+        "info": "Doors 10PM. 21+ with valid photo ID.",
+        "pleaseNote": "All sales final. No re-entry.",
+        "priceRanges": [
+          { "type": "standard including fees", "currency": "USD", "min": 47.35, "max": 71.85 },
+          { "type": "standard", "currency": "USD", "min": 39.5, "max": 59.5 }
+        ],
+        "seatmap": { "staticUrl": "https://mapsapi.tmol.io/maps/geometry/3/event/3B006315A7A21C4B/staticImage?type=png&systemId=HOST" },
+        "ageRestrictions": { "legalAgeEnforced": true, "id": "vvG1HZb8Lk0Qxa" },
+        "ticketing": { "safeTix": { "enabled": true }, "allInclusivePricing": { "enabled": false }, "id": "vvG1HZb8Lk0Qxa" },
+        "_links": {
+          "self": { "href": "/discovery/v2/events/vvG1HZb8Lk0Qxa?locale=en-us" },
+          "attractions": [ { "href": "/discovery/v2/attractions/K8vZ917GkX7?locale=en-us" }, { "href": "/discovery/v2/attractions/K8vZ917bQe0?locale=en-us" } ],
+          "venues": [ { "href": "/discovery/v2/venues/KovZpZAJledA?locale=en-us" } ]
+        },
+        "_embedded": {
+          "venues": [
+            {
+              "name": "Brooklyn Steel",
+              "type": "venue",
+              "id": "KovZpZAJledA",
+              "test": false,
+              "url": "https://www.ticketmaster.com/brooklyn-steel-tickets-brooklyn/venue/237760",
+              "locale": "en-us",
+              "postalCode": "11222",
+              "timezone": "America/New_York",
+              "city": { "name": "Brooklyn" },
+              "state": { "name": "New York", "stateCode": "NY" },
+              "country": { "name": "United States Of America", "countryCode": "US" },
+              "address": { "line1": "319 Frost Street" },
+              "location": { "longitude": "-73.93634", "latitude": "40.71773" },
+              "dmas": [ { "id": 345 } ],
+              "upcomingEvents": { "ticketmaster": 41, "_total": 41, "_filtered": 0 },
+              "_links": { "self": { "href": "/discovery/v2/venues/KovZpZAJledA?locale=en-us" } }
+            }
+          ],
+          "attractions": [
+            {
+              "name": "Vela Ortiz",
+              "type": "attraction",
+              "id": "K8vZ917GkX7",
+              "test": false,
+              "url": "https://www.ticketmaster.com/vela-ortiz-tickets/artist/2895330",
+              "locale": "en-us",
+              "classifications": [
+                { "primary": true, "segment": { "id": "KZFzniwnSyZfZ7v7nJ", "name": "Music" }, "genre": { "id": "KnvZfZ7vAvF", "name": "Dance/Electronic" }, "subGenre": { "id": "KnvZfZ7vAvJ", "name": "House" }, "type": { "id": "KZAyXgnZfZ7v7nI", "name": "Undefined" }, "subType": { "id": "KZFzBErXgnZfZ7v7lJ", "name": "Undefined" }, "family": false }
+              ],
+              "upcomingEvents": { "ticketmaster": 12, "_total": 12, "_filtered": 0 },
+              "_links": { "self": { "href": "/discovery/v2/attractions/K8vZ917GkX7?locale=en-us" } }
+            },
+            {
+              "name": "Dusk Protocol",
+              "type": "attraction",
+              "id": "K8vZ917bQe0",
+              "test": false,
+              "url": "https://www.ticketmaster.com/dusk-protocol-tickets/artist/3011874",
+              "locale": "en-us",
+              "classifications": [
+                { "primary": true, "segment": { "id": "KZFzniwnSyZfZ7v7nJ", "name": "Music" }, "genre": { "id": "KnvZfZ7vAvF", "name": "Dance/Electronic" }, "subGenre": { "id": "KnvZfZ7vAvJ", "name": "House" }, "type": { "id": "KZAyXgnZfZ7v7nI", "name": "Undefined" }, "subType": { "id": "KZFzBErXgnZfZ7v7lJ", "name": "Undefined" }, "family": false }
+              ],
+              "upcomingEvents": { "ticketmaster": 3, "_total": 3, "_filtered": 0 },
+              "_links": { "self": { "href": "/discovery/v2/attractions/K8vZ917bQe0?locale=en-us" } }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Marrow & Lune",
+        "type": "event",
+        "id": "Z7r9jZ1A7eKfR",
+        "test": false,
+        "url": "https://www.ticketmaster.com/marrow-lune-brooklyn-new-york-10-03-2026/event/Z7r9jZ1A7eKfR",
+        "locale": "en-us",
+        "images": [
+          { "ratio": "16_9", "url": "https://s1.ticketm.net/dam/c/fbc/a7c3a4f7-4a8e-4d8c-b0f2-7c8d5f1e0fbc_106141_RETINA_LANDSCAPE_16_9.jpg", "width": 2048, "height": 1152, "fallback": true },
+          { "ratio": "16_9", "url": "https://s1.ticketm.net/dam/a/2c9/9d1b1a6e-2c9f-4a5e-8f3b-2e0d3c7a02c9_RETINA_PORTRAIT_16_9.jpg", "width": 640, "height": 360, "fallback": false }
+        ],
+        "dates": {
+          "start": { "localDate": "2026-10-03", "localTime": "21:00:00", "dateTime": "2026-10-04T01:00:00Z", "dateTBD": false, "dateTBA": false, "timeTBA": false, "noSpecificTime": false },
+          "timezone": "America/New_York",
+          "status": { "code": "canceled" },
+          "spanMultipleDays": false
+        },
+        "classifications": [
+          {
+            "primary": true,
+            "segment": { "id": "KZFzniwnSyZfZ7v7nJ", "name": "Music" },
+            "genre": { "id": "KnvZfZ7vAvF", "name": "Dance/Electronic" },
+            "subGenre": { "id": "KnvZfZ7vAvJ", "name": "Dance/Electronic" },
+            "type": { "id": "KZAyXgnZfZ7v7nI", "name": "Undefined" },
+            "subType": { "id": "KZFzBErXgnZfZ7v7lJ", "name": "Undefined" },
+            "family": false
+          }
+        ],
+        "promoter": { "id": "494", "name": "LIVE NATION MUSIC", "description": "LIVE NATION MUSIC / NTL / USA" },
+        "priceRanges": [ { "type": "standard", "currency": "USD", "min": 45.0, "max": 45.0 } ],
+        "ageRestrictions": { "legalAgeEnforced": false, "id": "Z7r9jZ1A7eKfR" },
+        "_links": {
+          "self": { "href": "/discovery/v2/events/Z7r9jZ1A7eKfR?locale=en-us" },
+          "attractions": [ { "href": "/discovery/v2/attractions/K8vZ917oLm5?locale=en-us" } ],
+          "venues": [ { "href": "/discovery/v2/venues/KovZpZAFnIEA?locale=en-us" } ]
+        },
+        "_embedded": {
+          "venues": [
+            {
+              "name": "Brooklyn Paramount",
+              "type": "venue",
+              "id": "KovZpZAFnIEA",
+              "test": false,
+              "locale": "en-us",
+              "postalCode": "11201",
+              "timezone": "America/New_York",
+              "city": { "name": "Brooklyn" },
+              "state": { "name": "New York", "stateCode": "NY" },
+              "country": { "name": "United States Of America", "countryCode": "US" },
+              "address": { "line1": "385 Flatbush Avenue Extension" },
+              "location": { "longitude": "-73.98137", "latitude": "40.69182" },
+              "dmas": [ { "id": 345 } ],
+              "_links": { "self": { "href": "/discovery/v2/venues/KovZpZAFnIEA?locale=en-us" } }
+            }
+          ],
+          "attractions": [
+            {
+              "name": "Marrow & Lune",
+              "type": "attraction",
+              "id": "K8vZ917oLm5",
+              "test": false,
+              "locale": "en-us",
+              "classifications": [
+                { "primary": true, "segment": { "id": "KZFzniwnSyZfZ7v7nJ", "name": "Music" }, "genre": { "id": "KnvZfZ7vAvF", "name": "Dance/Electronic" }, "subGenre": { "id": "KnvZfZ7vAvJ", "name": "Dance/Electronic" }, "type": { "id": "KZAyXgnZfZ7v7nI", "name": "Undefined" }, "subType": { "id": "KZFzBErXgnZfZ7v7lJ", "name": "Undefined" }, "family": false }
+              ],
+              "_links": { "self": { "href": "/discovery/v2/attractions/K8vZ917oLm5?locale=en-us" } }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Sundown Sessions: Rooftop Day Party",
+        "type": "event",
+        "id": "vvG1HZb9pQ3Wtb",
+        "test": false,
+        "url": "https://www.ticketmaster.com/sundown-sessions-rooftop-day-party-new-york-new-york-10-10-2026/event/vvG1HZb9pQ3Wtb",
+        "locale": "en-us",
+        "images": [
+          { "ratio": "16_9", "url": "https://s1.ticketm.net/dam/a/5a7/1e2f3a4b-5a7c-4d9e-8b1f-3c4d5e6f05a7_TABLET_LANDSCAPE_16_9.jpg", "width": 1024, "height": 576, "fallback": false }
+        ],
+        "dates": {
+          "start": { "localDate": "2026-10-10", "dateTBD": false, "dateTBA": false, "timeTBA": true, "noSpecificTime": false },
+          "timezone": "America/New_York",
+          "status": { "code": "onsale" },
+          "spanMultipleDays": false
+        },
+        "classifications": [
+          {
+            "primary": true,
+            "segment": { "id": "KZFzniwnSyZfZ7v7nJ", "name": "Music" },
+            "genre": { "id": "KnvZfZ7vAvF", "name": "Dance/Electronic" },
+            "subGenre": { "id": "KnvZfZ7vAvJ", "name": "Undefined" },
+            "type": { "id": "KZAyXgnZfZ7v7nI", "name": "Undefined" },
+            "subType": { "id": "KZFzBErXgnZfZ7v7lJ", "name": "Undefined" },
+            "family": false
+          }
+        ],
+        "ageRestrictions": { "legalAgeEnforced": false, "id": "vvG1HZb9pQ3Wtb" },
+        "_links": {
+          "self": { "href": "/discovery/v2/events/vvG1HZb9pQ3Wtb?locale=en-us" },
+          "venues": [ { "href": "/discovery/v2/venues/KovZpZAEkn1A?locale=en-us" } ]
+        },
+        "_embedded": {
+          "venues": [
+            {
+              "name": "The Rooftop at Pier 17",
+              "type": "venue",
+              "id": "KovZpZAEkn1A",
+              "test": false,
+              "locale": "en-us",
+              "postalCode": "10038",
+              "timezone": "America/New_York",
+              "city": { "name": "New York" },
+              "state": { "name": "New York", "stateCode": "NY" },
+              "country": { "name": "United States Of America", "countryCode": "US" },
+              "address": { "line1": "89 South Street" },
+              "location": { "longitude": "-74.00161", "latitude": "40.70587" },
+              "dmas": [ { "id": 345 } ],
+              "_links": { "self": { "href": "/discovery/v2/venues/KovZpZAEkn1A?locale=en-us" } }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Kestrel Presents: Deep End",
+        "type": "event",
+        "id": "Z7r9jZ1AdF9kK",
+        "test": false,
+        "url": "https://www.ticketmaster.com/kestrel-presents-deep-end-brooklyn-new-york-10-10-2026/event/Z7r9jZ1AdF9kK",
+        "locale": "en-us",
+        "images": [
+          { "ratio": "16_9", "url": "https://s1.ticketm.net/dam/a/8b2/6f7a8b9c-8b2d-4e1f-9a3b-4c5d6e7f08b2_RETINA_LANDSCAPE_16_9.jpg", "width": 1136, "height": 639, "fallback": false }
+        ],
+        "dates": {
+          "start": { "localDate": "2026-10-10", "localTime": "23:00:00", "dateTime": "2026-10-11T03:00:00Z", "dateTBD": false, "dateTBA": false, "timeTBA": false, "noSpecificTime": false },
+          "timezone": "America/New_York",
+          "status": { "code": "offsale" },
+          "spanMultipleDays": false
+        },
+        "classifications": [
+          {
+            "primary": true,
+            "segment": { "id": "KZFzniwnSyZfZ7v7nJ", "name": "Music" },
+            "genre": { "id": "KnvZfZ7vAvF", "name": "Dance/Electronic" },
+            "subGenre": { "id": "KnvZfZ7vAvE", "name": "Techno" },
+            "type": { "id": "KZAyXgnZfZ7v7nI", "name": "Undefined" },
+            "subType": { "id": "KZFzBErXgnZfZ7v7lJ", "name": "Undefined" },
+            "family": false
+          }
+        ],
+        "priceRanges": [ { "type": "standard", "currency": "USD", "min": 60.0, "max": 60.0 } ],
+        "ageRestrictions": { "legalAgeEnforced": false, "ageRuleDescription": "18 & over", "id": "Z7r9jZ1AdF9kK" },
+        "_links": {
+          "self": { "href": "/discovery/v2/events/Z7r9jZ1AdF9kK?locale=en-us" },
+          "attractions": [ { "href": "/discovery/v2/attractions/K8vZ917pXq2?locale=en-us" } ],
+          "venues": [ { "href": "/discovery/v2/venues/KovZpZAJ6ntA?locale=en-us" } ]
+        },
+        "_embedded": {
+          "venues": [
+            {
+              "name": "The Great Hall at Avant Gardner",
+              "type": "venue",
+              "id": "KovZpZAJ6ntA",
+              "test": false,
+              "locale": "en-us",
+              "postalCode": "11237",
+              "timezone": "America/New_York",
+              "city": { "name": "Brooklyn" },
+              "state": { "name": "New York", "stateCode": "NY" },
+              "country": { "name": "United States Of America", "countryCode": "US" },
+              "address": { "line1": "140 Stewart Avenue" },
+              "location": { "longitude": "-73.92371", "latitude": "40.71133" },
+              "dmas": [ { "id": 345 } ],
+              "_links": { "self": { "href": "/discovery/v2/venues/KovZpZAJ6ntA?locale=en-us" } }
+            }
+          ],
+          "attractions": [
+            {
+              "name": "Kestrel",
+              "type": "attraction",
+              "id": "K8vZ917pXq2",
+              "test": false,
+              "locale": "en-us",
+              "classifications": [
+                { "primary": true, "segment": { "id": "KZFzniwnSyZfZ7v7nJ", "name": "Music" }, "genre": { "id": "KnvZfZ7vAvF", "name": "Dance/Electronic" }, "subGenre": { "id": "KnvZfZ7vAvE", "name": "Techno" }, "type": { "id": "KZAyXgnZfZ7v7nI", "name": "Undefined" }, "subType": { "id": "KZFzBErXgnZfZ7v7lJ", "name": "Undefined" }, "family": false }
+              ],
+              "_links": { "self": { "href": "/discovery/v2/attractions/K8vZ917pXq2?locale=en-us" } }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Bassline Overdrive",
+        "type": "event",
+        "id": "vvG1HZb2mN8Rcc",
+        "test": false,
+        "url": "https://www.ticketmaster.com/bassline-overdrive-sayreville-new-jersey-10-11-2026/event/vvG1HZb2mN8Rcc",
+        "locale": "en-us",
+        "images": [
+          { "ratio": "3_2", "url": "https://s1.ticketm.net/dam/a/9c3/7a8b9c0d-9c3e-4f2a-8b4c-5d6e7f8a09c3_TABLET_LANDSCAPE_3_2.jpg", "width": 1024, "height": 683, "fallback": false }
+        ],
+        "dates": {
+          "start": { "localDate": "2026-10-11", "localTime": "20:00:00", "dateTime": "2026-10-12T00:00:00Z", "dateTBD": false, "dateTBA": false, "timeTBA": false, "noSpecificTime": false },
+          "timezone": "America/New_York",
+          "status": { "code": "postponed" },
+          "spanMultipleDays": false
+        },
+        "classifications": [
+          {
+            "primary": true,
+            "segment": { "id": "KZFzniwnSyZfZ7v7nJ", "name": "Music" },
+            "genre": { "id": "KnvZfZ7vAvF", "name": "Dance/Electronic" },
+            "subGenre": { "id": "KnvZfZ7vAvJ", "name": "Dance/Electronic" },
+            "type": { "id": "KZAyXgnZfZ7v7nI", "name": "Undefined" },
+            "subType": { "id": "KZFzBErXgnZfZ7v7lJ", "name": "Undefined" },
+            "family": false
+          }
+        ],
+        "priceRanges": [ { "type": "standard", "currency": "USD", "min": 29.5, "max": 49.5 } ],
+        "ageRestrictions": { "legalAgeEnforced": false, "id": "vvG1HZb2mN8Rcc" },
+        "_links": {
+          "self": { "href": "/discovery/v2/events/vvG1HZb2mN8Rcc?locale=en-us" },
+          "venues": [ { "href": "/discovery/v2/venues/KovZpZAEdvtA?locale=en-us" } ]
+        },
+        "_embedded": {
+          "venues": [
+            {
+              "name": "Starland Ballroom",
+              "type": "venue",
+              "id": "KovZpZAEdvtA",
+              "test": false,
+              "locale": "en-us",
+              "postalCode": "08872",
+              "timezone": "America/New_York",
+              "city": { "name": "Sayreville" },
+              "state": { "name": "New Jersey", "stateCode": "NJ" },
+              "country": { "name": "United States Of America", "countryCode": "US" },
+              "address": { "line1": "570 Jernee Mill Road" },
+              "location": { "longitude": "-74.35031", "latitude": "40.45253" },
+              "dmas": [ { "id": 345 } ],
+              "_links": { "self": { "href": "/discovery/v2/venues/KovZpZAEdvtA?locale=en-us" } }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Neon Cascade",
+        "type": "event",
+        "id": "Z7r9jZ1AvW4mD",
+        "test": false,
+        "url": "https://www.ticketmaster.com/neon-cascade-uncasville-connecticut-10-13-2026/event/Z7r9jZ1AvW4mD",
+        "locale": "en-us",
+        "dates": {
+          "start": { "localDate": "2026-10-13", "localTime": "20:00:00", "dateTime": "2026-10-14T00:00:00Z", "dateTBD": false, "dateTBA": false, "timeTBA": false, "noSpecificTime": false },
+          "timezone": "America/New_York",
+          "status": { "code": "onsale" },
+          "spanMultipleDays": false
+        },
+        "classifications": [
+          {
+            "primary": true,
+            "segment": { "id": "KZFzniwnSyZfZ7v7nJ", "name": "Music" },
+            "genre": { "id": "KnvZfZ7vAvF", "name": "Dance/Electronic" },
+            "subGenre": { "id": "KnvZfZ7vAvJ", "name": "Dance/Electronic" },
+            "type": { "id": "KZAyXgnZfZ7v7nI", "name": "Undefined" },
+            "subType": { "id": "KZFzBErXgnZfZ7v7lJ", "name": "Undefined" },
+            "family": false
+          }
+        ],
+        "priceRanges": [ { "type": "standard", "currency": "USD", "min": 55.0, "max": 125.0 } ],
+        "_links": {
+          "self": { "href": "/discovery/v2/events/Z7r9jZ1AvW4mD?locale=en-us" },
+          "venues": [ { "href": "/discovery/v2/venues/KovZpZA7AAEA?locale=en-us" } ]
+        },
+        "_embedded": {
+          "venues": [
+            {
+              "name": "Mohegan Sun Arena",
+              "type": "venue",
+              "id": "KovZpZA7AAEA",
+              "test": false,
+              "locale": "en-us",
+              "postalCode": "06382",
+              "timezone": "America/New_York",
+              "city": { "name": "Uncasville" },
+              "state": { "name": "Connecticut", "stateCode": "CT" },
+              "country": { "name": "United States Of America", "countryCode": "US" },
+              "address": { "line1": "1 Mohegan Sun Boulevard" },
+              "location": { "longitude": "-72.09114", "latitude": "41.49141" },
+              "dmas": [ { "id": 345 } ],
+              "_links": { "self": { "href": "/discovery/v2/venues/KovZpZA7AAEA?locale=en-us" } }
+            }
+          ]
+        }
+      },
+      {
+        "name": "Autumn Dance Gala",
+        "type": "event",
+        "id": "vvG1HZb4sT6Vdd",
+        "test": false,
+        "url": "https://www.ticketmaster.com/autumn-dance-gala-brooklyn-new-york-10-14-2026/event/vvG1HZb4sT6Vdd",
+        "locale": "en-us",
+        "dates": {
+          "start": { "localDate": "2026-10-14", "localTime": "19:30:00", "dateTime": "2026-10-14T23:30:00Z", "dateTBD": false, "dateTBA": false, "timeTBA": false, "noSpecificTime": false },
+          "timezone": "America/New_York",
+          "status": { "code": "onsale" },
+          "spanMultipleDays": false
+        },
+        "classifications": [
+          {
+            "primary": true,
+            "segment": { "id": "KZFzniwnSyZfZ7v7na", "name": "Arts & Theatre" },
+            "genre": { "id": "KnvZfZ7v7nI", "name": "Dance" },
+            "subGenre": { "id": "KZazBEonSMnZfZ7v6dt", "name": "Ballet" },
+            "type": { "id": "KZAyXgnZfZ7v7nI", "name": "Undefined" },
+            "subType": { "id": "KZFzBErXgnZfZ7v7lJ", "name": "Undefined" },
+            "family": true
+          }
+        ],
+        "priceRanges": [ { "type": "standard", "currency": "USD", "min": 40.0, "max": 150.0 } ],
+        "_links": {
+          "self": { "href": "/discovery/v2/events/vvG1HZb4sT6Vdd?locale=en-us" },
+          "venues": [ { "href": "/discovery/v2/venues/KovZpZAJtFaA?locale=en-us" } ]
+        },
+        "_embedded": {
+          "venues": [
+            {
+              "name": "Kings Theatre",
+              "type": "venue",
+              "id": "KovZpZAJtFaA",
+              "test": false,
+              "locale": "en-us",
+              "postalCode": "11226",
+              "timezone": "America/New_York",
+              "city": { "name": "Brooklyn" },
+              "state": { "name": "New York", "stateCode": "NY" },
+              "country": { "name": "United States Of America", "countryCode": "US" },
+              "address": { "line1": "1027 Flatbush Avenue" },
+              "location": { "longitude": "-73.95943", "latitude": "40.64593" },
+              "dmas": [ { "id": 345 } ],
+              "_links": { "self": { "href": "/discovery/v2/venues/KovZpZAJtFaA?locale=en-us" } }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "_links": {
+    "first": { "href": "/discovery/v2/events.json?dmaId=345&classificationName=Dance%2FElectronic&startDateTime=2026-10-01T10:00:00Z&endDateTime=2026-10-16T09:59:59Z&size=200&sort=date%2Casc&page=0" },
+    "self": { "href": "/discovery/v2/events.json?dmaId=345&classificationName=Dance%2FElectronic&startDateTime=2026-10-01T10:00:00Z&endDateTime=2026-10-16T09:59:59Z&size=200&sort=date%2Casc&page=0" },
+    "last": { "href": "/discovery/v2/events.json?dmaId=345&classificationName=Dance%2FElectronic&startDateTime=2026-10-01T10:00:00Z&endDateTime=2026-10-16T09:59:59Z&size=200&sort=date%2Casc&page=0" }
+  },
+  "page": { "size": 200, "totalElements": 7, "totalPages": 1, "number": 0 }
+}

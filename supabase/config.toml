@@ -1,0 +1,5 @@
+# Supabase CLI config for NOCT. `supabase link --project-ref <ref>` fills project_id.
+project_id = ""
+
+[db]
+major_version = 17

@@ -1,0 +1,33 @@
+{
+  "data": [
+    {
+      "id": 50839,
+      "link": "https://edmtrain.com/new-york/ill-gates-kj-sawka-50839",
+      "name": null,
+      "ages": "All Ages",
+      "festivalInd": false,
+      "livestreamInd": false,
+      "electronicGenreInd": true,
+      "otherGenreInd": false,
+      "date": "2017-01-14",
+      "startTime": null,
+      "endTime": null,
+      "createdDate": "2016-12-08T18:39:58Z",
+      "venue": {
+        "id": 543,
+        "name": "Westcott Theater",
+        "location": "Syracuse, NY",
+        "address": "524 Westcott St, Syracuse, NY 13210, USA",
+        "state": "New York",
+        "country": "United States",
+        "latitude": 43.041,
+        "longitude": -76.12
+      },
+      "artistList": [
+        { "id": 660, "name": "ill.Gates", "link": "https://edmtrain.com/tours/ill-gates-660", "b2bInd": false },
+        { "id": 367, "name": "KJ Sawka", "link": "https://edmtrain.com/tours/kj-sawka-367", "b2bInd": false }
+      ]
+    }
+  ],
+  "success": true
+}

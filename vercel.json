@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/ingest/*.ts": { "maxDuration": 300 },
+    "api/enrich.ts": { "maxDuration": 300 },
+    "api/feed.ts": { "maxDuration": 30 }
+  },
+  "crons": [
+    { "path": "/api/ingest/all", "schedule": "17 9 * * *" },
+    { "path": "/api/enrich", "schedule": "47 9 * * *" }
+  ],
+  "headers": [
+    { "source": "/api/feed", "headers": [ { "key": "Access-Control-Allow-Origin", "value": "*" } ] }
+  ]
+}

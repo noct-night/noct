@@ -1,0 +1,1600 @@
+{
+ "data": [
+  {
+   "spotify_tracks": [],
+   "announcement_date": "2026-04-02T14:00:00Z",
+   "is_multi_days_event": true,
+   "ticket_types": [
+    {
+     "id": 1241638,
+     "name": "Season Pass",
+     "price": {
+      "total": 26368,
+      "fees": 1368,
+      "face_value": 25000
+     },
+     "sold_out": false
+    }
+   ],
+   "images": [
+    "https://dice-media.imgix.net/attachments/2026-04-15/8ddf9e11-bbd8-477b-8293-2fd0101420ca.jpg"
+   ],
+   "url": "https://link.dice.fm/V19c5d7b8a4e",
+   "type": "event",
+   "cities": [
+    {
+     "code": "NY",
+     "country_alpha3": "USA",
+     "country_name": "United States of America",
+     "id": "5bbf4db0f06331478e9b2c59",
+     "name": "New York"
+    }
+   ],
+   "destination_event_perm_name": null,
+   "checksum": "A772C5E99AA70ABF142606FA3187273D",
+   "sold_out": false,
+   "bundles": [
+    {
+     "id": 4226,
+     "name": "CLUB at PR",
+     "description": null,
+     "image": "https://dice-media.imgix.net/attachments/2026-02-26/ca8a514d-4928-4dcf-b756-8723bbf6abca.jpg?rect=0%2C0%2C900%2C900"
+    },
+    {
+     "id": 7500,
+     "name": "The Nursery 2026",
+     "description": null,
+     "image": "https://dice-media.imgix.net/attachments/2026-04-15/13ee7012-31cf-49f4-a9c9-01118cf1c930.jpg?rect=0%2C0%2C1080%2C1080"
+    }
+   ],
+   "timezone": "America/New_York",
+   "address": "233 Butler St, Brooklyn, NY 11217, USA",
+   "promoters": [
+    {
+     "id": 2719,
+     "name": "Speakmans Gowanus LLC dba Public Records"
+    }
+   ],
+   "sale_start_date": "2026-04-02T14:00:00Z",
+   "name": "The Nursery 2026 Season Pass",
+   "int_id": 577787,
+   "all_ttys_code_locked": false,
+   "event_images": {
+    "brand": null,
+    "landscape": "https://dice-media.imgix.net/attachments/2026-04-15/8ddf9e11-bbd8-477b-8293-2fd0101420ca.jpg?rect=0%2C216%2C1080%2C648",
+    "portrait": "https://dice-media.imgix.net/attachments/2026-04-15/8ddf9e11-bbd8-477b-8293-2fd0101420ca.jpg?rect=243%2C0%2C594%2C1080",
+    "square": "https://dice-media.imgix.net/attachments/2026-04-15/8ddf9e11-bbd8-477b-8293-2fd0101420ca.jpg?rect=0%2C0%2C1080%2C1080"
+   },
+   "date": "2026-05-02T16:00:00Z",
+   "age_limit": "This is a 21+ event.",
+   "featured": false,
+   "tags": [],
+   "presented_by": "Presented by Public Records.",
+   "external_url": null,
+   "destination_event_id": null,
+   "apple_music_tracks": [],
+   "venue": "Public Records",
+   "description": "Public Records is proud to enter Season 4 of The Nursery, our open-air plant nursery x event space, built to bring people \\[+ plants\\] together.\n\nThe Nursery Season Pass will offer you \\[+1 guest\\] access to The Nursery's 2026 season from May 2 through October 11: live shows, club programming and community events.\n\nWith a number of heavy-hitters already in the books — Chloé Caillet, DJ Sprinkles, Floorplan, Frank & Tony, Gerd Janson, Grace Sands, HAAi, Leon Vynehall, Louie Vega & Anané, Moxie, Roman Flügel, Sofia Kourtesis, Soul Summit — we can't wait to share what this season has in store.\n\nPresented by Public Records.\n\nThis is a 21+ event.",
+   "linkout_type": null,
+   "genre_tags": [
+    "dj:techno",
+    "dj:house"
+   ],
+   "raw_description": "Public Records is proud to enter Season 4 of The Nursery, our open-air plant nursery x event space, built to bring people \\[+ plants\\] together.\n\nThe Nursery Season Pass will offer you \\[+1 guest\\] access to The Nursery's 2026 season from May 2 through October 11: live shows, club programming and community events.\n\nWith a number of heavy-hitters already in the books — Chloé Caillet, DJ Sprinkles, Floorplan, Frank & Tony, Gerd Janson, Grace Sands, HAAi, Leon Vynehall, Louie Vega & Anané, Moxie, Roman Flügel, Sofia Kourtesis, Soul Summit — we can't wait to share what this season has in store.",
+   "date_end": "2026-10-12T02:00:00Z",
+   "lineup": [
+    {
+     "details": "Doors open",
+     "time": "12:00 PM"
+    }
+   ],
+   "price": null,
+   "show_price_breakdown": false,
+   "artists": [],
+   "currency": "USD",
+   "id": "69cd376f50e4770001a00232",
+   "location": {
+    "state": "New York",
+    "zip": "11217",
+    "country": "United States",
+    "city": "New York",
+    "region": "Kings County",
+    "lat": 40.68226050000001,
+    "lng": -73.9863775,
+    "street": "233 Butler Street",
+    "place": "America/New_York",
+    "accuracy": 0
+   },
+   "type_tags": [
+    "music:dj"
+   ],
+   "sale_end_date": "2026-08-17T00:00:00Z",
+   "flags": [
+    "qr-code",
+    "cooling-off-period",
+    "going_ahead"
+   ],
+   "venues": [
+    {
+     "city": {
+      "code": "NY",
+      "country_alpha3": "USA",
+      "country_name": "United States of America",
+      "id": "5bbf4db0f06331478e9b2c59",
+      "name": "New York"
+     },
+     "id": 2435,
+     "name": "Public Records",
+     "url": "https://dice.fm/venue/public-records-w2qg"
+    }
+   ],
+   "detailed_artists": [],
+   "status": "off-sale",
+   "links": [],
+   "perm_name": "the-nursery-2026-season-pass-2nd-may-public-records-new-york-tickets",
+   "hash": "mx792r"
+  },
+  {
+   "spotify_tracks": [],
+   "announcement_date": "2026-08-27T16:00:00Z",
+   "is_multi_days_event": false,
+   "ticket_types": [
+    {
+     "id": 1381599,
+     "name": "General Admission",
+     "price": {
+      "total": 2999,
+      "fees": 501,
+      "face_value": 2498
+     },
+     "sold_out": false
+    },
+    {
+     "id": 1381600,
+     "name": "General Admission 3 Pack",
+     "price": {
+      "total": 1799,
+      "fees": 301,
+      "face_value": 1498
+     },
+     "sold_out": false
+    },
+    {
+     "id": 1381598,
+     "name": "VIP General Admission",
+     "price": {
+      "total": 9000,
+      "fees": 1501,
+      "face_value": 7499
+     },
+     "sold_out": false
+    },
+    {
+     "id": 1381601,
+     "name": "General Admission Enter Before 4pm",
+     "price": {
+      "total": 1999,
+      "fees": 334,
+      "face_value": 1665
+     },
+     "sold_out": false
+    }
+   ],
+   "images": [
+    "https://dice-media.imgix.net/attachments/2026-08-27/bf13762f-414d-46f8-8b14-10dad88db448.jpg"
+   ],
+   "url": "https://link.dice.fm/ea07f74d4135",
+   "type": "event",
+   "cities": [
+    {
+     "code": "NY",
+     "country_alpha3": "USA",
+     "country_name": "United States of America",
+     "id": "5bbf4db0f06331478e9b2c59",
+     "name": "New York"
+    }
+   ],
+   "destination_event_perm_name": null,
+   "checksum": "DED09ECBCC602DE0407895E2D3158FC3",
+   "sold_out": false,
+   "bundles": [],
+   "timezone": "America/New_York",
+   "address": "8-08 Queens Plaza South, Queens, New York 11101, United States",
+   "promoters": [
+    {
+     "id": 14345,
+     "name": "Good Pal Ravel Corp dba Good Pal Ravel - Catering & The Summer Club"
+    }
+   ],
+   "sale_start_date": "2026-08-27T16:00:00Z",
+   "name": "Alec Monopoly at the NYSC Summer Club Event",
+   "int_id": 637633,
+   "all_ttys_code_locked": false,
+   "event_images": {
+    "brand": null,
+    "landscape": "https://dice-media.imgix.net/attachments/2026-08-27/bf13762f-414d-46f8-8b14-10dad88db448.jpg?rect=0%2C216%2C1080%2C648",
+    "portrait": "https://dice-media.imgix.net/attachments/2026-08-27/bf13762f-414d-46f8-8b14-10dad88db448.jpg?rect=243%2C0%2C594%2C1080",
+    "square": "https://dice-media.imgix.net/attachments/2026-08-27/bf13762f-414d-46f8-8b14-10dad88db448.jpg?rect=0%2C0%2C1080%2C1080"
+   },
+   "date": "2026-09-13T16:00:00Z",
+   "age_limit": "This is a 21+ event",
+   "featured": false,
+   "tags": [],
+   "presented_by": "The Summer Club",
+   "external_url": null,
+   "destination_event_id": null,
+   "apple_music_tracks": [],
+   "venue": "Summer Club",
+   "description": "Please join us as we celebrate the season closing party. It features a runway show from the New York Swim Collective with the hottest names in swimwear fashion. To top that off, we have Alec Monopoly performing while he paints one of his masterpieces. What a way to wrap up fashion week and a wonderful 2026 Summer Club season!\n\nThe Summer Club\n\nThis is a 21+ event",
+   "linkout_type": null,
+   "genre_tags": [
+    "dj:afrohouse",
+    "dj:deephouse",
+    "dj:house",
+    "dj:tech-house"
+   ],
+   "raw_description": "Please join us as we celebrate the season closing party. It features a runway show from the New York Swim Collective with the hottest names in swimwear fashion. To top that off, we have Alec Monopoly performing while he paints one of his masterpieces. What a way to wrap up fashion week and a wonderful 2026 Summer Club season!",
+   "date_end": "2026-09-14T03:00:00Z",
+   "lineup": [
+    {
+     "details": "Doors open",
+     "time": "12:00 PM"
+    }
+   ],
+   "price": null,
+   "show_price_breakdown": false,
+   "artists": [],
+   "currency": "USD",
+   "id": "6a90674452ac7200018e1b8b",
+   "location": {
+    "state": "New York",
+    "zip": "11101",
+    "country": "United States",
+    "city": "New York City",
+    "region": "Queens",
+    "lat": 40.75402,
+    "lng": -73.9493,
+    "street": "8-08 Queens Plaza South",
+    "place": "America/New_York",
+    "accuracy": 0
+   },
+   "type_tags": [
+    "music:dj"
+   ],
+   "sale_end_date": "2026-09-14T00:00:00Z",
+   "flags": [
+    "qr-code",
+    "cooling-off-period",
+    "going_ahead"
+   ],
+   "venues": [
+    {
+     "city": {
+      "code": "NY",
+      "country_alpha3": "USA",
+      "country_name": "United States of America",
+      "id": "5bbf4db0f06331478e9b2c59",
+      "name": "New York"
+     },
+     "id": 9740,
+     "name": "Summer Club",
+     "url": "https://dice.fm/venue/summer-club-yadx"
+    }
+   ],
+   "detailed_artists": [],
+   "status": "on-sale",
+   "links": [],
+   "perm_name": "alec-monopoly-at-the-nysc-summer-club-event-13th-sep-summer-club-new-york-city-tickets",
+   "hash": "py3moy"
+  },
+  {
+   "spotify_tracks": [],
+   "announcement_date": "2026-02-21T05:00:00Z",
+   "is_multi_days_event": false,
+   "ticket_types": [
+    {
+     "id": 1212911,
+     "name": "General Admission",
+     "price": {
+      "total": 5665,
+      "fees": 665,
+      "face_value": 5000
+     },
+     "sold_out": false
+    },
+    {
+     "id": 1212910,
+     "name": "Indoor Lounge (after 10PM)",
+     "price": {
+      "total": 2833,
+      "fees": 333,
+      "face_value": 2500
+     },
+     "sold_out": false
+    }
+   ],
+   "images": [
+    "https://dice-media.imgix.net/attachments/2026-08-24/3e9a1d40-3fc5-4aab-adfe-a8d923c5e267.jpg"
+   ],
+   "url": "https://link.dice.fm/D3759de36a44",
+   "type": "event",
+   "cities": [
+    {
+     "code": "NY",
+     "country_alpha3": "USA",
+     "country_name": "United States of America",
+     "id": "5bbf4db0f06331478e9b2c59",
+     "name": "New York"
+    }
+   ],
+   "destination_event_perm_name": null,
+   "checksum": "DD20F3D17A9A02A48C82BAF625D492FF",
+   "sold_out": false,
+   "bundles": [
+    {
+     "id": 7428,
+     "name": "SOL At 1 Hotel ",
+     "description": "SOL AT THE 1 HOTEL IS THE QUINTESSENTIAL ROOFTOP SERIES THIS SUMMER, LOCATED AT THE  GLOBALLY RECOGNIZED 1 HOTEL BROOKLYN BRIDGE. \n\nDELVE INTO AN UNPARALLELED ROOFTOP EXPERIENCE AT SOL, WHERE EXQUISITE COCKTAILS, AWE-INSPIRING VIEWS OF THE NYC SKYLINE, AND CAPTIVATING MUSIC MERGE FOR AN UNMATCHED SUNDAY. \n\nSERIES STARTS IN MAY AND ENDS OCTOBER.",
+     "image": null
+    }
+   ],
+   "timezone": "America/New_York",
+   "address": "60 Furman Street, Brooklyn, New York 11201, United States",
+   "promoters": [
+    {
+     "id": 136222,
+     "name": "Zaki Abdelrahman dba Nine & Up Group LLC"
+    }
+   ],
+   "sale_start_date": "2026-02-21T05:00:00Z",
+   "name": "SOL: September 13th w/ Kanykei",
+   "int_id": 566102,
+   "all_ttys_code_locked": false,
+   "event_images": {
+    "brand": null,
+    "landscape": "https://dice-media.imgix.net/attachments/2026-08-24/3e9a1d40-3fc5-4aab-adfe-a8d923c5e267.jpg?rect=0%2C216%2C1080%2C648",
+    "portrait": "https://dice-media.imgix.net/attachments/2026-08-24/3e9a1d40-3fc5-4aab-adfe-a8d923c5e267.jpg?rect=243%2C0%2C594%2C1080",
+    "square": "https://dice-media.imgix.net/attachments/2026-08-24/3e9a1d40-3fc5-4aab-adfe-a8d923c5e267.jpg?rect=0%2C0%2C1080%2C1080"
+   },
+   "date": "2026-09-13T18:00:00Z",
+   "age_limit": "This is an 21+ event",
+   "featured": false,
+   "tags": [],
+   "presented_by": "Presented by NINE & UP GROUP.",
+   "external_url": null,
+   "destination_event_id": null,
+   "apple_music_tracks": [],
+   "venue": "1 Hotel Brooklyn Bridge",
+   "description": "The Summer Experience Returns\n\nSOL AT 1 HOTEL BROOKLYN BRIDGE, - NYC'summer experience.\n\nSounds By: Kanykei\n\nFollow our journey on Instagram @soltogether and stay connected at www.soltogether.world\n\nOpen rain or shine - In case of inclement weather, we have an indoor venue with identical panoramic views to keep the energy alive.\n\nTable service available - elevate your experience with access to NYCs most desirable pools (Limited only to hotel guests & VIP clients)\n\nFor any further infromation , feel free to text us at 3472601950\n\nTickets are non-refundable.\n\n21+ event\n\nNo ticket No entry\n\nSecure your spot now\n\nEach Sunday, we create space for connection, movement, and elevated vibes with breathtaking views of the Manhattan skyline, the Statue of Liberty, and the Brooklyn Bridge — easily one of the most stunning backdrops in New York City.\n\nPriority entry and reserved space during peak hours Tables are limited — reserve early to lock in your spot.\n\nTo inquire about a table, text or call \\[Insert Contact Info or Link to Table Reservations\\].\n\nDress Code:\n\nSol is a style-forward space.\n\nWe encourage expressive, fashion-forward, and rooftop-ready looks:\n\nThink tasteful streetwear, sunset colors, sleek neutrals, linen, silk, or bold statements.\n\nNo gym wear, slides, flip-flops, or oversized basics.\n\n🚨 Important Info:\n\nTicket tiers are time-sensitive. Read your tier details before purchasing.\n\nOnce sold out, no tickets will be limited at the door.\n\nPresented by NINE & UP GROUP.\n\nThis is an 21+ event",
+   "linkout_type": null,
+   "genre_tags": [
+    "dj:electronic",
+    "dj:afrohouse",
+    "dj:deephouse",
+    "dj:minimal",
+    "dj:disco",
+    "dj:dj",
+    "dj:indie",
+    "dj:tech-house",
+    "dj:melodictechno",
+    "dj:dance"
+   ],
+   "raw_description": "The Summer Experience Returns\n\nSOL AT 1 HOTEL BROOKLYN BRIDGE, - NYC'summer experience.\n\nSounds By: Kanykei\n\nFollow our journey on Instagram @soltogether and stay connected at www.soltogether.world\n\nOpen rain or shine - In case of inclement weather, we have an indoor venue with identical panoramic views to keep the energy alive.\n\nTable service available - elevate your experience with access to NYCs most desirable pools (Limited only to hotel guests & VIP clients)\n\nFor any further infromation , feel free to text us at 3472601950\n\nTickets are non-refundable.\n\n21+ event\n\nNo ticket No entry\n\nSecure your spot now\n\nEach Sunday, we create space for connection, movement, and elevated vibes with breathtaking views of the Manhattan skyline, the Statue of Liberty, and the Brooklyn Bridge — easily one of the most stunning backdrops in New York City.\n\nPriority entry and reserved space during peak hours Tables are limited — reserve early to lock in your spot.\n\nTo inquire about a table, text or call \\[Insert Contact Info or Link to Table Reservations\\].\n\nDress Code:\n\nSol is a style-forward space.\n\nWe encourage expressive, fashion-forward, and rooftop-ready looks:\n\nThink tasteful streetwear, sunset colors, sleek neutrals, linen, silk, or bold statements.\n\nNo gym wear, slides, flip-flops, or oversized basics.\n\n🚨 Important Info:\n\nTicket tiers are time-sensitive. Read your tier details before purchasing.\n\nOnce sold out, no tickets will be limited at the door.",
+   "date_end": "2026-09-14T07:00:00Z",
+   "lineup": [
+    {
+     "details": "Doors open",
+     "time": "2:00 PM"
+    },
+    {
+     "details": "Indoor Lounge ",
+     "time": "10:00 PM"
+    },
+    {
+     "details": "Kanykei",
+     "time": ""
+    }
+   ],
+   "price": null,
+   "show_price_breakdown": false,
+   "artists": [
+    "Kanykei"
+   ],
+   "currency": "USD",
+   "id": "69a76445f86c4d000123f44f",
+   "location": {
+    "state": "New York",
+    "zip": "11201",
+    "country": "United States",
+    "city": "New York City",
+    "region": "Kings County",
+    "lat": 40.70232,
+    "lng": -73.995534,
+    "street": "60 Furman Street",
+    "place": "America/New_York",
+    "accuracy": 0
+   },
+   "type_tags": [
+    "music:dj"
+   ],
+   "sale_end_date": "2026-09-14T05:00:00Z",
+   "flags": [
+    "qr-code",
+    "going_ahead"
+   ],
+   "venues": [
+    {
+     "city": {
+      "code": "NY",
+      "country_alpha3": "USA",
+      "country_name": "United States of America",
+      "id": "5bbf4db0f06331478e9b2c59",
+      "name": "New York"
+     },
+     "id": 12409,
+     "name": "1 Hotel Brooklyn Bridge",
+     "url": "https://dice.fm/venue/1-hotel-brooklyn-bridge-pwpy"
+    },
+    {
+     "city": {
+      "code": "NY",
+      "country_alpha3": "USA",
+      "country_name": "United States of America",
+      "id": "5bbf4db0f06331478e9b2c59",
+      "name": "New York"
+     },
+     "id": 12444,
+     "name": "Harriet's Lounge - 1 Hotel",
+     "url": "https://dice.fm/venue/harriets-lounge---1-hotel-dda6"
+    }
+   ],
+   "detailed_artists": [
+    {
+     "headliner": false,
+     "id": 86274,
+     "name": "Kanykei",
+     "url": "https://dice.fm/artist/kanykei-bkpoo"
+    }
+   ],
+   "status": "on-sale",
+   "links": [],
+   "perm_name": "sol-september-13th-w-kanykei-13th-sep-1-hotel-brooklyn-bridge-new-york-city-harriets-lounge-1-hotel-new-york-city-tickets",
+   "hash": "bb8g7x"
+  },
+  {
+   "spotify_tracks": [],
+   "announcement_date": "2026-05-11T04:00:00Z",
+   "is_multi_days_event": false,
+   "ticket_types": [
+    {
+     "id": 1396522,
+     "name": "FINAL TIER",
+     "price": {
+      "total": 7500,
+      "fees": 1029,
+      "face_value": 6471
+     },
+     "sold_out": false
+    }
+   ],
+   "images": [
+    "https://dice-media.imgix.net/attachments/2026-08-17/90316085-d07c-4a73-93b9-3397ad9c3415.jpg"
+   ],
+   "url": "https://link.dice.fm/Kbc899c922c6",
+   "type": "event",
+   "cities": [
+    {
+     "code": "NY",
+     "country_alpha3": "USA",
+     "country_name": "United States of America",
+     "id": "5bbf4db0f06331478e9b2c59",
+     "name": "New York"
+    }
+   ],
+   "destination_event_perm_name": null,
+   "checksum": "3299C3442DF15280C862BE18299AACE9",
+   "sold_out": false,
+   "bundles": [],
+   "timezone": "America/New_York",
+   "address": "96 Wythe Avenue, Brooklyn, New York 11249, United States",
+   "promoters": [
+    {
+     "id": 136310,
+     "name": "Azure Entertainment Group LLC"
+    }
+   ],
+   "sale_start_date": "2026-05-11T04:00:00Z",
+   "name": "Azure Day Party  September 13th",
+   "int_id": 633789,
+   "all_ttys_code_locked": false,
+   "event_images": {
+    "brand": null,
+    "landscape": "https://dice-media.imgix.net/attachments/2026-08-17/90316085-d07c-4a73-93b9-3397ad9c3415.jpg?rect=0%2C251%2C1254%2C752",
+    "portrait": "https://dice-media.imgix.net/attachments/2026-08-17/90316085-d07c-4a73-93b9-3397ad9c3415.jpg?rect=282%2C0%2C690%2C1254",
+    "square": "https://dice-media.imgix.net/attachments/2026-08-17/90316085-d07c-4a73-93b9-3397ad9c3415.jpg?rect=0%2C0%2C1254%2C1254"
+   },
+   "date": "2026-09-13T19:00:00Z",
+   "age_limit": "This is a 21+ event",
+   "featured": false,
+   "tags": [],
+   "presented_by": "Presented by Azure Day Party.",
+   "external_url": null,
+   "destination_event_id": null,
+   "apple_music_tracks": [],
+   "venue": "Rooftop at Arlo Williamsburg ",
+   "description": "**AZURE DAY PARTY. HEAVEN ON EARTH —EACH & EVERY SUNDAY. ARLO WILLIAMSBURG 96 WYTHE AVENUE BROOKLYN NEW YORK.**\n\nAzure Day Party is New York City’s premier rooftop house music experience. A weekly daytime escape bringing together global tastemakers, the local nightlife elite, and a curated lineup of world-class house music DJs. Expect high-energy crowds, panoramic skyline views, and an elevated open-air party atmosphere built for NYC summers.\n\n21+ ONLY\n\nRAIN OR SHINE\n\nALL SALES FINAL | NO REFUNDS OR EXCHANGES.\n\nQuestions or table inquiries:\n\nhello@azurepresents.com\n\n917-923-0629\n\nThis is a LIVE MUSIC EVENT. This event features live musical arts performance by a House Music/EDM DJ.\n\nPresented by Azure Day Party.\n\nThis is a 21+ event",
+   "linkout_type": null,
+   "genre_tags": [
+    "party:house",
+    "party:tech-house",
+    "party:afro_house"
+   ],
+   "raw_description": "**AZURE DAY PARTY. HEAVEN ON EARTH —EACH & EVERY SUNDAY. ARLO WILLIAMSBURG 96 WYTHE AVENUE BROOKLYN NEW YORK.**\n\nAzure Day Party is New York City’s premier rooftop house music experience. A weekly daytime escape bringing together global tastemakers, the local nightlife elite, and a curated lineup of world-class house music DJs. Expect high-energy crowds, panoramic skyline views, and an elevated open-air party atmosphere built for NYC summers.\n\n21+ ONLY\n\nRAIN OR SHINE\n\nALL SALES FINAL | NO REFUNDS OR EXCHANGES.\n\nQuestions or table inquiries:\n\nhello@azurepresents.com\n\n917-923-0629\n\nThis is a LIVE MUSIC EVENT. This event features live musical arts performance by a House Music/EDM DJ.",
+   "date_end": "2026-09-14T02:00:00Z",
+   "lineup": [
+    {
+     "details": "Doors open",
+     "time": "3:00 PM"
+    },
+    {
+     "details": "Event ends",
+     "time": "10:00 PM"
+    }
+   ],
+   "price": null,
+   "show_price_breakdown": false,
+   "artists": [],
+   "currency": "USD",
+   "id": "6a8355dfb48dec0001b1c929",
+   "location": {
+    "state": "New York",
+    "zip": "11249",
+    "country": "United States",
+    "city": "New York City",
+    "region": "Kings County",
+    "lat": 40.721534,
+    "lng": -73.95877,
+    "street": "96 Wythe Avenue",
+    "place": "America/New_York",
+    "accuracy": 0
+   },
+   "type_tags": [
+    "music:party"
+   ],
+   "sale_end_date": "2026-09-14T02:00:00Z",
+   "flags": [
+    "qr-code",
+    "going_ahead"
+   ],
+   "venues": [
+    {
+     "city": {
+      "code": "NY",
+      "country_alpha3": "USA",
+      "country_name": "United States of America",
+      "id": "5bbf4db0f06331478e9b2c59",
+      "name": "New York"
+     },
+     "id": 12732,
+     "name": "Rooftop at Arlo Williamsburg ",
+     "url": "https://dice.fm/venue/rooftop-at-arlo-williamsburg-nxy8"
+    }
+   ],
+   "detailed_artists": [],
+   "status": "on-sale",
+   "links": [],
+   "perm_name": "azure-day-party-september-13th-13th-sep-rooftop-at-arlo-williamsburg-new-york-city-tickets",
+   "hash": "xe3yx3"
+  },
+  {
+   "spotify_tracks": [],
+   "announcement_date": "2026-07-29T16:00:00Z",
+   "is_multi_days_event": false,
+   "ticket_types": [
+    {
+     "id": 1355943,
+     "name": "General Admission",
+     "price": {
+      "total": 1916,
+      "fees": 416,
+      "face_value": 1500
+     },
+     "sold_out": false
+    }
+   ],
+   "images": [
+    "https://dice-media.imgix.net/attachments/2026-09-09/144047ac-e5f2-4e5f-b5fb-ccbf54434b2c.jpg"
+   ],
+   "url": "https://link.dice.fm/J40dd7747eba",
+   "type": "event",
+   "cities": [
+    {
+     "code": "NY",
+     "country_alpha3": "USA",
+     "country_name": "United States of America",
+     "id": "5bbf4db0f06331478e9b2c59",
+     "name": "New York"
+    }
+   ],
+   "destination_event_perm_name": null,
+   "checksum": "E7368E259208FE76D11A7FD699172D00",
+   "sold_out": false,
+   "bundles": [],
+   "timezone": "America/New_York",
+   "address": "621 W 46th St, New York, NY 10036, USA",
+   "promoters": [
+    {
+     "id": 14127,
+     "name": "Arthiom Dos Reis Furtado dba Furtado Global"
+    }
+   ],
+   "sale_start_date": "2026-07-29T16:00:00Z",
+   "name": "NU2U Radio ft. DJ Ayane, Arty Furtado, Dada Cozmic and Lei",
+   "int_id": 627070,
+   "all_ttys_code_locked": false,
+   "event_images": {
+    "brand": null,
+    "landscape": "https://dice-media.imgix.net/attachments/2026-09-09/144047ac-e5f2-4e5f-b5fb-ccbf54434b2c.jpg?rect=0%2C270%2C1350%2C810",
+    "portrait": "https://dice-media.imgix.net/attachments/2026-09-09/144047ac-e5f2-4e5f-b5fb-ccbf54434b2c.jpg?rect=304%2C0%2C743%2C1350",
+    "square": "https://dice-media.imgix.net/attachments/2026-09-09/144047ac-e5f2-4e5f-b5fb-ccbf54434b2c.jpg?rect=0%2C0%2C1350%2C1350"
+   },
+   "date": "2026-09-13T19:00:00Z",
+   "age_limit": "This is an 21+ event",
+   "featured": false,
+   "tags": [],
+   "presented_by": "Presented by Furtado Global.",
+   "external_url": null,
+   "destination_event_id": null,
+   "apple_music_tracks": [
+    {
+     "title": "Toño Rosario - Kiliki Taka Ti",
+     "open_url": "https://music.apple.com/us/album/kiliki-taka-ti/124994967?i=124994530&uo=4&at=1001ld8Z&ct=app_event",
+     "preview_url": "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/36/fa/6e/36fa6e9e-e283-d22c-17ad-8f60ea130de4/mzaf_477999031956647372.plus.aac.p.m4a"
+    }
+   ],
+   "venue": "Harbor NYC",
+   "description": "NU2U Radio is back with another event!\n\nThis is a space curated for global sounds you won't typically hear. This will be an afternoon of music exploration. NU2U Radio curates sounds that challenge and expand your musical horizons. We hunt for tracks that speak to you. Shazams are encouraged.\n\nAfrobeats, amapiano, dancehall, reggaeton, latino, and everything in between!\n\n**Catch a glimpse of the vibes to expect**: https://www.youtube.com/watch?v=1YJ4zl9zbDk\n\n**Lineup**: DJ Ayane, Arty Furtado, Dada Cozmic, and Lei\n\n**Dress Code**: Nature Greens Theme ➡️ Wear Greens and Neutral Colors 🌱\n\n**Filming Notice**\n\n*Your entry and presence on the event premises constitutes your consent to be photographed, filmed, and/or otherwise recorded and to the release, publication, exhibition, or reproduction of any and all recorded media of your appearance for any purpose whatsoever in perpetuity in connection with Club 1BD and its initiatives, including, by way of example only, use on websites, in social media, and advertising.*\n\nPresented by Furtado Global.\n\nThis is an 21+ event",
+   "linkout_type": null,
+   "genre_tags": [
+    "dj:house",
+    "dj:afro_caribbean",
+    "dj:amapiano",
+    "dj:lgbtq+",
+    "dj:world",
+    "dj:kuduro",
+    "dj:dj",
+    "dj:bollywood",
+    "dj:afrobeat",
+    "dj:dancehall",
+    "dj:soca",
+    "dj:rnb",
+    "dj:hiphop",
+    "dj:jersey_club",
+    "dj:dance"
+   ],
+   "raw_description": "NU2U Radio is back with another event!\n\nThis is a space curated for global sounds you won't typically hear. This will be an afternoon of music exploration. NU2U Radio curates sounds that challenge and expand your musical horizons. We hunt for tracks that speak to you. Shazams are encouraged.\n\nAfrobeats, amapiano, dancehall, reggaeton, latino, and everything in between!\n\n**Catch a glimpse of the vibes to expect**: https://www.youtube.com/watch?v=1YJ4zl9zbDk\n\n**Lineup**: DJ Ayane, Arty Furtado, Dada Cozmic, and Lei\n\n**Dress Code**: Nature Greens Theme ➡️ Wear Greens and Neutral Colors 🌱\n\n**Filming Notice**\n\n*Your entry and presence on the event premises constitutes your consent to be photographed, filmed, and/or otherwise recorded and to the release, publication, exhibition, or reproduction of any and all recorded media of your appearance for any purpose whatsoever in perpetuity in connection with Club 1BD and its initiatives, including, by way of example only, use on websites, in social media, and advertising.*",
+   "date_end": "2026-09-14T00:00:00Z",
+   "lineup": [
+    {
+     "details": "Doors open",
+     "time": "3:00 PM"
+    },
+    {
+     "details": "NU2U Radio",
+     "time": ""
+    },
+    {
+     "details": "Arty Furtado",
+     "time": ""
+    },
+    {
+     "details": "DJ AYANE",
+     "time": ""
+    },
+    {
+     "details": "Lei",
+     "time": ""
+    },
+    {
+     "details": "Dada Cozmic",
+     "time": ""
+    }
+   ],
+   "price": null,
+   "show_price_breakdown": false,
+   "artists": [
+    "NU2U Radio",
+    "Arty Furtado",
+    "Lei",
+    "Dada Cozmic",
+    "DJ AYANE"
+   ],
+   "currency": "USD",
+   "id": "6a6a205a8e846a0001d809ce",
+   "location": {
+    "state": "New York",
+    "zip": "10036",
+    "country": "United States",
+    "city": "New York",
+    "region": "New York County",
+    "lat": 40.7640706,
+    "lng": -73.99755689999999,
+    "street": "621 West 46th Street",
+    "place": "America/New_York",
+    "accuracy": 0
+   },
+   "type_tags": [
+    "music:dj"
+   ],
+   "sale_end_date": "2026-09-14T00:00:00Z",
+   "flags": [
+    "qr-code",
+    "cooling-off-period",
+    "code-locked",
+    "going_ahead"
+   ],
+   "venues": [
+    {
+     "city": {
+      "code": "NY",
+      "country_alpha3": "USA",
+      "country_name": "United States of America",
+      "id": "5bbf4db0f06331478e9b2c59",
+      "name": "New York"
+     },
+     "id": 5436,
+     "name": "Harbor NYC",
+     "url": "https://dice.fm/venue/harbor-nyc-qgba"
+    }
+   ],
+   "detailed_artists": [
+    {
+     "headliner": true,
+     "id": 136013,
+     "name": "NU2U Radio",
+     "url": "https://dice.fm/artist/nu2u-radio-r58mv"
+    },
+    {
+     "headliner": false,
+     "id": 100311,
+     "name": "Arty Furtado",
+     "url": "https://dice.fm/artist/arty-furtado-wxavr"
+    },
+    {
+     "headliner": false,
+     "id": 135993,
+     "name": "Lei",
+     "url": "https://dice.fm/artist/lei-e2xk2"
+    },
+    {
+     "headliner": false,
+     "id": 70169,
+     "name": "Dada Cozmic",
+     "url": "https://dice.fm/artist/dada-cozmic-edo8y"
+    },
+    {
+     "headliner": false,
+     "id": 144354,
+     "name": "DJ AYANE",
+     "url": "https://dice.fm/artist/dj-ayane-5yy8l"
+    }
+   ],
+   "status": "on-sale",
+   "links": [],
+   "perm_name": "nu2u-radio-ft-dj-ayane-arty-furtado-dada-cozmic-and-lei-13th-sep-harbor-nyc-new-york-tickets",
+   "hash": "v3xrql"
+  },
+  {
+   "spotify_tracks": [],
+   "announcement_date": "2026-04-15T14:00:00Z",
+   "is_multi_days_event": false,
+   "ticket_types": [
+    {
+     "id": 1237279,
+     "name": "General Admission",
+     "price": {
+      "total": 4223,
+      "fees": 723,
+      "face_value": 3500
+     },
+     "sold_out": false
+    },
+    {
+     "id": 1285100,
+     "name": "Entry Before 4 PM",
+     "price": {
+      "total": 2369,
+      "fees": 869,
+      "face_value": 1500
+     },
+     "sold_out": true
+    }
+   ],
+   "images": [
+    "https://dice-media.imgix.net/attachments/2026-08-05/72fe5a39-4090-457a-924e-c88fa286c169.jpg"
+   ],
+   "url": "https://link.dice.fm/je60ea57a47d",
+   "type": "event",
+   "cities": [
+    {
+     "code": "NY",
+     "country_alpha3": "USA",
+     "country_name": "United States of America",
+     "id": "5bbf4db0f06331478e9b2c59",
+     "name": "New York"
+    }
+   ],
+   "destination_event_perm_name": null,
+   "checksum": "3B659E22BBDF4980DB9AF64396DC7E46",
+   "sold_out": false,
+   "bundles": [
+    {
+     "id": 3994,
+     "name": "New York City Nightlife",
+     "description": null,
+     "image": null
+    },
+    {
+     "id": 4226,
+     "name": "CLUB at PR",
+     "description": null,
+     "image": "https://dice-media.imgix.net/attachments/2026-02-26/ca8a514d-4928-4dcf-b756-8723bbf6abca.jpg?rect=0%2C0%2C900%2C900"
+    },
+    {
+     "id": 6729,
+     "name": "September 2026",
+     "description": null,
+     "image": "https://dice-media.imgix.net/attachments/2026-08-07/a27a1633-a192-4895-9e49-83bb7f004744.jpg?rect=0%2C0%2C1080%2C1080"
+    },
+    {
+     "id": 7500,
+     "name": "The Nursery 2026",
+     "description": null,
+     "image": "https://dice-media.imgix.net/attachments/2026-04-15/13ee7012-31cf-49f4-a9c9-01118cf1c930.jpg?rect=0%2C0%2C1080%2C1080"
+    },
+    {
+     "id": 7989,
+     "name": "Home by midnight",
+     "description": "The best day parties in NYC, all in one place. Discover upcoming rooftop sessions, open-air dance floors, and daytime celebrations happening across the city.",
+     "image": "https://dice-media.imgix.net/attachments/2026-06-30/34043ba6-9047-42a6-a64f-ff55bce59672.jpg?rect=0%2C0%2C3940%2C3940"
+    }
+   ],
+   "timezone": "America/New_York",
+   "address": "233 Butler St, Brooklyn, NY 11217, USA",
+   "promoters": [
+    {
+     "id": 2719,
+     "name": "Speakmans Gowanus LLC dba Public Records"
+    }
+   ],
+   "sale_start_date": "2026-04-15T14:00:00Z",
+   "name": "The Nursery: Benji B, Nabihah Iqbal [DJ]",
+   "int_id": 575744,
+   "all_ttys_code_locked": false,
+   "event_images": {
+    "brand": null,
+    "landscape": "https://dice-media.imgix.net/attachments/2026-08-05/72fe5a39-4090-457a-924e-c88fa286c169.jpg?rect=0%2C216%2C1080%2C648",
+    "portrait": "https://dice-media.imgix.net/attachments/2026-08-05/72fe5a39-4090-457a-924e-c88fa286c169.jpg?rect=243%2C0%2C594%2C1080",
+    "square": "https://dice-media.imgix.net/attachments/2026-08-05/72fe5a39-4090-457a-924e-c88fa286c169.jpg?rect=0%2C0%2C1080%2C1080"
+   },
+   "date": "2026-09-13T19:00:00Z",
+   "age_limit": "This is a 21+ event.",
+   "featured": false,
+   "tags": [
+    "genre:electronic",
+    "genre:dance",
+    "genre:house",
+    "genre:hiphop"
+   ],
+   "presented_by": "Presented by Public Records.",
+   "external_url": null,
+   "destination_event_id": null,
+   "apple_music_tracks": [],
+   "venue": "Public Records",
+   "description": "Public Records aims to provide a safer space. We reject all forms of discrimination, including racism, misogyny, transphobia, homophobia, sexism, and other aggressive behavior. Consent is paramount. Please exist with respect for yourself and those around you. Anyone found in violation of our rules or safer space policy will be removed from the venue.\n\nTo share feedback about an incident, please email hello@publicrecords.nyc or alert a member of our team.\n\nTickets may be available at the door based on capacity. A ticket does not guarantee entry; Public Records reserves the right to deny entry to guests that appear intoxicated or do not meet the dress code. All large bags and coats must be checked. Doors close one hour before end time.\n\nPresented by Public Records.\n\nThis is a 21+ event.",
+   "linkout_type": null,
+   "genre_tags": [
+    "dj:deephouse",
+    "dj:electronic",
+    "dj:house"
+   ],
+   "raw_description": "Public Records aims to provide a safer space. We reject all forms of discrimination, including racism, misogyny, transphobia, homophobia, sexism, and other aggressive behavior. Consent is paramount. Please exist with respect for yourself and those around you. Anyone found in violation of our rules or safer space policy will be removed from the venue.\n\nTo share feedback about an incident, please email hello@publicrecords.nyc or alert a member of our team.\n\nTickets may be available at the door based on capacity. A ticket does not guarantee entry; Public Records reserves the right to deny entry to guests that appear intoxicated or do not meet the dress code. All large bags and coats must be checked. Doors close one hour before end time.",
+   "date_end": "2026-09-14T01:00:00Z",
+   "lineup": [
+    {
+     "details": "Doors open",
+     "time": "3:00 PM"
+    }
+   ],
+   "price": null,
+   "show_price_breakdown": false,
+   "artists": [
+    "Benji B",
+    "Nabihah Iqbal (DJ Set)"
+   ],
+   "currency": "USD",
+   "id": "69deb5178c2bd4000153d783",
+   "location": {
+    "state": "New York",
+    "zip": "11217",
+    "country": "United States",
+    "city": "New York",
+    "region": "Kings County",
+    "lat": 40.68226050000001,
+    "lng": -73.9863775,
+    "street": "233 Butler Street",
+    "place": "America/New_York",
+    "accuracy": 0
+   },
+   "type_tags": [
+    "music:dj"
+   ],
+   "sale_end_date": "2026-09-13T23:00:00Z",
+   "flags": [
+    "qr-code",
+    "cooling-off-period",
+    "going_ahead"
+   ],
+   "venues": [
+    {
+     "city": {
+      "code": "NY",
+      "country_alpha3": "USA",
+      "country_name": "United States of America",
+      "id": "5bbf4db0f06331478e9b2c59",
+      "name": "New York"
+     },
+     "id": 2435,
+     "name": "Public Records",
+     "url": "https://dice.fm/venue/public-records-w2qg"
+    }
+   ],
+   "detailed_artists": [
+    {
+     "headliner": false,
+     "id": 506,
+     "name": "Benji B",
+     "url": "https://dice.fm/artist/benji-b-j5mw"
+    },
+    {
+     "headliner": false,
+     "id": 22637,
+     "name": "Nabihah Iqbal (DJ Set)",
+     "url": "https://dice.fm/artist/nabihah-iqbal-dj-set-rynxv"
+    }
+   ],
+   "status": "on-sale",
+   "links": [],
+   "perm_name": "the-nursery-benji-b-nabihah-iqbal-dj-13th-sep-public-records-new-york-tickets",
+   "hash": "dkm38e"
+  },
+  {
+   "spotify_tracks": [
+    {
+     "title": "Rich Medina, Sy Smith, Platinum Pied Pipers - Can't Hold Back (Platinum Pied Pipers Remix)",
+     "open_url": "https://open.spotify.com/track/3I3L2I5lU2wFLiR1FTcLyI",
+     "preview_url": "https://p.scdn.co/mp3-preview/dc56ecf1f63f0d678137aa72605f8bbb5f65fb34?cid=921526b9c2da4b7b96e197790a02347e"
+    }
+   ],
+   "announcement_date": "2026-09-01T20:45:00Z",
+   "is_multi_days_event": false,
+   "ticket_types": [
+    {
+     "id": 1386568,
+     "name": "Free w/ RSVP",
+     "price": {
+      "total": 0,
+      "fees": 0,
+      "face_value": 0
+     },
+     "sold_out": true
+    }
+   ],
+   "images": [
+    "https://dice-media.imgix.net/attachments/2026-09-01/461a86e7-106d-434d-bea1-fc0e6481a57e.jpg"
+   ],
+   "url": "https://link.dice.fm/hb915647a1ef",
+   "type": "event",
+   "cities": [
+    {
+     "code": "NY",
+     "country_alpha3": "USA",
+     "country_name": "United States of America",
+     "id": "5bbf4db0f06331478e9b2c59",
+     "name": "New York"
+    }
+   ],
+   "destination_event_perm_name": null,
+   "checksum": "99C6F9B0E9E5B4D6C0633CE0D933C93A",
+   "sold_out": true,
+   "bundles": [
+    {
+     "id": 3026,
+     "name": "NYC DJ Sets (Hip-Hop, R&B, Afrobeats)",
+     "description": null,
+     "image": "https://dice-media.imgix.net/attachments/2025-09-02/0025f721-5426-4aec-ab2d-c911532c541b.jpg?rect=0%2C0%2C2000%2C2000"
+    }
+   ],
+   "timezone": "America/New_York",
+   "address": "314 Scholes Street, Brooklyn, New York 11206, United States",
+   "promoters": [
+    {
+     "id": 2400,
+     "name": "MeanRed Productions"
+    }
+   ],
+   "sale_start_date": "2026-09-01T20:45:00Z",
+   "name": "The Originals: Rich Medina, Stretch Armstrong, Tony Touch",
+   "int_id": 639598,
+   "all_ttys_code_locked": false,
+   "event_images": {
+    "brand": null,
+    "landscape": "https://dice-media.imgix.net/attachments/2026-09-01/461a86e7-106d-434d-bea1-fc0e6481a57e.jpg?rect=0%2C280%2C1400%2C840",
+    "portrait": "https://dice-media.imgix.net/attachments/2026-09-01/461a86e7-106d-434d-bea1-fc0e6481a57e.jpg?rect=315%2C0%2C770%2C1400",
+    "square": "https://dice-media.imgix.net/attachments/2026-09-01/461a86e7-106d-434d-bea1-fc0e6481a57e.jpg?rect=0%2C0%2C1400%2C1400"
+   },
+   "date": "2026-09-13T20:00:00Z",
+   "age_limit": "This is a 21+ event",
+   "featured": false,
+   "tags": [
+    "genre:electronic",
+    "genre:dance",
+    "genre:rap",
+    "genre:electro"
+   ],
+   "presented_by": "Presented by MeanRed.",
+   "external_url": null,
+   "destination_event_id": null,
+   "apple_music_tracks": [],
+   "venue": "314 Scholes Street",
+   "description": "THE ORIGINALS TAKE OVER 314 SCHOLES - Free with RSVP\n\nHeavyweights Rich Medina, Stretch Armstrong, and Tony Touch bring six hours of non-stop heat, pure dance floor culture, and deep cuts to the outdoor courtyard.  \n  \nDM @builtbymeanred for more information\n\nPresented by MeanRed.\n\nThis is a 21+ event",
+   "linkout_type": null,
+   "genre_tags": [
+    "dj:house",
+    "dj:hiphop"
+   ],
+   "raw_description": "THE ORIGINALS TAKE OVER 314 SCHOLES - Free with RSVP\n\nHeavyweights Rich Medina, Stretch Armstrong, and Tony Touch bring six hours of non-stop heat, pure dance floor culture, and deep cuts to the outdoor courtyard.  \n  \nDM @builtbymeanred for more information",
+   "date_end": "2026-09-14T02:00:00Z",
+   "lineup": [
+    {
+     "details": "Doors open",
+     "time": "4:00 PM"
+    },
+    {
+     "details": "Rich Medina",
+     "time": ""
+    },
+    {
+     "details": "Stretch Armstrong",
+     "time": ""
+    },
+    {
+     "details": "Tony Touch",
+     "time": ""
+    }
+   ],
+   "price": null,
+   "show_price_breakdown": false,
+   "artists": [
+    "Rich Medina",
+    "Stretch Armstrong",
+    "Tony Touch"
+   ],
+   "currency": "USD",
+   "id": "6a9735fa1edebd000148f70f",
+   "location": {
+    "state": "New York",
+    "zip": "11206",
+    "country": "United States",
+    "city": "New York City",
+    "region": "Kings County",
+    "lat": 40.709363,
+    "lng": -73.935397,
+    "street": "314 Scholes Street",
+    "place": "America/New_York",
+    "accuracy": 0
+   },
+   "type_tags": [
+    "music:dj"
+   ],
+   "sale_end_date": "2026-09-14T02:00:00Z",
+   "flags": [
+    "qr-code",
+    "cooling-off-period",
+    "going_ahead"
+   ],
+   "venues": [
+    {
+     "city": {
+      "code": "NY",
+      "country_alpha3": "USA",
+      "country_name": "United States of America",
+      "id": "5bbf4db0f06331478e9b2c59",
+      "name": "New York"
+     },
+     "id": 13255,
+     "name": "314 Scholes Street"
+    }
+   ],
+   "detailed_artists": [
+    {
+     "headliner": true,
+     "id": 12655,
+     "name": "Rich Medina",
+     "url": "https://dice.fm/artist/rich-medina-7x9v"
+    },
+    {
+     "headliner": true,
+     "id": 91007,
+     "name": "Stretch Armstrong",
+     "url": "https://dice.fm/artist/stretch-armstrong-7ne99"
+    },
+    {
+     "headliner": true,
+     "id": 16751,
+     "name": "Tony Touch",
+     "url": "https://dice.fm/artist/tony-touch-l8y8p"
+    }
+   ],
+   "status": "on-sale",
+   "links": [],
+   "perm_name": "the-originals-rich-medina-stretch-armstrong-tony-touch-13th-sep-314-scholes-street-new-york-city-tickets",
+   "hash": "bbgkdg"
+  },
+  {
+   "spotify_tracks": [],
+   "announcement_date": "2026-09-11T04:00:00Z",
+   "is_multi_days_event": false,
+   "ticket_types": [
+    {
+     "id": 1397294,
+     "name": "RSVP",
+     "price": {
+      "total": 0,
+      "fees": 0,
+      "face_value": 0
+     },
+     "sold_out": false
+    }
+   ],
+   "images": [
+    "https://dice-media.imgix.net/attachments/2026-09-11/dcceec1a-0022-4540-ac17-7395fb9f5c19.jpg"
+   ],
+   "url": "https://link.dice.fm/k986b556423e",
+   "type": "event",
+   "cities": [
+    {
+     "code": "NY",
+     "country_alpha3": "USA",
+     "country_name": "United States of America",
+     "id": "5bbf4db0f06331478e9b2c59",
+     "name": "New York"
+    }
+   ],
+   "destination_event_perm_name": null,
+   "checksum": "A318C41A188160E35486969714710016",
+   "sold_out": false,
+   "bundles": [],
+   "timezone": "America/New_York",
+   "address": "215 Chrystie Street, New York City, New York 10002, United States",
+   "promoters": [
+    {
+     "id": 14570,
+     "name": "AKMB Projects Inc, LLC c/o Adam Metwally"
+    }
+   ],
+   "sale_start_date": "2026-09-11T04:00:00Z",
+   "name": "Metwally x Public Rooftop | Summer Closing Sunset Party",
+   "int_id": 643985,
+   "all_ttys_code_locked": false,
+   "event_images": {
+    "brand": null,
+    "landscape": "https://dice-media.imgix.net/attachments/2026-09-11/dcceec1a-0022-4540-ac17-7395fb9f5c19.jpg?rect=0%2C636%2C1080%2C648",
+    "portrait": "https://dice-media.imgix.net/attachments/2026-09-11/dcceec1a-0022-4540-ac17-7395fb9f5c19.jpg?rect=12%2C0%2C1056%2C1920",
+    "square": "https://dice-media.imgix.net/attachments/2026-09-11/dcceec1a-0022-4540-ac17-7395fb9f5c19.jpg?rect=0%2C520%2C1080%2C1080"
+   },
+   "date": "2026-09-13T21:00:00Z",
+   "age_limit": "This is an 21+ event",
+   "featured": false,
+   "tags": [],
+   "presented_by": "Housematic & Secret Garden",
+   "external_url": null,
+   "destination_event_id": null,
+   "apple_music_tracks": [],
+   "venue": "Public Hotel Rooftop",
+   "description": "I'm spinning this Sunday at PUBLIC Rooftop with some absolute legends from 5pm → 7pm.\n\nThink top tier house music and an INSANE view / sunset.\n\nFree entry via RSVP.\n\nCU there x\n\n\\- Metwally\n\nHousematic & Secret Garden\n\nThis is an 21+ event",
+   "linkout_type": null,
+   "genre_tags": [
+    "party:afro_house",
+    "party:tech-house",
+    "party:house",
+    "party:disco"
+   ],
+   "raw_description": "I'm spinning this Sunday at PUBLIC Rooftop with some absolute legends from 5pm → 7pm.\n\nThink top tier house music and an INSANE view / sunset.\n\nFree entry via RSVP.\n\nCU there x\n\n\\- Metwally",
+   "date_end": "2026-09-14T03:00:00Z",
+   "lineup": [
+    {
+     "details": "Doors open",
+     "time": "5:00 PM"
+    }
+   ],
+   "price": null,
+   "show_price_breakdown": false,
+   "artists": [],
+   "currency": "USD",
+   "id": "6aa42cd23f5ec50001fd8e19",
+   "location": {
+    "state": "New York",
+    "zip": "10002",
+    "country": "United States",
+    "city": "New York City",
+    "region": "New York County",
+    "lat": 40.722953,
+    "lng": -73.991855,
+    "street": "215 Chrystie Street",
+    "place": "America/New_York",
+    "accuracy": 0
+   },
+   "type_tags": [
+    "music:party"
+   ],
+   "sale_end_date": "2026-09-13T21:00:00Z",
+   "flags": [
+    "qr-code",
+    "cooling-off-period",
+    "going_ahead"
+   ],
+   "venues": [
+    {
+     "city": {
+      "code": "NY",
+      "country_alpha3": "USA",
+      "country_name": "United States of America",
+      "id": "5bbf4db0f06331478e9b2c59",
+      "name": "New York"
+     },
+     "id": 16225,
+     "name": "Public Hotel Rooftop"
+    }
+   ],
+   "detailed_artists": [],
+   "status": "off-sale",
+   "links": [],
+   "perm_name": "metwally-x-public-rooftop-summer-closing-sunset-party-13th-sep-public-hotel-rooftop-new-york-city-tickets",
+   "hash": "ryoa2q"
+  },
+  {
+   "spotify_tracks": [],
+   "announcement_date": "2026-04-13T04:00:00Z",
+   "is_multi_days_event": false,
+   "ticket_types": [
+    {
+     "id": 1364468,
+     "name": "Early Bird Admission",
+     "price": {
+      "total": 3628,
+      "fees": 1128,
+      "face_value": 2500
+     },
+     "sold_out": false
+    },
+    {
+     "id": 1364466,
+     "name": "Couple Admission",
+     "price": {
+      "total": 4780,
+      "fees": 1180,
+      "face_value": 3600
+     },
+     "sold_out": false
+    },
+    {
+     "id": 1364469,
+     "name": "VIP Admission ",
+     "price": {
+      "total": 6947,
+      "fees": 1947,
+      "face_value": 5000
+     },
+     "sold_out": false
+    },
+    {
+     "id": 1364464,
+     "name": "Table for up to 6 guests | $1500 (10% Deposit)",
+     "price": {
+      "total": 19397,
+      "fees": 4397,
+      "face_value": 15000
+     },
+     "sold_out": false
+    },
+    {
+     "id": 1364465,
+     "name": "Table for up to 10 guests | $2000 (10% Deposit)",
+     "price": {
+      "total": 25519,
+      "fees": 5519,
+      "face_value": 20000
+     },
+     "sold_out": false
+    },
+    {
+     "id": 1364467,
+     "name": "Table for up to 15 guests | $2500 (10% deposit)",
+     "price": {
+      "total": 31641,
+      "fees": 6641,
+      "face_value": 25000
+     },
+     "sold_out": false
+    }
+   ],
+   "images": [
+    "https://dice-media.imgix.net/attachments/2026-09-08/0996f6a6-ca26-4746-a619-46865a87fa3d.jpg"
+   ],
+   "url": "https://link.dice.fm/T0abc914fcc6",
+   "type": "event",
+   "cities": [
+    {
+     "code": "NY",
+     "country_alpha3": "USA",
+     "country_name": "United States of America",
+     "id": "5bbf4db0f06331478e9b2c59",
+     "name": "New York"
+    }
+   ],
+   "destination_event_perm_name": null,
+   "checksum": "790BEA049013146483A8068FB7CDDF59",
+   "sold_out": false,
+   "bundles": [],
+   "timezone": "America/New_York",
+   "address": "112 W 25th St, New York, NY 10001, USA",
+   "promoters": [
+    {
+     "id": 12854,
+     "name": "25th Street Rooftop LLC"
+    }
+   ],
+   "sale_start_date": "2026-04-13T04:00:00Z",
+   "name": "Cenote Project [Open-Air Sunset Party] with Cristian Arango and Friends",
+   "int_id": 630173,
+   "all_ttys_code_locked": false,
+   "event_images": {
+    "brand": null,
+    "landscape": "https://dice-media.imgix.net/attachments/2026-09-08/0996f6a6-ca26-4746-a619-46865a87fa3d.jpg?rect=0%2C216%2C1080%2C648",
+    "portrait": "https://dice-media.imgix.net/attachments/2026-09-08/0996f6a6-ca26-4746-a619-46865a87fa3d.jpg?rect=243%2C0%2C594%2C1080",
+    "square": "https://dice-media.imgix.net/attachments/2026-09-08/0996f6a6-ca26-4746-a619-46865a87fa3d.jpg?rect=0%2C0%2C1080%2C1080"
+   },
+   "date": "2026-09-13T21:00:00Z",
+   "age_limit": "This is a 21+ event",
+   "featured": false,
+   "tags": [],
+   "presented_by": "Presented by Somewhere Nowhere.",
+   "external_url": null,
+   "destination_event_id": null,
+   "apple_music_tracks": [],
+   "venue": "Somewhere Nowhere NYC",
+   "description": "Cenote Project, “Sun Down Moon Rise,” is a seasonal open-air rooftop odyssey, from Memorial Day Weekend to Labor Day Weekend. Floating high above the pulse of the city, it becomes a skybound sanctuary—reborn with each gathering through the collective breath of our community.\n\nWe come together in sacred celebration—hearts open, spirits stirred—drawn by the rhythm of sound, the language of art, and the alchemy of atmosphere. As the sun softens into dusk, beginning every Sunday at 5 PM, world-renowned artists take us on transcendent journeys through music—sonic ceremonies that awaken, elevate, and transform.\n\nPresented by Somewhere Nowhere.\n\nThis is a 21+ event",
+   "linkout_type": null,
+   "genre_tags": [
+    "dj:afrohouse",
+    "dj:deephouse",
+    "dj:latin",
+    "dj:electronic",
+    "dj:electro",
+    "dj:trap",
+    "dj:house",
+    "dj:hiphop",
+    "dj:tech-house"
+   ],
+   "raw_description": "Cenote Project, “Sun Down Moon Rise,” is a seasonal open-air rooftop odyssey, from Memorial Day Weekend to Labor Day Weekend. Floating high above the pulse of the city, it becomes a skybound sanctuary—reborn with each gathering through the collective breath of our community.\n\nWe come together in sacred celebration—hearts open, spirits stirred—drawn by the rhythm of sound, the language of art, and the alchemy of atmosphere. As the sun softens into dusk, beginning every Sunday at 5 PM, world-renowned artists take us on transcendent journeys through music—sonic ceremonies that awaken, elevate, and transform.",
+   "date_end": "2026-09-14T02:00:00Z",
+   "lineup": [
+    {
+     "details": "Doors open",
+     "time": "5:00 PM"
+    },
+    {
+     "details": "Marc Theobald",
+     "time": ""
+    },
+    {
+     "details": "Sherrod Small",
+     "time": ""
+    },
+    {
+     "details": "Eeland Stribling",
+     "time": ""
+    }
+   ],
+   "price": null,
+   "show_price_breakdown": false,
+   "artists": [],
+   "currency": "USD",
+   "id": "6a73b17a35b6a80001f77254",
+   "location": {
+    "state": "New York",
+    "zip": "10001",
+    "country": "United States",
+    "city": "New York",
+    "region": "New York County",
+    "lat": 40.7443203,
+    "lng": -73.9926957,
+    "street": "112 West 25th Street",
+    "place": "America/New_York",
+    "accuracy": 0
+   },
+   "type_tags": [
+    "music:dj"
+   ],
+   "sale_end_date": "2026-09-13T21:00:00Z",
+   "flags": [
+    "qr-code",
+    "going_ahead"
+   ],
+   "venues": [
+    {
+     "city": {
+      "code": "NY",
+      "country_alpha3": "USA",
+      "country_name": "United States of America",
+      "id": "5bbf4db0f06331478e9b2c59",
+      "name": "New York"
+     },
+     "id": 5529,
+     "name": "Somewhere Nowhere NYC",
+     "url": "https://dice.fm/venue/somewhere-nowhere-nyc-g2k2"
+    }
+   ],
+   "detailed_artists": [],
+   "status": "off-sale",
+   "links": [],
+   "perm_name": "cenote-project-open-air-sunset-party-with-cristian-arango-and-friends-13th-sep-somewhere-nowhere-nyc-new-york-tickets",
+   "hash": "avxev2"
+  },
+  {
+   "spotify_tracks": [],
+   "announcement_date": "2026-09-08T16:00:00Z",
+   "is_multi_days_event": false,
+   "ticket_types": [
+    {
+     "id": 1392960,
+     "name": "Free RSVP",
+     "price": {
+      "total": 0,
+      "fees": 0,
+      "face_value": 0
+     },
+     "sold_out": false
+    }
+   ],
+   "images": [
+    "https://dice-media.imgix.net/attachments/2026-09-08/a3078a20-5295-4849-a7e2-df36205ed1e0.jpg"
+   ],
+   "url": "https://link.dice.fm/H5d412950184",
+   "type": "event",
+   "cities": [
+    {
+     "code": "NY",
+     "country_alpha3": "USA",
+     "country_name": "United States of America",
+     "id": "5bbf4db0f06331478e9b2c59",
+     "name": "New York"
+    }
+   ],
+   "destination_event_perm_name": null,
+   "checksum": "9B5559245FBCACB5951CF1F1110D073E",
+   "sold_out": false,
+   "bundles": [],
+   "timezone": "America/New_York",
+   "address": "Jupiter Disco, 1237 Flushing Ave, New York City, New York 11237, United States",
+   "promoters": [
+    {
+     "id": 14502,
+     "name": "Jupiter Disco LLC"
+    }
+   ],
+   "sale_start_date": "2026-09-08T16:00:00Z",
+   "name": "DJ cega, Niyx, EMZ!, DJ Yammi, silkshirt",
+   "int_id": 642317,
+   "all_ttys_code_locked": false,
+   "event_images": {
+    "brand": null,
+    "landscape": "https://dice-media.imgix.net/attachments/2026-09-08/a3078a20-5295-4849-a7e2-df36205ed1e0.jpg?rect=0%2C520%2C1600%2C960",
+    "portrait": "https://dice-media.imgix.net/attachments/2026-09-08/a3078a20-5295-4849-a7e2-df36205ed1e0.jpg?rect=250%2C0%2C1100%2C2000",
+    "square": "https://dice-media.imgix.net/attachments/2026-09-08/a3078a20-5295-4849-a7e2-df36205ed1e0.jpg?rect=0%2C0%2C1600%2C1600"
+   },
+   "date": "2026-09-13T23:00:00Z",
+   "age_limit": "This is a 21+ event",
+   "featured": false,
+   "tags": [],
+   "presented_by": "Presented by Jupiter Disco.",
+   "external_url": null,
+   "destination_event_id": null,
+   "apple_music_tracks": [],
+   "venue": "Jupiter Disco",
+   "description": "SummerHaus is a celebration of house music in all its many forms. Expect an eclectic mix of sounds, styles, and rhythms designed to keep you moving all night long. Come ready to dance, discover new sounds, and let the music feed your soul.\n\nPresented by Jupiter Disco.\n\nThis is a 21+ event",
+   "linkout_type": null,
+   "genre_tags": [
+    "dj:house"
+   ],
+   "raw_description": "SummerHaus is a celebration of house music in all its many forms. Expect an eclectic mix of sounds, styles, and rhythms designed to keep you moving all night long. Come ready to dance, discover new sounds, and let the music feed your soul.",
+   "date_end": "2026-09-14T06:00:00Z",
+   "lineup": [
+    {
+     "details": "Doors open",
+     "time": "7:00 PM"
+    },
+    {
+     "details": "DJ cega",
+     "time": ""
+    },
+    {
+     "details": "Niyx",
+     "time": ""
+    },
+    {
+     "details": "EMZ!",
+     "time": ""
+    },
+    {
+     "details": "DJ Yammi",
+     "time": ""
+    },
+    {
+     "details": "silkshirt",
+     "time": ""
+    }
+   ],
+   "price": null,
+   "show_price_breakdown": false,
+   "artists": [],
+   "currency": "USD",
+   "id": "6aa030318b03d40001d6d284",
+   "location": {
+    "state": "New York",
+    "zip": "11237",
+    "country": "United States",
+    "city": "New York City",
+    "region": "Kings County",
+    "lat": 40.708129,
+    "lng": -73.923495,
+    "street": "1237 Flushing Ave, City, New York",
+    "place": "America/New_York",
+    "accuracy": 0
+   },
+   "type_tags": [
+    "music:dj"
+   ],
+   "sale_end_date": "2026-09-14T02:00:00Z",
+   "flags": [
+    "qr-code",
+    "cooling-off-period",
+    "going_ahead"
+   ],
+   "venues": [
+    {
+     "city": {
+      "code": "NY",
+      "country_alpha3": "USA",
+      "country_name": "United States of America",
+      "id": "5bbf4db0f06331478e9b2c59",
+      "name": "New York"
+     },
+     "id": 11004,
+     "name": "Jupiter Disco",
+     "url": "https://dice.fm/venue/jupiter-disco-kyxo"
+    }
+   ],
+   "detailed_artists": [],
+   "status": "on-sale",
+   "links": [],
+   "perm_name": "dj-cega-niyx-emz-dj-yammi-silkshirt-13th-sep-jupiter-disco-new-york-city-tickets",
+   "hash": "xeg5qm"
+  }
+ ],
+ "links": {
+  "self": "https://events-api.dice.fm/api/v2/events?filter[cities][]=New+York&filter[cities][]=Brooklyn&filter[flags][]=going_ahead&page[size]=100",
+  "next": "https://events-api.dice.fm/api/v2/events?filter[cities][]=New+York&filter[cities][]=Brooklyn&filter[flags][]=going_ahead&page[number]=2&page[size]=100"
+ }
+}

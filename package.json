@@ -1,0 +1,38 @@
+{
+  "name": "noct",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NOCT — one feed for New York nightlife. Automated ingestion (RA, DICE, venue calendars, EDMTrain, Ticketmaster) into Supabase, served from Vercel.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vercel dev",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "noct": "tsx src/cli.ts",
+    "fetch": "tsx src/cli.ts fetch",
+    "ingest": "tsx src/cli.ts ingest",
+    "enrich": "tsx src/cli.ts enrich",
+    "db:local": "bash scripts/db-local.sh",
+    "db:push": "supabase db push",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.125.0",
+    "cheerio": "^1.2.0",
+    "pg": "^8.23.0",
+    "zod": "^4.6.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.23.1",
+    "@vercel/node": "^13.0.0",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.0",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.0"
+  }
+}

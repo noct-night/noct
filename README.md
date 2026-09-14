@@ -1,87 +1,98 @@
 # NOCT
 
-A nightlife and electronic music listings prototype for New York. One feed across every ticketing
-platform, so you stop checking RA, Dice and venue Instagrams separately.
+One feed for New York nightlife. NOCT pulls club nights, raves and day parties from every platform that
+lists them — Resident Advisor, DICE, venue calendars, Ticketmaster (and EDMTrain if licensed) — dedupes
+them into one event per night per room, shows every ticket price side by side, and tags each night with a
+genre and a vibe.
 
 **NOCT is a working name.** Nothing is attached to it yet.
 
-## Run it
-
-It's a single static HTML file with no build step and no dependencies.
+## What's in this repo
 
 ```
-open index.html
+index.html                  the app (mobile-first, 440px). Loads /api/feed; falls back to the sample weekend
+api/                        Vercel Functions
+  feed.ts                   GET /api/feed?from&to → events/venues/days in the shape the UI expects
+  ingest/[source].ts        GET|POST /api/ingest/ra|dice|elsewhere|…|all  (Bearer CRON_SECRET)
+  enrich.ts                 POST /api/enrich  — genre/vibe pass over new/changed events
+  health.ts                 GET /api/health — last run per source
+src/
+  sources/                  one adapter per source: fetch + normalise, no DB (types.ts is the contract)
+  ingest/                   runner: adapter → upsert_listing() → resolve_pending() → tombstone_sweep()
+  enrich/                   taxonomy, crosswalk, rules engine, Claude reconciler
+  feed/                     read model → UI shape
+  lib/                      http (polite fetch, block detection), time (NY ⇄ UTC), normalize, db
+supabase/migrations/        Postgres schema: listings, events, venues/aliases, resolution SQL, enrichment,
+                            app tables, views + RLS, pg_cron schedules
+tests/                      vitest — unit tests on real captured payloads; DB tests; opt-in live tests
+docs/                       DATA_SOURCES.md (terms + decisions), OPERATIONS.md, GENRE_VIBE.md, sources/*.md
 ```
 
-Or serve it locally if you prefer:
+## How it works
 
+1. **Ingest.** Each adapter fetches its source for the next 30 nights and emits `NormalizedListing`
+   rows. The runner upserts them (`upsert_listing`, keyed by `(source, source_id)`), tracks first/last
+   seen, content changes and disappearances (tombstones), and stores every price tier.
+2. **Resolve.** `resolve_listing()` links each listing to a canonical `event`: hard cross-references
+   first (a venue page linking a DICE id), then venue family + nightlife date + trigram title + lineup
+   overlap. Grey-zone matches land in `match_candidate` for review; canonical fields are recomputed from
+   the highest-priority live listing (`refresh_event`).
+3. **Enrich.** Deterministic rules (time → day party / afters, price → free/RSVP, venue → warehouse /
+   rooftop / phone-free) plus source genre tags feed a Claude call with a controlled taxonomy and
+   structured output. Every tag keeps its provenance and confidence (`event_tag`).
+4. **Serve.** `/api/feed` reads `event_feed` (RLS-guarded view) and returns the weekend in the UI's
+   shape, cached at the edge for five minutes.
+
+## Run it locally
+
+```bash
+npm install
+cp .env.example .env            # fill DATABASE_URL (local Postgres is fine) and optional keys
+bash scripts/db-local.sh noct   # creates the DB and applies every migration
+npm run fetch -- ra --limit 5   # dry-run one adapter (no DB)
+DATABASE_URL=postgresql://localhost:5432/noct npm run ingest -- ra elsewhere publicrecords goodroom
+DATABASE_URL=postgresql://localhost:5432/noct npm run enrich -- --limit 20   # rules-only without ANTHROPIC_API_KEY
+npm test                        # unit + DB tests (DB tests skip without DATABASE_URL); NOCT_LIVE=1 adds live tests
+npx vercel dev                  # serves index.html + /api/*
 ```
-python3 -m http.server 8000
-# then open http://localhost:8000
-```
 
-Designed mobile first, 440px wide. On a desktop browser it centres itself so you can preview it,
-but judge it in a phone-sized window or on your phone.
+## Deploy
 
-## What's here
+1. **Supabase**: create a project, `supabase link --project-ref <ref>`, `supabase db push`. Copy the
+   Supavisor *transaction* pooler URL (IPv4, port 6543) into `DATABASE_URL`.
+2. **Vercel**: `vercel link`, set env vars from `.env.example` (`DATABASE_URL`, `CRON_SECRET`, keys),
+   `vercel deploy --prod`. `vercel.json` registers the daily fallback crons (Hobby limit).
+3. **Schedules**: insert `vercel_base_url` and `cron_secret` into `app_setting` so `pg_cron` can call
+   `/api/ingest/*` every few hours (`docs/OPERATIONS.md`).
+4. Hit `/api/ingest/ra?limit=5` once and read `/api/health`. If a source shows `BLOCKED:`, that host
+   rejects datacenter traffic — see `docs/DATA_SOURCES.md`; NOCT does not work around blocks.
 
-**Image view** is the default. Swipe or use the arrow keys to move through the night one event at
-a time. Minimal text, meant for deciding whether you want to be somewhere.
+## Sources, terms and what is deliberately not done
 
-**List view** is the utility view. Time, name, genre, venue, price, platform, going count.
+Read `docs/DATA_SOURCES.md`. Short version: RA's GraphQL endpoint is the canonical record (their terms
+restrict automated commercial extraction — ask for written permission), DICE runs only with a key DICE
+issues to you, EDMTrain is off unless licensed, venue feeds are on, Ticketmaster is on with a free key.
+NOCT never solves bot challenges, proxies, or borrows credentials found on other sites.
 
-**Location and date** live in the header and are the first thing you touch. The date control has
-presets and a calendar. Location filters by borough.
+## Status (2026-09-14)
 
-**Event page** leads with tickets, showing every platform selling that event side by side with the
-price gap called out. Then details, running order, and a guest list.
+Verified locally end to end on PostgreSQL 14: one fresh apply of all eight migrations, 250 tests
+(`npm test`, DB-backed ones included), a real ingest of RA + Elsewhere + Public Records + Good Room for
+the next 7 nights (≈230 listings → ≈210 events, 15 cross-source merges, 12 grey-zone matches queued for
+review), a rules-only enrichment pass, and `/api/feed` JSON for a Friday–Sunday range. Not yet exercised:
+a real Vercel deployment, `pg_cron` on Supabase, the live Claude call (needs `ANTHROPIC_API_KEY`), DICE /
+Ticketmaster / EDMTrain with real keys.
 
-**Venue page** has a Google Maps link, Instagram, RA venue page, photos, an Instagram grid, and
-everything on there this weekend.
+## Known issues / not yet built
 
-**Profile and going.** Sign in with an Instagram handle, mark yourself going, see who else is.
-Visibility is reciprocal: you see the people who chose to be visible to you, and nothing more.
-The default is Count only, which means you add to a number and nobody sees your handle.
-
-## What's real and what isn't
-
-**Real.** All eleven events are live listings for Fri 28 to Sun 30 August 2026, pulled from
-Resident Advisor with working ra.co links. Genres, door times, prices, sold-out status, ages and
-set times come from RA event pages, Dice, Eventbrite and venue calendars. Nowadays and BASEMENT
-have confirmed addresses.
-
-**Derived, and labelled as such in the app.** Some genres are assembled from per-artist tags or
-venue press rather than tagged by RA. The event page shows where each genre came from.
-
-**Placeholder.** Every image is a CSS texture standing in for photography. Going counts and guest
-lists are simulated. Neighbourhoods for Signal, H0L0, MoMA PS1, Knockdown Center and Good Room are
-from general knowledge, not verified. Venue Instagram links are searches, not handles, except
-Nowadays.
-
-## Known issues
-
-- No persistence. Sign-in, saved and going all reset on reload.
-- Hover-to-preview has no touch equivalent.
-- The going count reads 0 for every event in a real build. Cold start is unsolved.
-- Only covers one weekend and one city.
-
-## Open decisions
-
-**Where the data comes from at scale.** RA served a clean page. Dice blocked automated access with
-bot detection. Both restrict this in their terms. The realistic options are a licensed feed, an
-affiliate arrangement where they want the traffic, or going venue-direct and pulling calendars from
-the rooms that matter. The last is slowest and the only one nobody can switch off. Needs a lawyer.
-
-**Guest list default.** Currently Count only. A public list of who is at which club at which hour,
-tied to real Instagram handles, has real safety implications. Mutual-only may be the right default
-instead. Worth arguing about before launch.
-
-**What "going" means.** Right now it's an intent signal, not a ticket. Venues will eventually ask
-what the number represents.
-
-**Image sourcing.** This direction lives or dies on one strong image per event. Promoter flyers are
-inconsistent. Options are a house photography style, a fixed duotone treatment over whatever comes
-in, or shooting venues rather than events and reusing the venue image.
+- Sign-in, going and saved are still client-side only; the tables and RLS exist (`0005_app.sql`) but the
+  UI is not wired to Supabase Auth (Instagram is not a Supabase provider — see `docs/FRONTEND.md`).
+- Rules-only genre labels are capped at 0.5 confidence and can be wrong for non-club shows (a noise band
+  can inherit a venue's house prior); the Claude step and the `not_electronic` flag are what fix that.
+- Images come from the source flyer where one exists; otherwise the CSS textures remain.
+- Artist-level genre evidence (Discogs/MusicBrainz) is designed (`docs/GENRE_VIBE.md`) but not implemented.
+- Provisional venues created from unknown labels need a periodic human pass (`venue.needs_review`).
+- Only New York. Adding a city = new RA area id + venue seed.
 
 ## Feedback
 
