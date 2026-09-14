@@ -127,6 +127,20 @@ a{color:inherit}
 .pick[aria-pressed="true"] .t{text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
 .pick[aria-pressed="true"] .d{color:var(--d1)}
 .foot{display:flex;gap:26px;margin-top:34px}
+.cal{margin-top:30px}
+.calhd{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.calhd .m{font-size:16px}
+.calhd button{font-size:17px;color:var(--d2);padding:4px 12px;line-height:1}
+.calhd button:hover{color:var(--chalk)}
+.calhd button[disabled]{color:rgba(255,255,255,.18);cursor:default}
+.calg{display:grid;grid-template-columns:repeat(7,1fr)}
+.calg .wd{font-size:11px;color:var(--d2);text-align:center;padding-bottom:10px}
+.calg button{height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:15px;color:var(--d1);text-align:center}
+.calg button .n{font-size:10.5px;color:var(--d2);line-height:1}
+.calg button[disabled]{color:rgba(255,255,255,.18);cursor:default}
+.calg button[aria-current="date"]{color:var(--chalk)}
+.calg button[aria-pressed="true"]{color:var(--chalk);text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
+.calg .pad{height:48px}
 .field{display:flex;align-items:baseline;gap:8px;border-bottom:.7px solid var(--hair);padding:12px 0}
 .field b{font-weight:400;font-size:20px;color:var(--d2)}
 .field input{flex:1;min-width:0;background:none;border:0;color:#fff;font:inherit;font-size:20px;outline:none;padding:0}
@@ -248,7 +262,7 @@ a{color:inherit}
     <button class="sx" onclick="closeAll()" aria-label="Close">✕</button>
     <div class="sh2">When</div>
     <div class="opts" id="oPreset"></div>
-    <div id="rcal"></div>
+    <div class="cal" id="rcal"></div>
     <div class="foot"><button class="lnk" onclick="closeAll()">Show results</button></div>
   </div>
 
@@ -355,7 +369,8 @@ const AVAIL=[['on','On sale'],['out','Sold out']];
 let PLATS=['RA','Dice','Eventbrite','Nowadays RSVP'];
 let AREAS=['All','Queens','Brooklyn'];
 let CITIES=[['nyc','New York',true],['la','Los Angeles',false],['ldn','London',false],['ber','Berlin',false]];   /* replaced by /api/feed cities[] */
-let PRESETS=[[0,'Friday'],[1,'Saturday'],[2,'Sunday'],['all','All weekend']];   /* value = index into DAYS, or 'all' */
+/* When tab. Each preset asks the API for that window; the month calendar below picks a single night. */
+const PRESETS=[['tonight','Tonight'],['tomorrow','Tomorrow'],['weekend','This weekend'],['week','This week']];
 let FEED_NOTE='This build covers the current weekend only.';
 let SOURCES=[['Resident Advisor','10 events, genres and set times',true],['Dice','4 events, prices only',true],['Eventbrite','1 event, full pricing',true],['Venue calendars','Nowadays, Signal, MoMA PS1',true],['Tixr','Not connected',false]];
 const HANDLES=['sunroommate','kj.wav','ninetyeight','lo.fidelity','marta.exe','pdrbk','yuna.tape','third.shift','glasshouse.ny','avenue.c','bk.basement','sable.tt','mmmoire','vhs.night','pale.route','okjune','tenpm.club','ridgewood.rave','soft.opening','nine.volt','curfew.bk','late.bloom'];
@@ -367,7 +382,9 @@ const PHOTOS=['Main room','The bar','Doors','Outside'];
 
 const S={mode:'image',view:'image',from:0,to:0,i:0,city:'nyc',area:'All',geo:false,
  gen:new Set(),door:new Set(),avail:new Set(),plat:new Set(),
- saved:new Set(),going:new Set(),signedIn:false,ig:'',vis:'count',signStep:1};
+ saved:new Set(),going:new Set(),signedIn:false,ig:'',vis:'count',signStep:1,
+ /* When tab: which preset is active, the night picked on the calendar, and the month grid's cached counts */
+ preset:'tonight',rangeLabel:'',picked:'',calMonth:'',counts:{},countsMonth:'',countsCity:'',countsNote:''};
 const $=s=>document.querySelector(s);
 const dayName=i=>DAYS[i][2];
 const dayFull=i=>`${DAYS[i][0]} ${DAYS[i][1]}`;
@@ -388,7 +405,6 @@ const tagLine=e=>e.primary?[e.primary,...vibesOf(e)].join(' · '):genOf(e);
 const art=e=>e.image?` style="background:url(&quot;${e.image}&quot;) center/cover #0b0b0b"`:'';
 const srcNames=()=>SOURCES.filter(s=>s[2]).map(s=>s[0]);
 const joinNames=a=>a.length<2?a.join(''):`${a.slice(0,-1).join(', ')} and ${a[a.length-1]}`;
-const allLabel=()=>(PRESETS.find(p=>p[0]==='all')||[0,'All weekend'])[1];
 
 /* going, with reciprocity */
 const crowdOf=id=>{const n=3+(id*11)%16,o=[];for(let k=0;k<n;k++)o.push(HANDLES[(id*7+k*3)%HANDLES.length]);return[...new Set(o)]};
@@ -414,7 +430,12 @@ function ok(e){
 }
 const results=()=>EV.filter(ok).sort((a,b)=>a.d-b.d||(a.door||'99').localeCompare(b.door||'99'));
 const nF=()=>S.gen.size+S.door.size+S.avail.size+S.plat.size;
-const dateLabel=()=>S.from===S.to?dayName(S.from):(S.from===0&&S.to===DAYS.length-1?allLabel():`${DAYS[S.from][1]} – ${DAYS[S.to][1]}`);
+/* the preset's own words when one is active ("This week"), otherwise the nights themselves */
+const dateLabel=()=>{
+  if(S.rangeLabel)return S.rangeLabel;
+  if(S.from===S.to){const d=DAYS[S.from]||DAYS[0];return d[2]==='Tonight'||d[2]==='Tomorrow'?d[2]:`${d[0]} ${d[1]}`}
+  return `${DAYS[S.from][1]} – ${DAYS[S.to][1]}`;
+};
 const cityName=()=>(CITIES.find(c=>c[0]===S.city)||CITIES[0])[1];
 const locLabel=()=>S.area==='All'?cityName():`${cityName()}, ${S.area}`;
 
@@ -642,13 +663,12 @@ function opt(el,items,isOn,onPick){
 function buildAll(){
   opt($('#oCity'),CITIES.map(c=>[c[0],c[2]?c[1]:c[1]+' (soon)']),v=>S.city===v,v=>{const c=CITIES.find(x=>x[0]===v);if(c&&c[2]&&S.city!==v){S.city=v;S.area='All';closeAll();loadFeed();}});
   opt($('#oArea'),AREAS,v=>S.area===v,v=>S.area=v);
-  opt($('#oPreset'),PRESETS,v=>v==='all'?(S.from===0&&S.to===DAYS.length-1):(S.from===v&&S.to===v),
-    v=>{S.i=0;if(v==='all'){S.from=0;S.to=DAYS.length-1}else{S.from=v;S.to=v}});
+  opt($('#oPreset'),PRESETS,v=>S.preset===v,v=>pickRange(v));
   opt($('#fGen'),GENRES,v=>S.gen.has(v),v=>S.gen.has(v)?S.gen.delete(v):S.gen.add(v));
   opt($('#fDoor'),DOORS,v=>S.door.has(v),v=>S.door.has(v)?S.door.delete(v):S.door.add(v));
   opt($('#fAvail'),AVAIL,v=>S.avail.has(v),v=>S.avail.has(v)?S.avail.delete(v):S.avail.add(v));
   opt($('#fPlat'),PLATS,v=>S.plat.has(v),v=>S.plat.has(v)?S.plat.delete(v):S.plat.add(v));
-  $('#rcal').innerHTML=`<div class="grp"><h3>Nights loaded</h3><div class="prose" style="font-size:14px">${DAYS.map((d,i)=>`${d[0]} ${d[1]} · ${EV.filter(e=>e.d===i).length} events`).join('<br>')}</div><div class="note">${FEED_NOTE}</div></div>`;
+  renderCal();
 }
 function clearAll(){S.gen.clear();S.door.clear();S.avail.clear();S.plat.clear();S.i=0;buildAll();render()}
 function useGeo(){S.geo=!S.geo;$('#geoState').textContent=S.geo?'On':'Off';render()}
@@ -690,8 +710,11 @@ document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>setView(b.data
 ['listView','savedView','venuesView','profileView'].forEach(id=>{
   $('#'+id).addEventListener('scroll',e=>{$('#topscrim').classList.toggle('on',e.target.scrollTop>6)},{passive:true});
 });
+/* Sheets are absolutely positioned siblings inside .app. Focusing a control in a closed one (tab, or a tap
+   that lands as the sheet slides) scrolls the clipped container and pushes the whole UI off-screen; pin it. */
+(()=>{const app=document.querySelector('.app');app.addEventListener('scroll',()=>{if(app.scrollTop)app.scrollTop=0},{passive:true})})();
 $('#btnLoc').onclick=()=>$('#locSheet').classList.add('open');
-$('#btnDate').onclick=()=>$('#dateSheet').classList.add('open');
+$('#btnDate').onclick=()=>{$('#dateSheet').classList.add('open');loadCounts()};
 $('#openMenu').onclick=()=>{renderMenu();$('#menu').classList.add('open')};
 document.addEventListener('keydown',e=>{
   if(e.key!=='Escape')return;
@@ -716,7 +739,6 @@ function render(){
   if(S.view==='profile')renderProfile();
 }
 /* ---------- live data: /api/feed replaces the sample constants above (docs/FRONTEND.md) ---------- */
-const WEEKDAY_LONG=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const SHORT_PLAT={'Resident Advisor':'RA','DICE':'Dice'};
 const TEX=['x1','x2','x3','x4','x5','x6'];
 /* source text lands in the innerHTML templates above unchanged, so markup is neutralised once here rather than in every template */
@@ -725,6 +747,79 @@ const cleanUrl=u=>{u=String(u==null?'':u).trim();return /^https?:\/\//i.test(u)?
 const hashOf=s=>{let h=7;for(const c of String(s))h=(h*31+c.charCodeAt(0))>>>0;return h};
 const tonesOf=name=>{const h=hashOf(name);return [0,1,2,3].map(k=>TEX[(h+k*2)%TEX.length])};
 const nyDate=off=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(Date.now()+off*864e5));
+
+/* ---------- When: range presets + month calendar ----------
+   Plain YYYY-MM-DD strings all the way through (UTC parsing only, so no local-midnight drift). A preset asks
+   the API for that window; the calendar asks for counts only (~1 KB a month instead of ~320 KB of records)
+   and loads a single night's cards when a date is tapped. */
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const WD=['S','M','T','W','T','F','S'];
+const dAdd=(s,n)=>new Date(Date.parse(s+'T00:00:00Z')+n*864e5).toISOString().slice(0,10);
+const dDow=s=>new Date(Date.parse(s+'T00:00:00Z')).getUTCDay();
+const dMonth=s=>s.slice(0,7);
+const monthStart=m=>m+'-01';
+const monthEnd=m=>{const p=m.split('-').map(Number);return `${m}-${String(new Date(Date.UTC(p[0],p[1],0)).getUTCDate()).padStart(2,'0')}`};
+const monthAdd=(m,n)=>{const p=m.split('-').map(Number);return new Date(Date.UTC(p[0],p[1]-1+n,1)).toISOString().slice(0,7)};
+
+/** [from, to, label] for a preset key, in New York's calendar. */
+function rangeOf(key){
+  const t=nyDate(0);
+  if(key==='tomorrow')return [nyDate(1),nyDate(1),'Tomorrow'];
+  if(key==='week')return [t,nyDate(6),'This week'];
+  if(key==='weekend'){
+    const dow=dDow(t);
+    if(dow===0)return [t,t,'Tonight'];                        /* Sunday: the weekend ends tonight */
+    const start=(dow===5||dow===6)?t:dAdd(t,5-dow);           /* Mon–Thu jump to Friday */
+    return [start,dAdd(start,dDow(start)===5?2:1),'This weekend'];
+  }
+  return [t,t,'Tonight'];
+}
+function pickRange(key){
+  const r=rangeOf(key);
+  S.preset=key;S.rangeLabel=r[2];S.picked=r[0]===r[1]?r[0]:'';S.calMonth=dMonth(r[0]);
+  closeAll();loadFeed({from:r[0],to:r[1]});
+}
+function pickDate(date){
+  S.preset='';S.rangeLabel='';S.picked=date;
+  closeAll();loadFeed({from:date,to:date});
+}
+function calMove(n){S.calMonth=monthAdd(S.calMonth||dMonth(nyDate(0)),n);renderCal();loadCounts()}
+function renderCal(){
+  const el=$('#rcal');if(!el)return;
+  const m=S.calMonth||dMonth(nyDate(0)),today=nyDate(0);
+  const first=monthStart(m),days=Number(monthEnd(m).slice(8)),p=m.split('-').map(Number);
+  let cells='';
+  for(let i=0;i<dDow(first);i++)cells+='<div class="pad"></div>';
+  for(let d=1;d<=days;d++){
+    const date=`${m}-${String(d).padStart(2,'0')}`,n=S.counts[date]||0,dis=date<today||!n;
+    cells+=`<button ${dis?'disabled':''} aria-pressed="${S.picked===date}"${date===today?' aria-current="date"':''}`
+      +` onclick="pickDate('${date}')" aria-label="${d} ${MONTHS[p[1]-1]}, ${n} event${n===1?'':'s'}">`
+      +`${d}${n?`<span class="n">${n}</span>`:''}</button>`;
+  }
+  el.innerHTML=`<div class="calhd">`
+    +`<button ${monthAdd(m,-1)>=dMonth(today)?'':'disabled'} onclick="calMove(-1)" aria-label="Previous month">‹</button>`
+    +`<div class="m">${MONTHS[p[1]-1]} ${p[0]}</div>`
+    +`<button onclick="calMove(1)" aria-label="Next month">›</button></div>`
+    +`<div class="calg">${WD.map(w=>`<div class="wd">${w}</div>`).join('')}${cells}</div>`
+    +`<div class="note">${S.countsNote||FEED_NOTE}</div>`;
+}
+/** Counts for the visible month, cached per month+city so reopening the sheet is free. */
+async function loadCounts(){
+  const m=S.calMonth||dMonth(nyDate(0)),city=S.city||'nyc';
+  if(S.countsMonth===m&&S.countsCity===city)return;
+  if(/[?&]demo=1(&|$)/.test(location.search))return;
+  S.countsNote='Loading month…';renderCal();
+  try{
+    const qs=new URLSearchParams({city,from:monthStart(m),to:monthEnd(m),counts:'1'});
+    const r=await fetch(`${API_BASE}/api/feed?${qs}`,{headers:{accept:'application/json'}});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const j=await r.json();
+    (j.days||[]).forEach(d=>{S.counts[d.date]=d.events|0});
+    S.countsMonth=m;S.countsCity=city;
+    S.countsNote=`${j.total} event${j.total===1?'':'s'} in ${MONTHS[Number(m.slice(5,7))-1]}. Tap a night.`;
+  }catch(e){S.countsNote='Month counts unavailable.'}
+  renderCal();
+}
 const ago=iso=>{const m=Math.round((Date.now()-Date.parse(iso))/6e4);return !isFinite(m)?'':m<60?`${m} min ago`:m<2880?`${Math.round(m/60)} h ago`:`${Math.round(m/1440)} d ago`};
 const runLine=s=>{const r=s.last_run;if(!r)return 'Not run yet';if(r.status==='skipped')return 'No key configured';
   if(r.status==='failed')return (r.error||'').indexOf('BLOCKED:')===0?'Blocked by the host':'Last run failed';
@@ -733,8 +828,6 @@ const liveNote=msg=>{const el=$('#liveNote');el.textContent=msg;el.hidden=!msg};
 function applyFeed(f){
   if(!f||!Array.isArray(f.days)||!f.days.length||!Array.isArray(f.events))throw new Error('unexpected feed shape');
   DAYS=f.days.map(d=>[clean(d.label),clean(d.sub),clean(d.hint),d.date]);
-  const weekend=f.days.length===3&&f.days[0].dow===5;
-  PRESETS=[...f.days.map((d,i)=>[i,WEEKDAY_LONG[d.dow]||clean(d.label)]),['all',weekend?'All weekend':`All ${f.days.length} nights`]];
   /* id stays the numeric index the onclick handlers expect; the event uuid rides along as uuid */
   EV=f.events.map(e=>({
     id:e.n,uuid:e.id,d:e.d,head:clean(e.head),lineup:(e.lineup||[]).map(clean),venue:clean(e.venue),room:e.room?clean(e.room):'',
@@ -758,7 +851,9 @@ function applyFeed(f){
   if(f.city&&f.city.key)S.city=f.city.key;
   SOURCES=(f.sources||[]).map(s=>[clean(s.name),runLine(s),!!(s.last_run&&s.last_run.status!=='failed'&&s.last_run.status!=='skipped')]);
   FEED_NOTE=`Live: ${DAYS.length} night${DAYS.length===1?'':'s'} from ${DAYS[0][2]==='Tonight'?'tonight':DAYS[0][1]}, refreshed every five minutes.`;
-  S.from=0;S.to=0;S.i=0;
+  /* the loaded window IS the selection now — the When tab decides what gets loaded */
+  S.from=0;S.to=DAYS.length-1;S.i=0;
+  if(!S.calMonth)S.calMonth=dMonth(DAYS[0][3]);
   if(AREAS.indexOf(S.area)<0)S.area='All';
   buildAll();setView(S.view);
 }
@@ -771,14 +866,18 @@ const API_BASE=(()=>{
   const local=location.protocol==='file:'||/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
   return local?LIVE_API:'';
 })();
-async function loadFeed(){
+async function loadFeed(range){
   if(/[?&]demo=1(&|$)/.test(location.search))return;
   const q=new URLSearchParams(location.search);
   if(q.get('city')&&!loadFeed.cityFromUrlUsed){S.city=q.get('city');loadFeed.cityFromUrlUsed=true}
   const city=S.city||'nyc';
-  /* explicit dates apply to the first load only; a city switch asks for that city's own "today" */
-  const explicit=!loadFeed.loadedOnce, from=explicit?q.get('from'):null, to=explicit?q.get('to'):null;
-  loadFeed.loadedOnce=true;
+  const first=!loadFeed.loadedOnce;loadFeed.loadedOnce=true;
+  /* a When-tab pick wins; then ?from/?to on the very first load; otherwise the active preset, so a city
+     switch re-asks for the same window in the new city's own calendar */
+  let from=null,to=null;
+  if(range){from=range.from;to=range.to}
+  else if(first&&(q.get('from')||q.get('to'))){from=q.get('from');to=q.get('to');S.preset='';S.rangeLabel=''}
+  else{const r=rangeOf(S.preset||'tonight');from=r[0];to=r[1];S.rangeLabel=r[2];S.picked=r[0]===r[1]?r[0]:''}
   const qs=new URLSearchParams({city});if(from)qs.set('from',from);if(to)qs.set('to',to);
   liveNote('Loading '+(CITIES.find(c=>c[0]===city)||[,city])[1]+'…');
   try{

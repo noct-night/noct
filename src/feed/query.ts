@@ -17,6 +17,8 @@ import {
 
 /** A feed wider than a month is a data export, not a feed; the UI asks for three nights. */
 export const MAX_RANGE_DAYS = 31;
+/** Counts are one integer per night, so the month grid (up to six weeks plus slack) is allowed. */
+export const MAX_COUNTS_DAYS = 62;
 const DEFAULT_SPAN_DAYS = 2;
 
 /** New York's venue.borough values as the UI's "Area" filter; matched case-insensitively. Other cities pass any area through. */
@@ -37,6 +39,8 @@ export interface FeedParams {
   city?: string | null;
   /** include events the classifier marked is_electronic = false (concerts, comedy); default false */
   includeAll?: boolean;
+  /** counts-only request (the month calendar): allows a wider range, returns no event records */
+  countsOnly?: boolean;
   /** clock for the default range and the Tonight/Tomorrow hints (tests pin it) */
   now?: Date;
 }
@@ -76,7 +80,9 @@ export function resolveParams(p: FeedParams = {}, now: Date = p.now ?? new Date(
   const to = blank(p.to) ? localDatePlus(DEFAULT_SPAN_DAYS, city.tz, localMidnightOf(from)) : p.to.trim();
   const span = daysBetween(from, to);
   if (span < 0) throw new FeedParamError('to must not be before from');
-  if (span >= MAX_RANGE_DAYS) throw new FeedParamError(`range must cover at most ${MAX_RANGE_DAYS} nights`);
+  // counts carry one integer per night, so a whole calendar grid (six weeks) is still tiny
+  const maxSpan = p.countsOnly ? MAX_COUNTS_DAYS : MAX_RANGE_DAYS;
+  if (span >= maxSpan) throw new FeedParamError(`range must cover at most ${maxSpan} nights`);
   let area: string | null = null;
   if (!blank(p.area) && p.area.trim().toLowerCase() !== 'all') {
     const want = p.area.trim().toLowerCase();
@@ -126,6 +132,18 @@ const EVENTS_SQL = `
 /** Cities that have something to show (upcoming events), for the UI's city picker. */
 const CITIES_SQL = `select city, count(*)::int as n from event where merged_into is null and status <> 'removed' and night >= $1::date group by city`;
 
+/**
+ * Per-night counts only — what the month calendar needs to draw its grid. A month of full event records is
+ * ~320 KB gzipped; this is ~1 KB, so the grid is cheap and the day's cards are fetched when a date is tapped.
+ */
+const COUNTS_SQL = `
+  select f.night::text as night, count(*)::int as n
+  from event_feed f
+  where f.night between $1::date and $2::date
+    and f.city = $4::text
+    and ($3::boolean or f.is_electronic is distinct from false)
+  group by f.night`;
+
 const VENUES_SQL = `
   select venue_id, name, kind, address, neighborhood, borough, instagram, website, ra_url, dice_url, verified, lat, lng
   from venue where venue_id = any($1::uuid[])`;
@@ -135,6 +153,31 @@ const SOURCES_SQL = `
   from source s
   left join lateral (select * from ingest_run i where i.source_key = s.source_key order by i.started_at desc limit 1) r on true
   order by s.priority desc`;
+
+export interface FeedCountsResponse {
+  generated_at: string;
+  range: { from: string; to: string };
+  city: { key: string; name: string; tz: string };
+  /** every night in the range, in order, with how many events it holds (0 included) */
+  days: (ReturnType<typeof buildDays>[number] & { events: number })[];
+  total: number;
+}
+
+/** Per-night counts for the month calendar. Same filters as buildFeed, no event records. */
+export async function buildCounts(params: FeedParams = {}): Promise<FeedCountsResponse> {
+  const now = params.now ?? new Date();
+  const { from, to, includeAll, city } = resolveParams({ ...params, countsOnly: true }, now);
+  const res = await query<{ night: string; n: number }>(COUNTS_SQL, [from, to, includeAll, city.key]);
+  const counts = new Map(res.rows.map((r) => [r.night, Number(r.n)]));
+  const days = buildDays(from, to, now, city.tz).map((d) => ({ ...d, events: counts.get(d.date) ?? 0 }));
+  return {
+    generated_at: new Date().toISOString(),
+    range: { from, to },
+    city: { key: city.key, name: city.name, tz: city.tz },
+    days,
+    total: days.reduce((a, d) => a + d.events, 0),
+  };
+}
 
 export async function buildFeed(params: FeedParams = {}): Promise<FeedResponse> {
   const now = params.now ?? new Date();

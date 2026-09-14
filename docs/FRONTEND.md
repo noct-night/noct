@@ -13,12 +13,33 @@ replaces them, then calls `buildAll(); setView(S.view)` so every existing render
 | Opened from `file://`, `localhost` or `127.0.0.1` (UI work) | Same fetch against the production API (`LIVE_API` = https://noct-navy.vercel.app, which sends `Access-Control-Allow-Origin: *` on `/api/feed`). No backend, keys or database needed to work on the UI with real data. |
 | `?api=https://other-host` | Overrides the API origin (e.g. a preview deployment). |
 | `?demo=1` in the URL | No fetch; the embedded sample weekend renders exactly as before. |
-| `?from=YYYY-MM-DD&to=YYYY-MM-DD` in the URL | Passed through to the API (max 31 nights). |
+| `?from=YYYY-MM-DD&to=YYYY-MM-DD` in the URL | Passed through to the API on the first load only (max 31 nights). |
+| A **When** pick (preset or calendar night) | Re-requests the feed for that window; the loaded window *is* the selection (`S.from = 0`, `S.to = DAYS.length - 1`). |
 | Fetch fails (network, 4xx/5xx, malformed JSON) | Sample weekend stays; a small note under the controls reads *Live data unavailable — showing sample weekend*. |
 | Fetch succeeds with zero events | Live (empty) data is shown — the UI says "Nothing here". The sample is never mixed with live data. |
 
 `from`/`to` default to the New York calendar date computed in the browser with `Intl.DateTimeFormat('en-CA', {timeZone: 'America/New_York'})`;
 the server applies the same default when the parameters are missing.
+
+## The When tab
+
+Two controls, both in `#dateSheet`:
+
+- **Presets** — Tonight / Tomorrow / This weekend / This week. `rangeOf(key)` computes the window in New York's
+  calendar (Mon–Thu "this weekend" jumps to the coming Friday; on a Sunday it collapses to tonight) and
+  `pickRange()` reloads the feed for it. The default load follows the active preset, so a city switch re-asks
+  for the same window in the new city's own calendar.
+- **Month calendar** — `renderCal()` draws a 7-column grid for `S.calMonth`: past nights and nights with no
+  events are disabled, today carries `aria-current="date"`, the selected night is underlined, and each cell
+  shows its event count. Tapping a night calls `pickDate()` → one-night feed. ‹ › move months; the back arrow
+  stops at the current month.
+
+Counts come from `GET /api/feed?counts=1&from&to&city`, which returns one integer per night (~3 KB for a
+month) instead of the ~320 KB a month of full event records costs. They are cached per month+city in
+`S.counts`, so reopening the sheet is free. `MAX_COUNTS_DAYS` (62) lets a six-week grid through where full
+feeds stop at `MAX_RANGE_DAYS` (31).
+
+Tapping a night keeps whatever view mode is active (Image or List) — the date filter applies to both.
 
 ## The API
 
