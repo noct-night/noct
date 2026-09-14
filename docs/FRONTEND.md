@@ -9,8 +9,10 @@ replaces them, then calls `buildAll(); setView(S.view)` so every existing render
 
 | Situation | What happens |
 |---|---|
-| Served by Vercel (`npx vercel dev` or production) | `GET /api/feed?from=<NY today>&to=<NY today+2>` on page load; the response replaces the constants. |
-| `?demo=1` in the URL, or opened from `file://` | No fetch; the embedded sample weekend renders exactly as before. |
+| Served by Vercel (`npx vercel dev` or production) | `GET /api/feed?from=<NY today>&to=<NY today+2>` on the same origin; the response replaces the constants. |
+| Opened from `file://`, `localhost` or `127.0.0.1` (UI work) | Same fetch against the production API (`LIVE_API` = https://noct-navy.vercel.app, which sends `Access-Control-Allow-Origin: *` on `/api/feed`). No backend, keys or database needed to work on the UI with real data. |
+| `?api=https://other-host` | Overrides the API origin (e.g. a preview deployment). |
+| `?demo=1` in the URL | No fetch; the embedded sample weekend renders exactly as before. |
 | `?from=YYYY-MM-DD&to=YYYY-MM-DD` in the URL | Passed through to the API (max 31 nights). |
 | Fetch fails (network, 4xx/5xx, malformed JSON) | Sample weekend stays; a small note under the controls reads *Live data unavailable — showing sample weekend*. |
 | Fetch succeeds with zero events | Live (empty) data is shown — the UI says "Nothing here". The sample is never mixed with live data. |
@@ -123,7 +125,27 @@ instead of the fake crowd; `visibleTo()` becomes a query joining `going`, `profi
 - `/api/feed` itself connects with `DATABASE_URL` (the pooler, i.e. the `postgres` role) and only ever reads the
   same views, so PostgREST clients and the API see identical data.
 
-## Local development
+## Working on the UI (designers / front-end teammates)
+
+Everything visual lives in one file, `index.html` (CSS in the `<style>` block, markup, then the script). Nothing
+else needs to be installed:
+
+```bash
+git clone <repo> && cd noct
+open index.html            # or: npx serve .   → http://localhost:3000
+```
+
+The page loads **real events from production** (see Loading rules); add `?demo=1` to see the fixed sample
+weekend instead, `?from=2026-10-02&to=2026-10-04` to look at another range. Rules of the road:
+
+- Keep the render functions reading the same event fields (`docs/FRONTEND.md` → *How the UI maps the response*).
+  New data needs come as a request on the API, not by reaching into other tables.
+- Do not put secrets in the page; the API is public read-only and that is by design.
+- Branch → pull request; once the Vercel project is connected to GitHub every PR gets a preview URL (`noct-<hash>-…vercel.app`)
+  whose API works because `/api/feed` is same-origin there too (preview needs the same env vars as production).
+- Sample-data fallback must keep working (`?demo=1`) — it is also what the unit tests and offline demos rely on.
+
+## Local development (backend)
 
 ```bash
 dropdb --if-exists noct_feed && bash scripts/db-local.sh noct_feed          # 0001..0008, idempotent

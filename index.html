@@ -759,12 +759,21 @@ function applyFeed(f){
   if(AREAS.indexOf(S.area)<0)S.area='All';
   buildAll();setView(S.view);
 }
+/* Where /api lives. Deployed: same origin. Opened from disk or a local static server (UI work): the production
+   API, which allows cross-origin reads. Override with ?api=https://host, or ?demo=1 for the sample weekend. */
+const LIVE_API='https://noct-navy.vercel.app';
+const API_BASE=(()=>{
+  const q=new URLSearchParams(location.search).get('api');
+  if(q)return q.replace(/\/+$/,'');
+  const local=location.protocol==='file:'||/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+  return local?LIVE_API:'';
+})();
 async function loadFeed(){
-  if(location.protocol==='file:'||/[?&]demo=1(&|$)/.test(location.search))return;
+  if(/[?&]demo=1(&|$)/.test(location.search))return;
   const q=new URLSearchParams(location.search);
   const from=q.get('from')||nyDate(0),to=q.get('to')||nyDate(2);
   try{
-    const r=await fetch(`/api/feed?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,{headers:{accept:'application/json'}});
+    const r=await fetch(`${API_BASE}/api/feed?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,{headers:{accept:'application/json'}});
     if(!r.ok)throw new Error(`HTTP ${r.status}`);
     applyFeed(await r.json());
     liveNote('');
