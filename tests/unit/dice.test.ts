@@ -308,12 +308,15 @@ describe('dice: adapter', () => {
   const sameNight = (i: number) => new Date(Date.UTC(2026, 8, 13, 16, i)).toISOString();
   const pageOf = (url: string) => Number(new URL(url).searchParams.get('page[number]'));
 
-  it('enabled() requires DICE_API_KEY and points at the docs', () => {
+  it('enabled() requires one of the two keys and points at the docs', () => {
     expect(dice.enabled({})).toEqual({ ok: false, reason: KEY_MISSING });
-    expect(dice.enabled({ DICE_API_KEY: '' })).toEqual({ ok: false, reason: KEY_MISSING });
+    expect(dice.enabled({ DICE_API_KEY: '', DICE_FRONTEND_KEY: '' })).toEqual({ ok: false, reason: KEY_MISSING });
     expect(KEY_MISSING).toContain('docs/sources/dice.md');
     expect(dice.enabled({ DICE_API_KEY: 'issued-by-dice' })).toEqual({ ok: true });
-    expect(dice.tosNote).toMatch(/issued to NOCT/);
+    expect(dice.enabled({ DICE_FRONTEND_KEY: 'public-page-key' })).toEqual({ ok: true });
+    // the note must state both paths and keep the DICE-issued key as the clean one
+    expect(dice.tosNote).toMatch(/DICE_FRONTEND_KEY/);
+    expect(dice.tosNote).toMatch(/§8\.4/);
   });
 
   it('fetch() refuses to run without a key and never touches the network', async () => {
@@ -385,7 +388,8 @@ describe('dice: adapter', () => {
 
   it('fetch() reports a rejected key as a configuration error', async () => {
     const calls = mockDice({ 1: { error: 'unauthorized', description: 'unauthorized', key: 'error_unauthorized' } }, 401);
-    await expect(dice.fetch(ctx({ DICE_API_KEY: 'stale' }))).rejects.toThrow(/DICE rejected DICE_API_KEY \(HTTP 401\)/);
+    // the frontend key rotates with dice.fm deploys, so the message tells the operator to refresh either one
+    await expect(dice.fetch(ctx({ DICE_API_KEY: 'stale' }))).rejects.toThrow(/DICE rejected the key \(HTTP 401\).*refresh/);
     expect(calls).toHaveLength(1);
   });
 });

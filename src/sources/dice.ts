@@ -1,11 +1,17 @@
 /**
  * DICE — partner Events API v2 (GET https://partners-endpoint.dice.fm/api/v2/events).
  *
- * Governance. Every dice.fm page embeds DICE's own frontend events key. NOCT does NOT use it. This adapter
- * runs only with DICE_API_KEY, a key DICE issues to NOCT (partner / widget programme — docs/sources/dice.md
- * explains how to ask). It never fetches dice.fm HTML, never calls the Cloudflare-fronted
- * events-api.dice.fm host, and never reads credentials out of a page or a JS bundle. When the host blocks,
- * politeFetch throws BlockedError and the run records it — nothing here tries to get around that.
+ * Governance. Two keys can drive the same `x-api-key` header on the same partner host:
+ *   - DICE_API_KEY       — a key DICE issues to NOCT (partner / widget programme). The clean path.
+ *   - DICE_FRONTEND_KEY  — the public key DICE embeds in every dice.fm page (its `EVENTS_API_KEY`). Using it
+ *                          for a scheduled aggregator is automated access DICE's US Terms §8.4 do not permit;
+ *                          the project owner has chosen this path knowingly (docs/sources/dice.md records the
+ *                          decision). The owner supplies the value from the page via env — NOCT never scrapes
+ *                          dice.fm HTML to harvest it, never hardcodes it, and prefers DICE_API_KEY when both
+ *                          are set. Calls go only to the partner host partners-endpoint.dice.fm (the host the
+ *                          official widget uses); we never follow links.next to the Cloudflare-fronted
+ *                          events-api.dice.fm, and when a host blocks, politeFetch throws BlockedError and the
+ *                          run records it — nothing here tries to get around a challenge.
  *
  * Source quirks that shape the code below (all verified live 2026-09-13, see docs/sources/dice.md):
  *  - No date-range filter exists. Results come back date-ascending and already exclude past events, so we
@@ -29,7 +35,19 @@ import { baseListing } from './types.js';
 
 export const DICE_EVENTS_URL = 'https://partners-endpoint.dice.fm/api/v2/events';
 export const PAGE_SIZE = 100;
-export const KEY_MISSING = 'DICE_API_KEY not set — see docs/sources/dice.md';
+export const KEY_MISSING = 'no DICE key set (DICE_API_KEY or DICE_FRONTEND_KEY) — see docs/sources/dice.md';
+
+/**
+ * Resolve the x-api-key value and which kind it is. DICE_API_KEY (issued) wins over DICE_FRONTEND_KEY (the
+ * public page key) when both are present. Never logs or returns the key itself outside the request header.
+ */
+export function resolveKey(e: Env): { key: string; kind: 'issued' | 'frontend' } | null {
+  const issued = env('DICE_API_KEY', undefined, e);
+  if (issued) return { key: issued, kind: 'issued' };
+  const frontend = env('DICE_FRONTEND_KEY', undefined, e);
+  if (frontend) return { key: frontend, kind: 'frontend' };
+  return null;
+}
 /** DICE lists a few hundred upcoming NYC events; 30 pages (3,000) is a runaway guard, not a target. */
 const MAX_PAGES = 30;
 const CITIES = ['New York', 'Brooklyn'];
@@ -296,7 +314,7 @@ export function normalizeEvent(e: DiceEvent): NormalizedListing {
 // ---- adapter -------------------------------------------------------------------------------------------
 
 function enabled(e: Env): { ok: true } | { ok: false; reason: string } {
-  return env('DICE_API_KEY', undefined, e) ? { ok: true } : { ok: false, reason: KEY_MISSING };
+  return resolveKey(e) ? { ok: true } : { ok: false, reason: KEY_MISSING };
 }
 
 interface Page {
@@ -317,16 +335,19 @@ async function fetchPage(page: number, key: string, ctx: FetchContext): Promise<
     return { events, full: body.data.length >= PAGE_SIZE };
   } catch (err) {
     // A rejected key is a configuration problem, not a transient one; say so. Blocks (BlockedError) pass through untouched.
+    // The frontend key rotates with dice.fm deploys, so 401/403 there usually means "re-read it from the page".
     if (err instanceof HttpError && err.name === 'HttpError' && (err.status === 401 || err.status === 403)) {
-      throw new Error(`DICE rejected DICE_API_KEY (HTTP ${err.status}); the key must be issued by DICE — see docs/sources/dice.md`);
+      throw new Error(`DICE rejected the key (HTTP ${err.status}); refresh DICE_API_KEY / DICE_FRONTEND_KEY — see docs/sources/dice.md`);
     }
     throw err;
   }
 }
 
 async function fetch(ctx: FetchContext): Promise<FetchResult> {
-  const key = env('DICE_API_KEY', undefined, ctx.env);
-  if (!key) throw new Error(KEY_MISSING);
+  const resolved = resolveKey(ctx.env);
+  if (!resolved) throw new Error(KEY_MISSING);
+  const key = resolved.key;
+  ctx.log.info('dice key in use', { kind: resolved.kind });
   const w = nightWindow(ctx.fromDate, ctx.toDate);
   const listings = new Map<string, NormalizedListing>();
   const dropped: DropCounts = { outsideNy: 0, undated: 0, outsideWindow: 0, nonClub: 0 };
@@ -394,7 +415,7 @@ export const dice: SourceAdapter = {
   priority: 80,
   feesIncludedDefault: true,
   tosNote:
-    'DICE US Terms of Use (10 Mar 2026) §4.2 license the App and Services for personal, non-commercial use only and §8.4 forbid automated crawling of the website, App or Services and commercial exploitation of their content. NOCT therefore reads only the partner Events API (partners-endpoint.dice.fm/api/v2/events) with an x-api-key that DICE has issued to NOCT (the key must be issued by DICE) — never the frontend key embedded in dice.fm pages, never dice.fm HTML, never the Cloudflare-fronted events-api host. Ask via help@dice.fm / dice.fm/partners (MIO); see docs/sources/dice.md.',
+    'DICE US Terms of Use (10 Mar 2026) §4.2 license the App and Services for personal, non-commercial use only and §8.4 forbid automated crawling and commercial exploitation of their content. NOCT reads only the partner Events API (partners-endpoint.dice.fm/api/v2/events, the host DICE\'s own widget uses) with an x-api-key: DICE_API_KEY if DICE issued one, otherwise DICE_FRONTEND_KEY — the public key DICE ships in every dice.fm page, which the project owner supplies from the page and has opted to use knowingly despite §8.4. NOCT never scrapes dice.fm HTML, never follows links.next to the Cloudflare-fronted events-api host, and stops on any block. A DICE-issued key remains the clean path (help@dice.fm / dice.fm/partners); see docs/sources/dice.md.',
   enabled,
   fetch,
 };

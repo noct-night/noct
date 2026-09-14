@@ -9,8 +9,8 @@ DICE has no public developer programme. Three things exist:
 
 | Path | What it is | NOCT's position |
 | --- | --- | --- |
-| `partners-endpoint.dice.fm/api/v2/events` + `x-api-key` | The Events API behind DICE's embeddable widgets. Per-partner keys. | **The only thing this adapter calls**, and only with a key DICE issued to NOCT. |
-| The frontend key embedded in every dice.fm page (`EVENTS_API_KEY`) | DICE's own web key. Undocumented, rotates with deploys. | **Never used.** Borrowing it is the kind of credential harvesting NOCT does not do. |
+| `partners-endpoint.dice.fm/api/v2/events` + `x-api-key` | The Events API behind DICE's embeddable widgets. Per-partner keys. | **The only endpoint this adapter calls.** |
+| The frontend key embedded in every dice.fm page (`EVENTS_API_KEY`) | DICE's own web key. Undocumented, rotates with deploys. | **In use as of 2026-09-14** via `DICE_FRONTEND_KEY`, an owner decision (below). The owner copies it from the page; NOCT never scrapes dice.fm to harvest it and never hardcodes it. |
 | `partners-endpoint.dice.fm/graphql` (MIO token) | Partner "Ticket Holders" API, scoped to that partner's own events, exposes fan PII. | Not useful for an aggregator; not called. |
 | dice.fm HTML / `events-api.dice.fm` | Cloudflare Bot Management; `links.next` in API responses points here. | **Never requested.** The adapter builds every page URL itself against the partner host. |
 
@@ -19,7 +19,23 @@ circumventing access controls; §8.4 forbids automated crawling of "our website,
 exploitation of their content. A scheduled fetcher is only defensible with DICE's consent, which is what an
 issued key represents. Nothing here is legal advice — `docs/DATA_SOURCES.md` has the owner decision.
 
-### Getting a key
+### Owner decision, 2026-09-14
+
+The owner chose to run this adapter on the **frontend key** while a DICE-issued key is pursued, having been
+told that §8.4 does not permit a scheduled aggregator to use it. What that means in practice, and the limits
+kept anyway:
+
+- The key goes in `DICE_FRONTEND_KEY`, read by the owner from the page (below) — the code never fetches
+  dice.fm HTML to harvest it, never stores it in the repo, and prefers `DICE_API_KEY` whenever one exists.
+- Only `partners-endpoint.dice.fm` is called: the host DICE's own widget is configured to use, a plain AWS
+  ELB. `links.next` (→ the Cloudflare-fronted `events-api.dice.fm`) is never followed, dice.fm HTML is never
+  requested, and a challenge response ends the run via `BlockedError` rather than being worked around.
+- Every listing keeps its `dice.fm/event/...` link, so purchase always happens on DICE.
+- This is reversible: clear `DICE_FRONTEND_KEY` and the adapter reports disabled again.
+
+### Getting the key
+
+**Issued key (the durable path — still worth doing):**
 
 1. Email **help@dice.fm** (the contact named in the Terms, §8.6) describing NOCT: a New York club-night
    aggregator that links every listing back to dice.fm for purchase, wants read access to the public NYC
@@ -27,12 +43,15 @@ issued key represents. Nothing here is legal advice — `docs/DATA_SOURCES.md` h
 2. In parallel, use the partner pages: https://dice.fm/partners and https://dice.fm/partners/ticketing.
    Venues and promoters get their widget key from **MIO** (https://mio.dice.fm), so a friendly venue partner
    can also introduce NOCT to their DICE account manager.
-3. Put the key in `DICE_API_KEY` (`.env.example`). Nothing else is needed.
+3. Put it in `DICE_API_KEY`; it takes precedence automatically.
 
-Until then `dice.enabled()` returns `{ ok: false, reason: 'DICE_API_KEY not set — see docs/sources/dice.md' }`,
-the registry skips the adapter, and `dice.fetch()` throws the same message without touching the network.
-A key DICE rejects (HTTP 401/403 from the app server) is reported as
-`DICE rejected DICE_API_KEY (HTTP 401); the key must be issued by DICE`. A bot-management challenge (not
+**Frontend key (what runs today):** open https://dice.fm, View Source, search `EVENTS_API_KEY = '…'` and copy
+the quoted value into `DICE_FRONTEND_KEY`. (Equivalently: DevTools → Network → an events request → request
+header `x-api-key`.) It rotates with dice.fm deploys, so refresh it when DICE starts returning 401/403.
+
+With neither set, `dice.enabled()` returns `{ ok: false, reason: KEY_MISSING }`, the registry skips the
+adapter, and `dice.fetch()` throws without touching the network. A rejected key is reported as
+`DICE rejected the key (HTTP 401); refresh DICE_API_KEY / DICE_FRONTEND_KEY`. A bot-management challenge (not
 expected on this host — it is a plain AWS ELB, not Cloudflare) surfaces as `BlockedError` and is recorded;
 NOCT does not try to get past it.
 

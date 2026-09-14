@@ -22,7 +22,7 @@ open items at the bottom need a decision (and probably a lawyer) before public l
 | Source | Method | Key | Coverage (NYC, verified) | Genre data | Terms — the short version | NOCT default |
 |---|---|---|---|---|---|---|
 | **Resident Advisor** | `POST https://ra.co/graphql` (the endpoint ra.co's own web app uses; undocumented) | none | ~600–900 upcoming NYC listings; the richest record (times, tiers, sold-out, artists, promoters, images, RA genres) | 70-tag RA taxonomy on ~70 % of events | Terms of Use §4.4(a): no automated extraction for commercial purposes without a written agreement; §4.4(f): no bots/scrapers unless authorised in writing. robots.txt disallows `/api/` (not `/graphql`). HTML pages sit behind DataDome — NOCT never touches them. | **ON** (owner accepted the risk in the prototype; written-permission request to RA recommended — see below) |
-| **DICE** | `GET https://partners-endpoint.dice.fm/api/v2/events` with `x-api-key` | `DICE_API_KEY` **issued by DICE** | >200 upcoming NY+Brooklyn events; totals incl. fees, per-tier sold-out, `genre_tags`, `type_tags` (dj / party / gig) | good (`genre_tags`, `type_tags`) | US Terms §8.4: no automated crawling, personal non-commercial licence. Partner keys exist (widget program). | **OFF until DICE issues a key** — ask help@dice.fm / partners; the adapter is complete and fixture-tested |
+| **DICE** | `GET https://partners-endpoint.dice.fm/api/v2/events` with `x-api-key` | `DICE_API_KEY` (issued) **or** `DICE_FRONTEND_KEY` (DICE's public page key) | 342 listings on the first run; totals incl. fees, per-tier sold-out, `genre_tags`, `type_tags` (dj / party / gig) | good (`genre_tags`, `type_tags`) | US Terms §8.4: no automated crawling, personal non-commercial licence. Partner keys exist (widget program). | **ON since 2026-09-14 on the frontend key** — an owner decision taken against §8.4 (see below); an issued key is still being pursued |
 | **EDMTrain** | `GET https://edmtrain.com/api/events?locationIds=70&client=KEY` (official API) | `EDMTRAIN_CLIENT_KEY` + `NOCT_EDMTRAIN_ACCEPT_TERMS=1` | 691 upcoming NYC events, 166 venues, but date-only, no prices/tickets/images | none in the API (binary electronic flag) | API Terms: “You may not use our API in … an event discovery service that combines our events with other event sources.” Also: show the `link` unmodified, cache < 24 h, don't store past events. | **OFF** — this clause describes NOCT. Apply honestly (`multipleEventSourcesInd = yes`) or leave it off |
 | **Ticketmaster Discovery** | official REST API, `dmaId=345`, `classificationName=Dance/Electronic` | `TICKETMASTER_API_KEY` (self-serve, free) | Live Nation rooms (Brooklyn Steel, Terminal 5, Brooklyn Paramount, arenas); underground clubs are not on TM | segment/genre/subGenre classifications | 5 000 calls/day, 5 rps; no caching “other than for reasonable periods”; no revenue from the API without permission | **ON once a key is set** |
 | **Elsewhere** (venue) | the venue site's own Next.js page data (`/_next/data/<buildId>/events.json`) | none | complete for Elsewhere's rooms + Elsewhere-presented shows at other venues | coarse (`Electronic`, `Live Electronic`…) | robots.txt permissive; no published API terms; first-party data | **ON** |
@@ -79,8 +79,11 @@ Angeles are ingested in production.
 
 - **Ask RA in writing.** Terms §4.4(a) explicitly contemplates “a written agreement with us”. RA has done
   bespoke syndication before (Spotify, 2020). Route: pro.ra.co “ticketing partnership” form / ra.co/contact.
-- **Ask DICE for a key** for an aggregator use-case (help@dice.fm). Until then DICE prices come only from
-  Public Records' DICE links (short-link ids stored as `external_refs`).
+- **DICE runs on the frontend key since 2026-09-14** — the owner's decision, recorded in `docs/sources/dice.md`,
+  taken knowing §8.4 does not permit a scheduled aggregator to use it. Two follow-ups: **ask help@dice.fm for an
+  issued key** (drop it in `DICE_API_KEY` and it takes precedence automatically), and expect the frontend key to
+  rotate with dice.fm deploys — a run failing with `DICE rejected the key (HTTP 401)` means refresh it. Reversible
+  at any time by clearing `DICE_FRONTEND_KEY`.
 - **EDMTrain:** apply truthfully or drop. Do not scrape edmtrain.com.
 - **Ticketmaster + Eventbrite keys** are self-serve; both need a NOCT account (owner action).
 - **Plan upgrades before launch:** Vercel Pro (commercial use, per-minute crons, 800 s functions) and
