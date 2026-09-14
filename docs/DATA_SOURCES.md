@@ -58,6 +58,14 @@ open items at the bottom need a decision (and probably a lawyer) before public l
    comes from RA tags, DICE tags, venue/promoter priors and the LLM reconciliation step
    (`docs/GENRE_VIBE.md`), with Discogs (CC0) artist styles as the next addition.
 
+## Cities (2026-09-14)
+
+Resident Advisor is the only source that covers every city; the registry (`src/lib/cities.ts`) holds the RA
+area ids verified live: New York 8, Los Angeles 23, San Francisco 218, Chicago 17, Miami 38, Washington DC 22,
+Detroit 19, Toronto 28, London 13, Berlin 34. 19hz.info has community lists for LA, Bay Area, Chicago, Miami,
+DC, Detroit, Toronto (and more) — a second source for those cities once an adapter exists. New York and Los
+Angeles are ingested in production.
+
 ## Checked 2026-09-14 and not (yet) built
 
 - **19hz.info** — 16 regional lists, none for New York (`eventlisting_NYC.php` → 404). Its per-region `pastEvents_*.csv` files are a free labelled genre corpus (title/lineup → tags) worth using as an eval set for the classifier, not as a feed.

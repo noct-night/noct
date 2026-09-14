@@ -34,6 +34,8 @@ export interface FeedVibe {
 
 /** One row of event_feed plus the aggregated `offers` the feed query attaches. */
 export interface FeedRow {
+  city?: string;
+  tz?: string;
   event_id: string;
   title: string;
   /** YYYY-MM-DD (cast to text in SQL so pg does not turn it into a local-midnight Date) */
@@ -205,9 +207,15 @@ export interface FeedSourceStatus {
   last_run: { status: string; finished_at: string | null; seen: number; error: string | null } | null;
 }
 
+export interface FeedCity { key: string; name: string; tz: string; events: number; enabled: boolean }
+
 export interface FeedResponse {
   generated_at: string;
   range: { from: string; to: string };
+  /** the city this response is for */
+  city: { key: string; name: string; tz: string };
+  /** every known city with its upcoming-event count; the UI greys out the empty ones */
+  cities: FeedCity[];
   days: FeedDay[];
   venues: Record<string, FeedVenue>;
   events: FeedEvent[];

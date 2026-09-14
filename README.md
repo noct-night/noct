@@ -92,7 +92,7 @@ Ticketmaster / EDMTrain with real keys.
 - Images come from the source flyer where one exists; otherwise the CSS textures remain.
 - Artist-level genre evidence (Discogs/MusicBrainz) is designed (`docs/GENRE_VIBE.md`) but not implemented.
 - Provisional venues created from unknown labels need a periodic human pass (`venue.needs_review`).
-- Only New York. Adding a city = new RA area id + venue seed.
+- Cities: New York and Los Angeles ingested by default from RA (`NOCT_CITIES`); San Francisco, Chicago, Miami, DC, Detroit, Toronto, London, Berlin are registered (`src/lib/cities.ts`) and switch on by adding them to `NOCT_CITIES`. Venue-direct feeds and the venue seed are New York only, so other cities rely on RA (+ 19hz where it has a list).
 
 ## Feedback
 

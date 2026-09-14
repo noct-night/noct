@@ -3,6 +3,16 @@
 How ingestion is scheduled, how to run it by hand, what to look at when something is off, and the
 knobs that exist. Everything below assumes the schema in `supabase/migrations/` is applied.
 
+## Cities
+
+`NOCT_CITIES` (default `nyc`) lists the cities each ingest run covers; the RA adapter walks one RA area per
+city (`src/lib/cities.ts` has the ids, verified live 2026-09-14). Every listing/event/venue carries `city` and
+`tz`; nights are computed in the event's own zone (`night_date(ts, tz)`), venue resolution is city-scoped
+(LA's "Basement" never merges with Queens' BASEMENT), and `/api/feed?city=la` returns that city's nights with
+local clocks. Adding a city: add a row to `src/lib/cities.ts` and to `0011_cities.sql`, put the key in
+`NOCT_CITIES`, run `/api/ingest/ra`. Volume guide (RA, 30 nights): NYC ≈ 600, LA ≈ 340, SF ≈ 260, London ≈ 1,900,
+Berlin ≈ 1,400 — London + Berlin together roughly triple the ingest time and storage.
+
 ## Moving parts
 
 | Piece | Where | What it does |

@@ -26,7 +26,10 @@ export interface OpenAICompatibleConfig {
   minIntervalMs?: number;
   /** start in `json_object` mode (for providers known to reject json_schema) */
   jsonMode?: 'json_schema' | 'json_object';
+  /** default 6000: reasoning models (Gemini 3.x, o-series) spend part of this on thinking */
   maxTokens?: number;
+  /** OpenAI-style `reasoning_effort` ('low' | 'medium' | 'high'); omitted when unset — not every provider accepts it */
+  reasoningEffort?: string;
   timeoutMs?: number;
   log?: Logger;
   // injectable for tests
@@ -102,7 +105,8 @@ export function createOpenAICompatibleClient(cfg: OpenAICompatibleConfig): Class
         { role: 'system', content: fallback ? system + schemaHint() : system },
         { role: 'user', content: user },
       ],
-      max_tokens: cfg.maxTokens ?? 2000,
+      max_tokens: cfg.maxTokens ?? 6000,
+      ...(cfg.reasoningEffort ? { reasoning_effort: cfg.reasoningEffort } : {}),
       response_format: fallback
         ? { type: 'json_object' }
         : { type: 'json_schema', json_schema: { name: 'noct_classification', schema: cfg.jsonSchema } },

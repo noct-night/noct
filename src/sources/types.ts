@@ -34,6 +34,10 @@ export interface NormalizedListing {
   sourceUrl: string | null;
   /** payload exactly as fetched (or the parsed HTML fragment as JSON) — stored in listing.raw */
   raw: unknown;
+  /** city key from src/lib/cities.ts ('nyc', 'la', ...) — venue-direct adapters pin theirs */
+  city: string;
+  /** IANA time zone the listing's local times are read in (night_date, day-party rules, UI clocks) */
+  tz: string;
 
   title: string;
   /** ISO-8601 UTC instants; null when the source only has a date */
@@ -122,6 +126,8 @@ export interface SourceAdapter {
 export function baseListing(partial: Pick<NormalizedListing, 'source' | 'sourceId' | 'title' | 'raw'> & Partial<NormalizedListing>): NormalizedListing {
   return {
     sourceUrl: null,
+    city: 'nyc',
+    tz: 'America/New_York',
     startsAt: null,
     endsAt: null,
     hasTime: false,

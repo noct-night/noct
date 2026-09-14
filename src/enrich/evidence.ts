@@ -12,6 +12,8 @@ import { toLocalParts } from '../lib/time.js';
 import { type RuleInput, type RuleOutput } from './rules.js';
 
 export interface CandidateRow {
+  city?: string;
+  tz?: string;
   event_id: string;
   title: string;
   night: string;
@@ -183,6 +185,7 @@ export function toRuleInput(c: CandidateRow): RuleInput {
     ends_at: c.ends_at,
     has_time: c.has_time,
     night: c.night,
+    tz: c.tz ?? 'America/New_York',
     price_min: c.price_min,
     price_max: c.price_max,
     price_note: c.price_note,
@@ -215,11 +218,11 @@ export function buildEvidenceBundle(c: CandidateRow, rules: RuleOutput): string 
   const nightDate = new Date(`${c.night}T12:00:00Z`);
   const weekday = WEEKDAYS[nightDate.getUTCDay()] ?? '';
   lines.push(`title: ${c.title}`);
-  const startLocal = c.starts_at && c.has_time ? toLocalParts(new Date(c.starts_at)).time : null;
+  const startLocal = c.starts_at && c.has_time ? toLocalParts(new Date(c.starts_at), c.tz ?? 'America/New_York').time : null;
   const when = c.has_time && startLocal
     ? `${startLocal}–${rules.timing.end_local ?? '?'} local${rules.timing.duration_h ? ` (${rules.timing.duration_h}h)` : ''}`
     : 'time unknown';
-  lines.push(`night: ${c.night} (${weekday}) · ${when} · status ${c.status}`);
+  lines.push(`night: ${c.night} (${weekday}) · ${when} · status ${c.status}${c.city && c.city !== 'nyc' ? ` · city ${c.city}` : ''}`);
   if (c.venue) {
     const v = c.venue;
     const bits = [

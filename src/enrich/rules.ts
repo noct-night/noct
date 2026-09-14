@@ -41,8 +41,10 @@ export interface RuleInput {
   starts_at: string | null;
   ends_at: string | null;
   has_time: boolean;
-  /** YYYY-MM-DD New York nightlife date */
+  /** YYYY-MM-DD nightlife date in the event's time zone */
   night: string;
+  /** IANA time zone for local-time rules (default America/New_York) */
+  tz?: string;
   price_min: number | null;
   price_max: number | null;
   price_note?: string | null;
@@ -99,7 +101,8 @@ function timing(input: RuleInput): Timing {
   if (!input.has_time || !input.starts_at) return NO_TIMING;
   const start = new Date(input.starts_at);
   if (Number.isNaN(start.getTime())) return NO_TIMING;
-  const sp = toLocalParts(start);
+  const tz = input.tz ?? 'America/New_York';
+  const sp = toLocalParts(start, tz);
   const startHour = sp.hour + sp.minute / 60;
   // Anything before 06:00 belongs to the previous night (night_date()), so put it past 24 on the night axis:
   // an afters running 04:00–11:00 then ends at 35 (after sunrise), not at "11" like a brunch party would.
@@ -109,7 +112,7 @@ function timing(input: RuleInput): Timing {
   if (end && !Number.isNaN(end.getTime()) && end.getTime() > start.getTime()) {
     durationH = (end.getTime() - start.getTime()) / 3_600_000;
     endT = startT + durationH;
-    endLocal = toLocalParts(end).time;
+    endLocal = toLocalParts(end, tz).time;
   }
   return { startHour, startT, endT, durationH, weekday: sp.weekday, startLocal: sp.time, endLocal };
 }

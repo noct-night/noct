@@ -72,7 +72,7 @@ describe('ra: buildVariables', () => {
 });
 
 describe('ra: normalizeEvent on the captured page', () => {
-  const listings = events.map(normalizeEvent);
+  const listings = events.map((ev) => normalizeEvent(ev));
 
   it('produces well-formed listings for every event', () => {
     expect(listings).toHaveLength(20);
@@ -248,7 +248,7 @@ describe('ra: secret venues and set times', () => {
 });
 
 describe('ra: minimal fixture (date only, no venue id, no tickets)', () => {
-  const listings = parseListingsPage(minimal).events.map(normalizeEvent);
+  const listings = parseListingsPage(minimal).events.map((ev) => normalizeEvent(ev));
   it('falls back to the RA date as the night', () => {
     const l = listings[0]!;
     expect(l.sourceId).toBe('2503060');

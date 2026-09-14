@@ -72,7 +72,8 @@ describe('createOpenAICompatibleClient', () => {
     expect(b.messages[1]).toEqual({ role: 'user', content: 'title: Mister Sunday' });
     expect(b.response_format.type).toBe('json_schema');
     expect(b.response_format.json_schema.schema.properties.genres.items.properties.code.enum).toContain('techno.dub');
-    expect(b.max_tokens).toBe(2000);
+    expect(b.max_tokens).toBe(6000);
+    expect(b).not.toHaveProperty('reasoning_effort');
     expect(b).not.toHaveProperty('output_config');
     expect(res.stop_reason).toBe('end_turn');
     expect(res.parsed_output).toEqual(GOOD);
@@ -129,6 +130,12 @@ describe('createOpenAICompatibleClient', () => {
     expect(calls.map((x) => x.body.response_format.type)).toEqual(['json_schema', 'json_object', 'json_object']);
     expect(calls[1]!.body.messages[0].content).toContain('validates against this JSON Schema');
     expect(calls[1]!.body.messages[0].content).toContain('"house.deep"');
+  });
+  it('sends reasoning_effort only when configured', async () => {
+    const { c, calls } = client([{ status: 200, body: completion(GOOD) }], { reasoningEffort: 'low', maxTokens: 3000 });
+    await c.messages.parse(buildRequest('a', 'm'));
+    expect(calls[0]!.body.reasoning_effort).toBe('low');
+    expect(calls[0]!.body.max_tokens).toBe(3000);
   });
   it('other HTTP errors throw with the status', async () => {
     const { c } = client([{ status: 500, body: { error: 'boom' } }]);

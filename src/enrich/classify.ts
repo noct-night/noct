@@ -244,6 +244,8 @@ export function createClient(e: Record<string, string | undefined> = process.env
     jsonSchema: OUTPUT_JSON_SCHEMA,
     minIntervalMs: Number(env('NOCT_LLM_MIN_INTERVAL_MS', '4000', e)),
     jsonMode: env('NOCT_LLM_JSON_MODE', undefined, e) === 'json_object' ? 'json_object' : 'json_schema',
+    reasoningEffort: env('NOCT_LLM_REASONING_EFFORT', undefined, e),
+    maxTokens: Number(env('NOCT_LLM_MAX_TOKENS', '6000', e)),
     log,
   });
 }

@@ -354,7 +354,7 @@ const DOORS=[['EARLY','Before 10pm'],['LATE','10pm to 1am'],['UNK','Time not lis
 const AVAIL=[['on','On sale'],['out','Sold out']];
 let PLATS=['RA','Dice','Eventbrite','Nowadays RSVP'];
 let AREAS=['All','Queens','Brooklyn'];
-const CITIES=[['nyc','New York',true],['la','Los Angeles',false],['ldn','London',false],['ber','Berlin',false]];
+let CITIES=[['nyc','New York',true],['la','Los Angeles',false],['ldn','London',false],['ber','Berlin',false]];   /* replaced by /api/feed cities[] */
 let PRESETS=[[0,'Friday'],[1,'Saturday'],[2,'Sunday'],['all','All weekend']];   /* value = index into DAYS, or 'all' */
 let FEED_NOTE='This build covers the current weekend only.';
 let SOURCES=[['Resident Advisor','10 events, genres and set times',true],['Dice','4 events, prices only',true],['Eventbrite','1 event, full pricing',true],['Venue calendars','Nowadays, Signal, MoMA PS1',true],['Tixr','Not connected',false]];
@@ -415,7 +415,8 @@ function ok(e){
 const results=()=>EV.filter(ok).sort((a,b)=>a.d-b.d||(a.door||'99').localeCompare(b.door||'99'));
 const nF=()=>S.gen.size+S.door.size+S.avail.size+S.plat.size;
 const dateLabel=()=>S.from===S.to?dayName(S.from):(S.from===0&&S.to===DAYS.length-1?allLabel():`${DAYS[S.from][1]} – ${DAYS[S.to][1]}`);
-const locLabel=()=>S.area==='All'?CITIES.find(c=>c[0]===S.city)[1]:`New York, ${S.area}`;
+const cityName=()=>(CITIES.find(c=>c[0]===S.city)||CITIES[0])[1];
+const locLabel=()=>S.area==='All'?cityName():`${cityName()}, ${S.area}`;
 
 function renderImage(){
   const list=results();
@@ -639,7 +640,7 @@ function opt(el,items,isOn,onPick){
   });
 }
 function buildAll(){
-  opt($('#oCity'),CITIES.map(c=>[c[0],c[2]?c[1]:c[1]+' (soon)']),v=>S.city===v,v=>{if(CITIES.find(c=>c[0]===v)[2])S.city=v});
+  opt($('#oCity'),CITIES.map(c=>[c[0],c[2]?c[1]:c[1]+' (soon)']),v=>S.city===v,v=>{const c=CITIES.find(x=>x[0]===v);if(c&&c[2]&&S.city!==v){S.city=v;S.area='All';closeAll();loadFeed();}});
   opt($('#oArea'),AREAS,v=>S.area===v,v=>S.area=v);
   opt($('#oPreset'),PRESETS,v=>v==='all'?(S.from===0&&S.to===DAYS.length-1):(S.from===v&&S.to===v),
     v=>{S.i=0;if(v==='all'){S.from=0;S.to=DAYS.length-1}else{S.from=v;S.to=v}});
@@ -651,7 +652,7 @@ function buildAll(){
 }
 function clearAll(){S.gen.clear();S.door.clear();S.avail.clear();S.plat.clear();S.i=0;buildAll();render()}
 function useGeo(){S.geo=!S.geo;$('#geoState').textContent=S.geo?'On':'Off';render()}
-function resetLoc(){S.city='nyc';S.area='All';S.geo=false;buildAll();render()}
+function resetLoc(){const was=S.city;S.city='nyc';S.area='All';S.geo=false;if(was!=='nyc'){closeAll();loadFeed();return}buildAll();render()}
 
 function renderMenu(){
   $('#mNav').innerHTML=[['Events','Back to the feed'],['Venues',''],['Saved',''],['Profile',S.signedIn?(S.ig?'@'+S.ig:'Signed in'):'Sign in'],['Filter',nF()?`${nF()} on`:''],['Where we pull from',`${SOURCES.length} sources`]]
@@ -753,6 +754,8 @@ function applyFeed(f){
   GENRES=(f.genres||[]).map(clean);
   PLATS=[...new Set(EV.flatMap(e=>e.srcs.map(s=>platformOf(s[0]))))];
   AREAS=['All',...new Set(EV.map(e=>vInfo(e.venue).boro).filter(Boolean))];
+  if(Array.isArray(f.cities)&&f.cities.length)CITIES=f.cities.map(c=>[c.key,clean(c.name),!!c.enabled]);
+  if(f.city&&f.city.key)S.city=f.city.key;
   SOURCES=(f.sources||[]).map(s=>[clean(s.name),runLine(s),!!(s.last_run&&s.last_run.status!=='failed'&&s.last_run.status!=='skipped')]);
   FEED_NOTE=`Live: ${DAYS.length} night${DAYS.length===1?'':'s'} from ${DAYS[0][2]==='Tonight'?'tonight':DAYS[0][1]}, refreshed every five minutes.`;
   S.from=0;S.to=0;S.i=0;
@@ -771,9 +774,15 @@ const API_BASE=(()=>{
 async function loadFeed(){
   if(/[?&]demo=1(&|$)/.test(location.search))return;
   const q=new URLSearchParams(location.search);
-  const from=q.get('from')||nyDate(0),to=q.get('to')||nyDate(2);
+  if(q.get('city')&&!loadFeed.cityFromUrlUsed){S.city=q.get('city');loadFeed.cityFromUrlUsed=true}
+  const city=S.city||'nyc';
+  /* explicit dates apply to the first load only; a city switch asks for that city's own "today" */
+  const explicit=!loadFeed.loadedOnce, from=explicit?q.get('from'):null, to=explicit?q.get('to'):null;
+  loadFeed.loadedOnce=true;
+  const qs=new URLSearchParams({city});if(from)qs.set('from',from);if(to)qs.set('to',to);
+  liveNote('Loading '+(CITIES.find(c=>c[0]===city)||[,city])[1]+'…');
   try{
-    const r=await fetch(`${API_BASE}/api/feed?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,{headers:{accept:'application/json'}});
+    const r=await fetch(`${API_BASE}/api/feed?${qs}`,{headers:{accept:'application/json'}});
     if(!r.ok)throw new Error(`HTTP ${r.status}`);
     applyFeed(await r.json());
     liveNote('');

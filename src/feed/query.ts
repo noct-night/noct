@@ -9,6 +9,7 @@
  */
 import { query } from '../lib/db.js';
 import { localDatePlus, NY_TZ } from '../lib/time.js';
+import { CITIES, DEFAULT_CITY, findCity, type City } from '../lib/cities.js';
 import {
   buildDays, genreFilterList, shapeEvent, shapeSource, shapeVenue,
   type FeedResponse, type FeedRow, type SourceRunRow, type VenueRow,
@@ -18,10 +19,8 @@ import {
 export const MAX_RANGE_DAYS = 31;
 const DEFAULT_SPAN_DAYS = 2;
 
-/** venue.borough values (0002) as the UI's "Area" filter; matched case-insensitively. */
+/** New York's venue.borough values as the UI's "Area" filter; matched case-insensitively. Other cities pass any area through. */
 export const AREAS = ['Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island', 'New Jersey', 'Other'] as const;
-/** The only city NOCT serves today; adding one means a new RA area id + venue seed, not a query parameter. */
-const CITY_ALIASES = new Set(['nyc', 'new york', 'new-york', 'new_york', 'new york city']);
 
 /** Bad caller input (dates, area, city). api/feed.ts turns it into a 400; anything else is a 500. */
 export class FeedParamError extends Error {
@@ -47,6 +46,7 @@ export interface ResolvedFeedParams {
   to: string;
   area: string | null;
   includeAll: boolean;
+  city: City;
 }
 
 /** A real calendar date in YYYY-MM-DD form: the regex alone lets 2026-02-30 through, so round-trip it. */
@@ -66,24 +66,28 @@ function blank(v: string | null | undefined): v is null | undefined | '' {
 
 /** Validate + default the caller's parameters. Exported so the API handler and tests share one rule set. */
 export function resolveParams(p: FeedParams = {}, now: Date = p.now ?? new Date()): ResolvedFeedParams {
-  if (!blank(p.city) && !CITY_ALIASES.has(p.city.trim().toLowerCase())) {
-    throw new FeedParamError(`city "${p.city}" is not served yet; only New York is`);
-  }
+  const city = blank(p.city) ? findCity(DEFAULT_CITY) : findCity(p.city);
+  if (!city) throw new FeedParamError(`city "${p.city}" is unknown; one of ${CITIES.map((c) => c.key).join(', ')}`);
   for (const [key, v] of [['from', p.from], ['to', p.to]] as const) {
     if (!blank(v) && !isCalendarDate(v.trim())) throw new FeedParamError(`${key} must be a valid YYYY-MM-DD date`);
   }
-  const from = blank(p.from) ? localDatePlus(0, NY_TZ, now) : p.from.trim();
-  const to = blank(p.to) ? localDatePlus(DEFAULT_SPAN_DAYS, NY_TZ, localMidnightOf(from)) : p.to.trim();
+  // "today" is the city's calendar date, not the server's
+  const from = blank(p.from) ? localDatePlus(0, city.tz, now) : p.from.trim();
+  const to = blank(p.to) ? localDatePlus(DEFAULT_SPAN_DAYS, city.tz, localMidnightOf(from)) : p.to.trim();
   const span = daysBetween(from, to);
   if (span < 0) throw new FeedParamError('to must not be before from');
   if (span >= MAX_RANGE_DAYS) throw new FeedParamError(`range must cover at most ${MAX_RANGE_DAYS} nights`);
   let area: string | null = null;
   if (!blank(p.area) && p.area.trim().toLowerCase() !== 'all') {
     const want = p.area.trim().toLowerCase();
-    area = AREAS.find((a) => a.toLowerCase() === want) ?? null;
-    if (!area) throw new FeedParamError(`area must be one of ${AREAS.join(', ')} or All`);
+    if (city.key === 'nyc') {
+      area = AREAS.find((a) => a.toLowerCase() === want) ?? null;
+      if (!area) throw new FeedParamError(`area must be one of ${AREAS.join(', ')} or All`);
+    } else {
+      area = p.area.trim().slice(0, 40); // other cities: whatever area labels their venues carry
+    }
   }
-  return { from, to, area, includeAll: p.includeAll === true };
+  return { from, to, area, includeAll: p.includeAll === true, city };
 }
 
 /** Noon UTC on a date: a safe anchor for localDatePlus() that lands on the same calendar day in New York. */
@@ -102,7 +106,7 @@ const EVENTS_SQL = `
          f.vibe_codes, f.vibes,
          f.energy, f.darkness, f.crowd_size, f.start_lateness, f.end_lateness, f.price_tier, f.underground_index,
          f.sound_summary, f.is_electronic, f.needs_review, f.listing_count, f.platforms, f.sources,
-         f.cheapest_price, f.sold_out, f.going_count,
+         f.cheapest_price, f.sold_out, f.going_count, f.city, f.tz,
          o.offers
   from event_feed f
   left join lateral (
@@ -114,9 +118,13 @@ const EVENTS_SQL = `
     from event_offer x where x.event_id = f.event_id
   ) o on true
   where f.night between $1::date and $2::date
+    and f.city = $5::text
     and ($3::text is null or f.borough = $3)
     and ($4::boolean or f.is_electronic is distinct from false)
   order by f.night, f.has_time desc, f.starts_at nulls last, lower(f.title)`;
+
+/** Cities that have something to show (upcoming events), for the UI's city picker. */
+const CITIES_SQL = `select city, count(*)::int as n from event where merged_into is null and status <> 'removed' and night >= $1::date group by city`;
 
 const VENUES_SQL = `
   select venue_id, name, kind, address, neighborhood, borough, instagram, website, ra_url, dice_url, verified, lat, lng
@@ -130,21 +138,25 @@ const SOURCES_SQL = `
 
 export async function buildFeed(params: FeedParams = {}): Promise<FeedResponse> {
   const now = params.now ?? new Date();
-  const { from, to, area, includeAll } = resolveParams(params, now);
-  const [ev, src] = await Promise.all([
-    query<FeedRow>(EVENTS_SQL, [from, to, area, includeAll]),
+  const { from, to, area, includeAll, city } = resolveParams(params, now);
+  const [ev, src, cityRows] = await Promise.all([
+    query<FeedRow>(EVENTS_SQL, [from, to, area, includeAll, city.key]),
     query<SourceRunRow>(SOURCES_SQL),
+    query<{ city: string; n: number }>(CITIES_SQL, [localDatePlus(0, city.tz, now)]),
   ]);
-  const days = buildDays(from, to, now);
+  const days = buildDays(from, to, now, city.tz);
   const dayIndex = new Map(days.map((d, i) => [d.date, i]));
   const rows = ev.rows.filter((r) => dayIndex.has(r.night));
   // venues{} is keyed by the family name the events carry (room -> complex), so fetch the family rows
   const venueIds = [...new Set(rows.map((r) => r.family_id ?? r.venue_id).filter((id): id is string => !!id))];
   const vs = venueIds.length ? (await query<VenueRow>(VENUES_SQL, [venueIds])).rows : [];
-  const events = rows.map((r, i) => shapeEvent(r, { n: i + 1, d: dayIndex.get(r.night) as number }));
+  const events = rows.map((r, i) => shapeEvent(r, { n: i + 1, d: dayIndex.get(r.night) as number, tz: r.tz || city.tz }));
+  const counts = new Map(cityRows.rows.map((r) => [r.city, Number(r.n)]));
   return {
     generated_at: new Date().toISOString(),
     range: { from, to },
+    city: { key: city.key, name: city.name, tz: city.tz },
+    cities: CITIES.map((c) => ({ key: c.key, name: c.name, tz: c.tz, events: counts.get(c.key) ?? 0, enabled: (counts.get(c.key) ?? 0) > 0 })),
     days,
     venues: Object.fromEntries(vs.map((v) => [v.name, shapeVenue(v)])),
     events,

@@ -16,6 +16,7 @@ import { env } from '../lib/env.js';
 import { postJson } from '../lib/http.js';
 import { cleanText, parseMoneyRange } from '../lib/normalize.js';
 import { NY_TZ, iso, nightDate, zonedToUtc } from '../lib/time.js';
+import { enabledCityKeys, getCity } from '../lib/cities.js';
 import { baseListing, type FetchContext, type FetchResult, type NormalizedListing, type PriceTier, type SourceAdapter } from './types.js';
 
 export const RA_GRAPHQL_URL = 'https://ra.co/graphql';
@@ -226,10 +227,10 @@ const names = (xs: Array<{ name?: string | null }> | null | undefined): string[]
   (xs ?? []).map((x) => (x?.name ?? '').trim()).filter((s) => s.length > 0);
 
 /** RA event -> NormalizedListing. Pure; the fixture tests exercise it offline. */
-export function normalizeEvent(ev: RaEvent): NormalizedListing {
+export function normalizeEvent(ev: RaEvent, city = 'nyc'): NormalizedListing {
   const venue = ev.venue ?? null;
   // startTime/endTime are LocalDateTime in the venue's zone with no offset; the area tells us which zone.
-  const tz = venue?.area?.ianaTimeZone || NY_TZ;
+  const tz = venue?.area?.ianaTimeZone || getCity(city).tz || NY_TZ;
   const start = ev.startTime ? zonedToUtc(ev.startTime, tz) : null;
   const end = ev.endTime ? zonedToUtc(ev.endTime, tz) : null;
   const coords = normalizeCoords(venue?.location);
@@ -255,6 +256,8 @@ export function normalizeEvent(ev: RaEvent): NormalizedListing {
 
   return baseListing({
     source: 'ra',
+    city,
+    tz,
     sourceId: ev.id,
     sourceUrl: `https://ra.co${contentUrl}`,
     raw: ev,
@@ -307,6 +310,24 @@ export function areaIdFrom(e: FetchContext['env']): number {
   return id;
 }
 
+export interface RaTarget { city: string; areaId: number; tz: string }
+
+/**
+ * One RA area per enabled city (NOCT_CITIES, default nyc). NOCT_RA_AREA_ID still overrides New York's area
+ * (kept for the original single-city configuration); cities without an RA area are skipped with a warning.
+ */
+export function raTargets(e: FetchContext['env']): { targets: RaTarget[]; warnings: string[] } {
+  const targets: RaTarget[] = [];
+  const warnings: string[] = [];
+  for (const key of enabledCityKeys(e)) {
+    const c = getCity(key);
+    const areaId = key === 'nyc' ? areaIdFrom(e) : c.raAreaId;
+    if (!areaId) { warnings.push(`ra: city ${key} has no RA area id; skipped`); continue; }
+    targets.push({ city: key, areaId, tz: c.tz });
+  }
+  return { targets, warnings };
+}
+
 /**
  * Walk the listing pages for [fromDate, toDate]. `deps` exist so tests can drive the pager offline;
  * production uses the defaults. Events are de-duplicated by id because a multi-day event is listed once per
@@ -314,42 +335,46 @@ export function areaIdFrom(e: FetchContext['env']): number {
  */
 export async function collectListings(ctx: FetchContext, deps: { fetchPage?: PageFetcher; pageSize?: number } = {}): Promise<FetchResult> {
   const fetchPage = deps.fetchPage ?? fetchListingsPage;
-  const areaId = areaIdFrom(ctx.env);
+  const { targets, warnings } = raTargets(ctx.env);
   const limit = ctx.limit && ctx.limit > 0 ? Math.floor(ctx.limit) : undefined;
   // Smoke tests with --limit 5 should not pull 100 rows; otherwise take the biggest page RA allows.
   const pageSize = Math.max(1, Math.min(RA_PAGE_SIZE_MAX, deps.pageSize ?? limit ?? RA_PAGE_SIZE_MAX));
-  const warnings: string[] = [];
   const byId = new Map<string, NormalizedListing>();
-  let page = 1;
-  let seen = 0;
-  let hasMore = true;
-  let capped = false;
+  let complete = true;
 
-  while (hasMore && !capped) {
-    if (page > MAX_PAGES) {
-      warnings.push(`stopped after ${MAX_PAGES} pages; enumeration incomplete`);
-      break;
+  for (const target of targets) {
+    let page = 1;
+    let seen = 0;
+    let hasMore = true;
+    let capped = false;
+    while (hasMore && !capped) {
+      if (page > MAX_PAGES) {
+        warnings.push(`stopped after ${MAX_PAGES} pages for ${target.city}; enumeration incomplete`);
+        complete = false;
+        break;
+      }
+      const body = await fetchPage(buildVariables({ areaId: target.areaId, fromDate: ctx.fromDate, toDate: ctx.toDate, page, pageSize }), ctx);
+      const parsed = parseListingsPage(body);
+      warnings.push(...parsed.warnings);
+      seen += parsed.rows;
+      for (const ev of parsed.events) {
+        if (limit !== undefined && byId.size >= limit) { capped = true; break; }
+        if (!byId.has(ev.id)) byId.set(ev.id, normalizeEvent(ev, target.city));
+      }
+      // Count raw rows, not parsed events: a row whose event is null (RA hides withdrawn events that way) must
+      // not make a full page look short, or the walk would stop early while still claiming a complete window.
+      hasMore = parsed.rows === pageSize && seen < parsed.totalResults;
+      if (limit !== undefined && byId.size >= limit && hasMore) capped = true;
+      ctx.log.info('page fetched', { city: target.city, page, events: parsed.events.length, totalResults: parsed.totalResults, collected: byId.size });
+      page++;
     }
-    const body = await fetchPage(buildVariables({ areaId, fromDate: ctx.fromDate, toDate: ctx.toDate, page, pageSize }), ctx);
-    const parsed = parseListingsPage(body);
-    warnings.push(...parsed.warnings);
-    seen += parsed.rows;
-    for (const ev of parsed.events) {
-      if (limit !== undefined && byId.size >= limit) { capped = true; break; }
-      if (!byId.has(ev.id)) byId.set(ev.id, normalizeEvent(ev));
-    }
-    // Count raw rows, not parsed events: a row whose event is null (RA hides withdrawn events that way) must
-    // not make a full page look short, or the walk would stop early while still claiming a complete window.
-    hasMore = parsed.rows === pageSize && seen < parsed.totalResults;
-    if (limit !== undefined && byId.size >= limit && hasMore) capped = true;
-    ctx.log.info('page fetched', { page, events: parsed.events.length, totalResults: parsed.totalResults, collected: byId.size });
-    page++;
+    if (hasMore || capped) complete = false;
+    if (capped) break; // the limit is global; later cities are not enumerated at all
   }
 
-  const complete = !hasMore && !capped;
   return {
     listings: [...byId.values()],
-    // Tombstoning needs a window we truly enumerated; a capped or aborted walk cannot promise that.
+    // Tombstoning needs a window we truly enumerated (for every city); a capped or aborted walk cannot promise that.
     window: complete ? { start: ctx.fromDate, end: ctx.toDate } : null,
     warnings,
   };

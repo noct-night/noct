@@ -220,6 +220,18 @@ describe.skipIf(!process.env.DATABASE_URL)('runEnrichment against the database (
     expect(after).toBe(before);                                       // nothing recorded, nothing spent
   });
 
+  it('a transient provider error (503) defers the event without recording a run, and the loop continues', async () => {
+    await query(`update event set classified_at = null, input_hash = null, classification_version = null where event_id = any($1)`, [[ivkovicId, sundayId]]);
+    let n = 0;
+    const flaky = { messages: { parse: async () => { n++; throw new Error('HTTP 503 from https://x/chat/completions: high demand'); } } };
+    const res = await runEnrichment({ client: flaky, limit: 10, eventIds: [ivkovicId, sundayId] });
+    expect(n).toBe(2);                                                  // both attempted (no stop)
+    expect(res.deferred).toBe(2);
+    expect(res.quotaStopped).toBeUndefined();
+    const rows = await query(`select classified_at from event where event_id = any($1)`, [[ivkovicId, sundayId]]);
+    expect(rows.rows.every((r) => r.classified_at === null)).toBe(true);
+  });
+
   it('input_hash is stable for identical inputs and changes when priors change', () => {
     const a = computeInputHash(IVKOVIC);
     expect(computeInputHash({ ...IVKOVIC, interested_count: 9999 })).toBe(a);

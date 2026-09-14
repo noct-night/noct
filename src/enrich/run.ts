@@ -9,7 +9,7 @@
  */
 import type pg from 'pg';
 import { query, withTx } from '../lib/db.js';
-import type { Env } from '../lib/env.js';
+import { env, type Env } from '../lib/env.js';
 import { createLogger, type Logger } from '../lib/log.js';
 import { classifyEvent, createClient, PROMPT_VERSION, resolveModel, type ClassifierClient, type ClassifierOutput, type ClassifyResult, type TokenUsage } from './classify.js';
 import { buildEvidenceBundle, CANDIDATE_SQL, computeInputHash, normalizeCandidate, toRuleInput, type CandidateRow } from './evidence.js';
@@ -42,11 +42,20 @@ export interface EnrichSummary {
   errors: string[];
   /** true when the run ended early because the LLM provider returned 429 twice (remaining events stay pending) */
   quotaStopped?: boolean;
+  /** true when the run ended early because NOCT_RUN_BUDGET_MS elapsed (remaining events stay pending) */
+  budgetStopped?: boolean;
+  /** events left pending after a transient provider error (5xx / network); retried on the next run */
+  deferred?: number;
 }
 
 /** 429 / quota errors from either backend (Anthropic RateLimitError, OpenAI-compatible "RateLimitError 429: ..."). */
 export function isQuotaError(message: string): boolean {
   return /\bRateLimitError\b|\b429\b|quota|rate limit/i.test(message);
+}
+
+/** Server-side or network failures worth retrying later without recording anything (5xx, overload, timeouts). */
+export function isTransientError(message: string): boolean {
+  return /\bHTTP 5\d\d\b|InternalServerError|OverloadedError|\boverloaded\b|high demand|UNAVAILABLE|fetch failed|ECONNRESET|ETIMEDOUT|timed? ?out|APIConnectionError/i.test(message);
 }
 
 interface TagSource { source: string; evidence: string; weight: number }
@@ -210,9 +219,17 @@ export async function runEnrichment(opts: EnrichOptions = {}): Promise<EnrichSum
   const candidates = res.rows.map((row) => normalizeCandidate(row));
   log.info('candidates fetched', { fetched: candidates.length, limit, model: client ? model : 'rules-only' });
 
+  // Vercel functions are capped at 300 s; leave the remainder un-run rather than being killed mid-write.
+  const budgetMs = Number(env('NOCT_RUN_BUDGET_MS', '270000', e));
+  const startedAt = Date.now();
   let processed = 0;
   for (const c of candidates) {
     if (processed >= limit) break;
+    if (Date.now() - startedAt > budgetMs) {
+      summary.budgetStopped = true;
+      log.warn('time budget reached; remaining events stay pending for the next run', { processed, budgetMs });
+      break;
+    }
     summary.considered++;
     const inputHash = computeInputHash(c);
     // same inputs under the same rules/prompt version -> nothing new to learn (and no tokens to spend)
@@ -236,6 +253,12 @@ export async function runEnrichment(opts: EnrichOptions = {}): Promise<EnrichSum
           usedModel = result.model;
           record = { ...record, model: result.model, output: result.output, usage: result.usage, costUsd: result.costUsd };
           summary.classified++;
+        } else if (isTransientError(result.error)) {
+          // Provider hiccup (5xx / network / timeout): leave the event pending and move on; it is retried next run.
+          summary.errors.push(`${c.event_id}: ${result.error}`);
+          summary.deferred = (summary.deferred ?? 0) + 1;
+          log.warn('transient provider error; event left pending', { event: c.event_id, error: result.error.slice(0, 160) });
+          continue;
         } else if (isQuotaError(result.error)) {
           // Rate limit / daily quota (free tiers): do NOT persist a rules-only result with the new input_hash —
           // that would park the event until its inputs change. Leave it pending and end this run; the next

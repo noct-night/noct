@@ -10,7 +10,7 @@ import { withTx } from '../lib/db.js';
 import type { Logger } from '../lib/log.js';
 import type { NormalizedListing } from '../sources/types.js';
 
-export const UPSERT_PARAM_COUNT = 31;
+export const UPSERT_PARAM_COUNT = 33;
 export const UPSERT_SQL = `select listing_id, is_new, changed, event_id from upsert_listing(${Array.from({ length: UPSERT_PARAM_COUNT }, (_, i) => `$${i + 1}`).join(', ')})`;
 
 /** ingest_run.warnings is meant to be readable, not a full error log. */
@@ -70,7 +70,7 @@ export function rejectReason(l: NormalizedListing): string | null {
   return null;
 }
 
-/** The 31 positional parameters of upsert_listing(), in declaration order. */
+/** The 33 positional parameters of upsert_listing(), in declaration order (city/tz added in 0011). */
 export function listingParams(l: NormalizedListing, runId: number): unknown[] {
   return [
     // p_source_key, p_source_id, p_source_url, p_raw, p_run_id
@@ -86,6 +86,8 @@ export function listingParams(l: NormalizedListing, runId: number): unknown[] {
     l.soldOut, l.status, num(l.ageMin), strings(l.genres), strings(l.promoters),
     // p_description, p_image_url, p_interested_count, p_source_tags, p_external_refs
     text(l.description), text(l.imageUrl), num(l.interestedCount), json(l.sourceTags ?? {}), json(l.externalRefs ?? []),
+    // p_city, p_tz (0011)
+    l.city || 'nyc', l.tz || 'America/New_York',
   ];
 }
 

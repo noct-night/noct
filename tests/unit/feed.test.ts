@@ -171,7 +171,7 @@ describe('shapeEvent (offline)', () => {
 describe('resolveParams (offline)', () => {
   const now = new Date('2026-09-13T20:00:00Z'); // Sunday 16:00 New York
   it('defaults to today..today+2 in New York', () => {
-    expect(resolveParams({}, now)).toEqual({ from: '2026-09-13', to: '2026-09-15', area: null, includeAll: false });
+    expect(resolveParams({}, now)).toMatchObject({ from: '2026-09-13', to: '2026-09-15', area: null, includeAll: false, city: { key: 'nyc' } });
     expect(resolveParams({ from: '2026-12-30' }, now).to).toBe('2027-01-01');
     // 01:00Z Monday is still Sunday evening in New York
     expect(resolveParams({}, new Date('2026-09-14T01:00:00Z')).from).toBe('2026-09-13');
@@ -180,7 +180,8 @@ describe('resolveParams (offline)', () => {
     expect(resolveParams({ area: 'brooklyn', city: 'NYC' }, now).area).toBe('Brooklyn');
     expect(resolveParams({ area: 'All' }, now).area).toBeNull();
     expect(() => resolveParams({ area: 'Hoboken' }, now)).toThrow(FeedParamError);
-    expect(() => resolveParams({ city: 'la' }, now)).toThrow(FeedParamError);
+    expect(resolveParams({ city: 'la' }, now).city.key).toBe('la');          // served since 0011
+    expect(() => resolveParams({ city: 'atlantis' }, now)).toThrow(FeedParamError);
     expect(() => resolveParams({ from: '2026-02-30' }, now)).toThrow(FeedParamError);
     expect(() => resolveParams({ from: '2026-09-15', to: '2026-09-14' }, now)).toThrow(/before/);
     expect(() => resolveParams({ from: '2026-09-01', to: '2026-10-15' }, now)).toThrow(/at most/);
