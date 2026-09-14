@@ -17,7 +17,7 @@ api/                        Vercel Functions
   enrich.ts                 POST /api/enrich  — genre/vibe pass over new/changed events
   health.ts                 GET /api/health — last run per source
 src/
-  sources/                  one adapter per source: fetch + normalise, no DB (types.ts is the contract)
+  sources/                  one adapter per source (RA, DICE, Elsewhere, Good Room, Public Records, SILO, Ticketmaster, EDMTrain): fetch + normalise, no DB
   ingest/                   runner: adapter → upsert_listing() → resolve_pending() → tombstone_sweep()
   enrich/                   taxonomy, crosswalk, rules engine, Claude reconciler
   feed/                     read model → UI shape
@@ -51,7 +51,7 @@ cp .env.example .env            # fill DATABASE_URL (local Postgres is fine) and
 bash scripts/db-local.sh noct   # creates the DB and applies every migration
 npm run fetch -- ra --limit 5   # dry-run one adapter (no DB)
 DATABASE_URL=postgresql://localhost:5432/noct npm run ingest -- ra elsewhere publicrecords goodroom
-DATABASE_URL=postgresql://localhost:5432/noct npm run enrich -- --limit 20   # rules-only without ANTHROPIC_API_KEY
+DATABASE_URL=postgresql://localhost:5432/noct npm run enrich -- --limit 20   # rules-only unless an LLM key is set (docs/GENRE_VIBE.md → Provider options)
 npm test                        # unit + DB tests (DB tests skip without DATABASE_URL); NOCT_LIVE=1 adds live tests
 npx vercel dev                  # serves index.html + /api/*
 ```

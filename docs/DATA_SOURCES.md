@@ -28,6 +28,7 @@ open items at the bottom need a decision (and probably a lawyer) before public l
 | **Elsewhere** (venue) | the venue site's own Next.js page data (`/_next/data/<buildId>/events.json`) | none | complete for Elsewhere's rooms + Elsewhere-presented shows at other venues | coarse (`Electronic`, `Live Electronic`…) | robots.txt permissive; no published API terms; first-party data | **ON** |
 | **Good Room** (venue) | WordPress RSS + homepage HTML over plain HTTP (their TLS cert is self-signed/expired) | none | complete for Good Room + Bad Room; tickets mostly on RA | none | none published | **ON** |
 | **Public Records** (venue) | homepage HTML (`a.event.table-row`) | none | complete (~85 rows: club + live), rooms, DICE short links | none (`Club`/`Live` type) | robots.txt allows; Wordfence installed — stay slow | **ON** |
+| **SILO Brooklyn** (venue) | the venue site's own Next.js page data (`__NEXT_DATA__.pageProps.events`) — its DICE calendar server-rendered | none | complete for SILO (34 upcoming): all-in prices per tier, sold-out, genre/type tags, exact times | good (DICE `genre_tags`) | first-party page, one GET a day; ticket links to dice.fm | **ON** |
 | Nowadays, Paragon, Bossa Nova, Knockdown Center | no first-party calendar (Nowadays/Paragon/Bossa link to RA; Knockdown's site is behind a Vercel challenge) | — | covered via RA (+DICE) | — | — | via RA |
 | Eventbrite API v3 | public event search was removed in 2020; organizer/venue-scoped reads may still work | private token | Elsewhere (all on EB), Avant Gardner organizer, promoter parties at DROM/Monarch/… | category/subcategory + organizer tags | API terms: future events only, link back, no competing product; ToS §13.1 forbids scraping pages | not built yet — candidate #8 |
 | Shotgun, Posh, Partiful, Tixr, Venuepilot, See Tickets, Bandsintown, Songkick, 19hz | blocked (Vercel/DataDome challenges), partner-only, artist-only, paid licence, or no NYC page | — | — | — | — | not viable now |
@@ -56,6 +57,14 @@ open items at the bottom need a decision (and probably a lawyer) before public l
 5. Genre never comes from EDMTrain/19hz/Spotify/Last.fm (unavailable, deprecated, or non-commercial). It
    comes from RA tags, DICE tags, venue/promoter priors and the LLM reconciliation step
    (`docs/GENRE_VIBE.md`), with Discogs (CC0) artist styles as the next addition.
+
+## Checked 2026-09-14 and not (yet) built
+
+- **19hz.info** — 16 regional lists, none for New York (`eventlisting_NYC.php` → 404). Its per-region `pastEvents_*.csv` files are a free labelled genre corpus (title/lineup → tags) worth using as an eval set for the classifier, not as a feed.
+- **Venue sites with structured events** (JSON-LD `MusicEvent`): Warsaw (24), Brooklyn Paramount (25) — Live Nation rooms selling on Ticketmaster; the Ticketmaster Discovery API covers them with genre classifications and prices once a key exists, so a JSON-LD scraper adds little.
+- **Venues RA does not list (0 events in 30 nights):** House of Yes (DICE + Shotgun), Pacha New York (DICE), Nebula / Musica / Marquee / Lavo / Somewhere Nowhere (commercial EDM; ticketing behind Tixr/DataDome or bottle-service systems), Brooklyn Monarch / Purgatory / Sultan Room (Eventbrite), Baby's All Right / Union Pool / Our Wicked Lady (indie live rooms; Squarespace pages embed widgets, no collection JSON). The first two are the strongest argument for a DICE-issued key; the Eventbrite group needs an Eventbrite token (organizer/venue-scoped reads).
+- **Posh (posh.vip)** — event pages carry inline state but no JSON-LD or documented API; RA already lists most promoter parties that also live on Posh. Revisit if a partnership appears.
+- **Shotgun, Tixr, AXS, Knockdown Center's site** — bot challenges (Vercel checkpoint / DataDome / Cloudflare); NOCT does not work around them.
 
 ## Open items for the owner
 

@@ -1,8 +1,9 @@
 /**
  * Genre / vibe enrichment runner (stages S1 rules -> S3 evidence -> S4 classifier -> S5 persist).
  *
- * For each candidate event: apply rules, build the evidence bundle, call Claude when a client is available
- * (ANTHROPIC_API_KEY or an injected client), merge, and write everything in one transaction:
+ * For each candidate event: apply rules, build the evidence bundle, call the LLM when a client is available
+ * (ANTHROPIC_API_KEY, an OpenAI-compatible provider via NOCT_LLM_*, or an injected client), merge, and write
+ * everything in one transaction:
  * event.* denormalised columns, event_tag rows with provenance (human rows untouched), classification_run.
  * Without a key the run is rules-only: crosswalk genres capped at 0.5 confidence, rule vibes, rule scalars.
  */
@@ -39,6 +40,13 @@ export interface EnrichSummary {
   skipped: number;
   costUsd: number;
   errors: string[];
+  /** true when the run ended early because the LLM provider returned 429 twice (remaining events stay pending) */
+  quotaStopped?: boolean;
+}
+
+/** 429 / quota errors from either backend (Anthropic RateLimitError, OpenAI-compatible "RateLimitError 429: ..."). */
+export function isQuotaError(message: string): boolean {
+  return /\bRateLimitError\b|\b429\b|quota|rate limit/i.test(message);
 }
 
 interface TagSource { source: string; evidence: string; weight: number }
@@ -190,10 +198,10 @@ export async function runEnrichment(opts: EnrichOptions = {}): Promise<EnrichSum
   const log = opts.log ?? createLogger('enrich');
   const limit = opts.limit && opts.limit > 0 ? opts.limit : 50;
   const model = opts.model ?? resolveModel(e);
-  const client = opts.client === undefined ? createClient(e) : opts.client;
+  const client = opts.client === undefined ? createClient(e, log) : opts.client;
   const versionPrefix = `${RULES_VERSION}/${PROMPT_VERSION}/`;
   const summary: EnrichSummary = { model: client ? model : 'rules-only', considered: 0, rulesApplied: 0, classified: 0, skipped: 0, costUsd: 0, errors: [] };
-  if (!client) log.info('no classifier client (ANTHROPIC_API_KEY unset): rules-only pass');
+  if (!client) log.info('no classifier client (no ANTHROPIC_API_KEY / NOCT_LLM_API_KEY): rules-only pass');
 
   const eventIds = opts.eventIds?.length ? opts.eventIds : null;
   // over-fetch: some rows will be skipped as unchanged; the SQL ordering keeps never-classified events first
@@ -228,6 +236,14 @@ export async function runEnrichment(opts: EnrichOptions = {}): Promise<EnrichSum
           usedModel = result.model;
           record = { ...record, model: result.model, output: result.output, usage: result.usage, costUsd: result.costUsd };
           summary.classified++;
+        } else if (isQuotaError(result.error)) {
+          // Rate limit / daily quota (free tiers): do NOT persist a rules-only result with the new input_hash —
+          // that would park the event until its inputs change. Leave it pending and end this run; the next
+          // scheduled run picks up where we stopped.
+          summary.errors.push(`${c.event_id}: ${result.error}`);
+          summary.quotaStopped = true;
+          log.warn('LLM quota exhausted; stopping this run, remaining events stay pending', { event: c.event_id, error: result.error });
+          break;
         } else {
           usedModel = result.model;
           record = { ...record, model: result.model, output: null, usage: result.usage, costUsd: result.costUsd, error: result.error };

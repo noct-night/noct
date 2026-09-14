@@ -205,6 +205,21 @@ describe.skipIf(!process.env.DATABASE_URL)('runEnrichment against the database (
     expect(runs.rows[0]?.model).toBeNull();
   });
 
+  it('a quota error (429 twice) ends the run without parking the event as classified', async () => {
+    await query(`update event set classified_at = null, input_hash = null, classification_version = null where event_id = $1`, [sundayId]);
+    const before = (await query(`select count(*)::int as n from classification_run where event_id = $1`, [sundayId])).rows[0]!.n;
+    const quotaClient = { messages: { parse: async () => { throw new Error('RateLimitError 429: daily quota exceeded'); } } };
+    const res = await runEnrichment({ client: quotaClient, limit: 10, eventIds: [sundayId] });
+    expect(res.quotaStopped).toBe(true);
+    expect(res.classified).toBe(0);
+    expect(res.errors[0]).toMatch(/429/);
+    const ev = (await query(`select classified_at, input_hash from event where event_id = $1`, [sundayId])).rows[0]!;
+    expect(ev.classified_at).toBeNull();                              // still pending for the next run
+    expect(ev.input_hash).toBeNull();
+    const after = (await query(`select count(*)::int as n from classification_run where event_id = $1`, [sundayId])).rows[0]!.n;
+    expect(after).toBe(before);                                       // nothing recorded, nothing spent
+  });
+
   it('input_hash is stable for identical inputs and changes when priors change', () => {
     const a = computeInputHash(IVKOVIC);
     expect(computeInputHash({ ...IVKOVIC, interested_count: 9999 })).toBe(a);

@@ -108,6 +108,26 @@ Model knowledge of a well-known touring artist is allowed but capped at 0.65 and
 is dotted in the UI and flips `needs_review`. Rules-only labels never exceed 0.5 because nobody reconciled the
 evidence.
 
+## Provider options
+
+The classifier talks to one of two backends behind the same `ClassifierClient` shape (`src/enrich/classify.ts`,
+`src/enrich/providers.ts`); the rules, evidence bundle, output schema, merge and persistence are identical.
+
+| provider | env | notes |
+| --- | --- | --- |
+| rules-only | nothing set | $0. What runs until a key is configured. Genres capped at 0.5, no `sound_summary`, no `is_electronic` filtering. |
+| `openai` (free tiers) | `NOCT_LLM_BASE_URL`, `NOCT_LLM_API_KEY`, `NOCT_LLM_MODEL` | Any OpenAI-compatible `/chat/completions`: Google AI Studio (Gemini), Groq, Mistral, OpenRouter `:free` models, Cerebras, Ollama. Structured output via `response_format: json_schema` built from the zod schema with real enums (`OUTPUT_JSON_SCHEMA`); if a provider rejects it the client falls back once to `json_object` with the schema in the prompt and stays there. Calls are spaced (`NOCT_LLM_MIN_INTERVAL_MS`, default 4 s ≈ 15/min) and a 429 is retried once after Retry-After; a second 429 or any other error makes that one event rules-only + `needs_review`. Free-tier caveats: per-minute and per-day quotas (the hourly cron's `?limit=60` and the `input_hash` skip keep volume at roughly the number of new/changed events, ~70/day), prompts may be used for product improvement under free terms, and models/quotas change without notice — read the provider's current limits page. Cost is recorded as 0 unless `NOCT_LLM_PRICE_INPUT/OUTPUT` are set. |
+| `anthropic` | `ANTHROPIC_API_KEY`, `NOCT_ENRICH_MODEL` | The original design: prompt caching (1 h), adaptive thinking on Opus 5 with `effort: medium`, SDK structured outputs. `claude-haiku-4-5` is the cheapest (~$6/month at 500 events/week); it does not take `effort`, which the request builder omits automatically. |
+
+Selection: explicit `NOCT_LLM_PROVIDER` wins; otherwise whichever key is present (Anthropic first). A provider that is
+named but half-configured throws at startup — a cron silently running rules-only because of a typo would be worse
+than a loud 500. Switching providers changes `classification_version` (it embeds the model), so every upcoming
+event is re-classified on the next run.
+
+Quality expectation: this is a constrained classification over a 60-code taxonomy with an evidence bundle, which
+mid-size free models handle reasonably; expect more `sparse_input`/generic-family answers than with Opus and
+check the 100-event golden set (below) before trusting subgenre chips from a new model.
+
 ## Cost
 
 Per event with the default model (`claude-opus-5`: $5 / $25 per MTok, cache read $0.50, 1h cache write $10),

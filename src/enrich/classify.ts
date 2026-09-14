@@ -7,7 +7,9 @@
  *  - Structured outputs cannot express numeric min/max, so scalars and confidence are string enums parsed
  *    back to numbers here.
  *  - The client is injectable (anything with `messages.parse`) so unit tests use a fake and never touch the API.
- *  - Model comes from NOCT_ENRICH_MODEL (default claude-opus-5). We never silently downgrade.
+ *  - Two backends: the Anthropic SDK (ANTHROPIC_API_KEY, model NOCT_ENRICH_MODEL, default claude-opus-5) or any
+ *    OpenAI-compatible endpoint via providers.ts (NOCT_LLM_PROVIDER=openai + NOCT_LLM_BASE_URL/API_KEY/MODEL —
+ *    the free-tier route). We never silently downgrade a configured model.
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
@@ -15,6 +17,7 @@ import { z } from 'zod';
 import { env } from '../lib/env.js';
 import type { Logger } from '../lib/log.js';
 import { GENRES, GENRE_CODES, VIBES, VIBE_CODES, VIBE_KINDS, type GenreCode, type VibeCode } from './taxonomy.js';
+import { createOpenAICompatibleClient } from './providers.js';
 
 export const PROMPT_VERSION = 'p1';
 export const DEFAULT_MODEL = 'claude-opus-5';
@@ -50,6 +53,8 @@ export const OutputSchema = z.object({
   flags: z.array(z.enum(FLAGS)),
 });
 export type RawClassifierOutput = z.infer<typeof OutputSchema>;
+/** Plain JSON Schema with real enums / minItems (zod 4 native) — what OpenAI-compatible providers receive. */
+export const OUTPUT_JSON_SCHEMA = z.toJSONSchema(OutputSchema) as Record<string, unknown>;
 
 export interface ClassifierOutput {
   genres: { code: GenreCode; confidence: number; why: string }[];
@@ -185,15 +190,62 @@ export interface ClassifierClient {
   messages: { parse(params: Anthropic.MessageCreateParamsNonStreaming): Promise<ClassifierResponse> };
 }
 
+export type ProviderKind = 'anthropic' | 'openai' | 'none';
+
+/**
+ * Which backend runs the classifier. Explicit NOCT_LLM_PROVIDER wins; otherwise whichever key is present
+ * (Anthropic first). 'none' = rules-only, which is also what an empty deployment gets.
+ */
+export function resolveProvider(e: Record<string, string | undefined> = process.env): ProviderKind {
+  const explicit = env('NOCT_LLM_PROVIDER', undefined, e);
+  if (explicit === 'anthropic' || explicit === 'openai' || explicit === 'none') return explicit;
+  if (explicit) throw new Error(`NOCT_LLM_PROVIDER must be anthropic | openai | none (got "${explicit}")`);
+  if (env('ANTHROPIC_API_KEY', undefined, e)) return 'anthropic';
+  if (env('NOCT_LLM_API_KEY', undefined, e)) return 'openai';
+  return 'none';
+}
+
 export function resolveModel(e: Record<string, string | undefined> = process.env): string {
+  if (resolveProvider(e) === 'openai') return env('NOCT_LLM_MODEL', '', e) as string;
   return env('NOCT_ENRICH_MODEL', DEFAULT_MODEL, e) as string;
 }
 
-/** Real client when ANTHROPIC_API_KEY is set; null otherwise (the runner then stays rules-only). */
-export function createClient(e: Record<string, string | undefined> = process.env): ClassifierClient | null {
-  const apiKey = env('ANTHROPIC_API_KEY', undefined, e);
-  if (!apiKey) return null;
-  return new Anthropic({ apiKey }) as unknown as ClassifierClient;
+/** Only the Claude 4.6+ families take `output_config.effort`; Haiku 4.5 rejects it with a 400. */
+export function supportsEffort(model: string): boolean {
+  return /^claude-/.test(model) && !/haiku-4-5|sonnet-4-5|opus-4-5|claude-3/.test(model);
+}
+
+/**
+ * Real client for the configured provider; null when no key is configured (the runner then stays rules-only).
+ * Misconfiguration (provider named but its variables missing) throws — a cron that silently ran rules-only
+ * because of a typo would be worse than a loud 500.
+ */
+export function createClient(e: Record<string, string | undefined> = process.env, log?: Logger): ClassifierClient | null {
+  const provider = resolveProvider(e);
+  if (provider === 'none') return null;
+  if (provider === 'anthropic') {
+    const apiKey = env('ANTHROPIC_API_KEY', undefined, e);
+    if (!apiKey) throw new Error('NOCT_LLM_PROVIDER=anthropic but ANTHROPIC_API_KEY is not set');
+    return new Anthropic({ apiKey }) as unknown as ClassifierClient;
+  }
+  const missing = ['NOCT_LLM_BASE_URL', 'NOCT_LLM_API_KEY', 'NOCT_LLM_MODEL'].filter((k) => !env(k, undefined, e));
+  if (missing.length) throw new Error(`OpenAI-compatible provider needs ${missing.join(', ')} (see docs/GENRE_VIBE.md → Provider options)`);
+  const model = env('NOCT_LLM_MODEL', '', e) as string;
+  const priceIn = Number(env('NOCT_LLM_PRICE_INPUT', '', e));
+  const priceOut = Number(env('NOCT_LLM_PRICE_OUTPUT', '', e));
+  // free tiers cost 0 (the default for unknown models); paid OpenAI-compatible models can be priced per MTok
+  if (Number.isFinite(priceIn) && Number.isFinite(priceOut) && (priceIn > 0 || priceOut > 0)) {
+    MODEL_PRICES[model] = { input: priceIn, output: priceOut, cacheRead: priceIn * 0.5, cacheWrite5m: priceIn, cacheWrite1h: priceIn };
+  }
+  return createOpenAICompatibleClient({
+    baseUrl: env('NOCT_LLM_BASE_URL', '', e) as string,
+    apiKey: env('NOCT_LLM_API_KEY', '', e) as string,
+    model,
+    jsonSchema: OUTPUT_JSON_SCHEMA,
+    minIntervalMs: Number(env('NOCT_LLM_MIN_INTERVAL_MS', '4000', e)),
+    jsonMode: env('NOCT_LLM_JSON_MODE', undefined, e) === 'json_object' ? 'json_object' : 'json_schema',
+    log,
+  });
 }
 
 export type ClassifyResult =
@@ -232,8 +284,9 @@ export function buildRequest(bundle: string, model: string): Anthropic.MessageCr
     max_tokens: 2000,
     system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral', ttl: '1h' } }],
     messages: [{ role: 'user', content: bundle }],
-    // Opus 5 runs adaptive thinking by default; effort 'medium' keeps reasoning proportionate to a classification
-    output_config: { format: zodOutputFormat(OutputSchema), effort: 'medium' },
+    // Opus 5 runs adaptive thinking by default; effort 'medium' keeps reasoning proportionate to a classification.
+    // Non-Claude models (OpenAI-compatible route) and Haiku 4.5 do not take effort at all.
+    output_config: supportsEffort(model) ? { format: zodOutputFormat(OutputSchema), effort: 'medium' } : { format: zodOutputFormat(OutputSchema) },
   };
 }
 
