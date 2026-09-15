@@ -11,6 +11,7 @@ import * as cheerio from 'cheerio';
 import { CITIES, enabledCityKeys, getCity } from '../lib/cities.js';
 import { fetchText } from '../lib/http.js';
 import { cleanText, normText, parseAge, parseMoneyRange, sha1 } from '../lib/normalize.js';
+import { lineupFromTitle } from '../lib/lineup.js';
 import { iso, nightDate, parseClock, zonedToUtc } from '../lib/time.js';
 import type { ExternalRef, FetchContext, FetchResult, NormalizedListing, SourceAdapter } from './types.js';
 import { baseListing } from './types.js';
@@ -119,7 +120,7 @@ export function hzListing(row: HzRow, city: string, region: string): NormalizedL
     night: startsAt ? nightDate(startsAt, tz) : row.isoDate,
     venueName: venueIsTba ? `TBA - ${row.venueCity ?? getCity(city).name}` : row.venue,
     venueAddress: row.venueCity ? `${row.venue ?? ''}${row.venue ? ', ' : ''}${row.venueCity}` : null,
-    lineup: [],                                         // 19hz folds the line-up into the title; the DB's title matching covers it
+    lineup: lineupFromTitle(row.title).lineup,          // 19hz has no line-up field; the title is the line-up
     priceMin,
     priceMax,
     priceNote: row.priceText || null,
