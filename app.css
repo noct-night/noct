@@ -122,7 +122,11 @@ a{color:inherit}
 .sheet.open{transform:translateY(0)}
 .sheet.down{transform:translateY(-101%)}
 .sheet.down.open{transform:translateY(0)}
-#signSheet{z-index:58}
+/* Sheets that can be opened while a page (#det 54, #ven 56) is up have to clear it, or they open behind it
+   and the tap reads as "nothing happened" — which is exactly what tapping a line-up name did. */
+#srch{z-index:60}
+#artist{z-index:62}
+#signSheet{z-index:64}
 .sx{margin:calc(22px + env(safe-area-inset-top)) 0 24px;font-size:22px;line-height:1;width:28px}
 .sh2{font-size:29px;font-weight:700;letter-spacing:-.03em;margin-bottom:14px}
 .lede{font-size:15.5px;line-height:1.6;color:var(--d1);margin-bottom:24px}
