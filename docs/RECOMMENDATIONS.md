@@ -34,8 +34,18 @@ somebody actually did. `history_size` counts a declared taste as one mark, so th
 appear to someone who has just answered.
 
 The same codes sort the feed client-side — **within** each night, never across one, because people read the
-calendar chronologically and Saturday's headliner must not jump above Friday. Nothing is hidden, only
-reordered, and the list view says so with a one-tap way back to time order.
+calendar chronologically and Saturday's headliner must not jump above Friday. A recommendation outranks any
+taste score, so it leads its night. Nothing is hidden, only reordered, and **Filter → Sort** switches between
+*For you* and *By time*; under *By time* neither the recommendation boost nor the taste score applies, or the
+control would be a lie.
+
+## Where "For you" shows
+
+A rail of cards above **list** and **calendar**, where a strip over a list is an ordinary thing. **Image view
+gets no rail**: it is a full-bleed stack, and cards floating over the artwork fought the one thing that view
+is for. It says "for you" by order instead, with a quiet dot and two words over the title. The reason a night
+was picked stays in the Saved list, which is the view you open to see recommendations; in the feed the mark
+is just a mark.
 
 ## The profile
 

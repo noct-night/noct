@@ -174,6 +174,14 @@ a{color:inherit}
 #fyImage .fyc{background:rgba(11,11,11,.55);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px)}
 #fyList{padding-top:4px;margin-bottom:26px}
 #fyCal{margin:22px 0 6px}
+/* "For you", said in place rather than as a card floating over the artwork */
+.fortag{font-size:12.5px;color:var(--chalk);margin:0 0 12px;display:flex;align-items:flex-start;gap:8px;line-height:1.4}
+.fydot{width:5px;height:5px;border-radius:50%;background:var(--chalk);flex:0 0 auto;margin-top:6px}
+/* Rows 1-4 of .row are spoken for, so the list marker rides the time line instead of claiming a new row.
+   The rail directly above already carries the reason; here it only has to explain why this row is first. */
+.rfor{color:var(--chalk)}
+.rfor::before{content:'';display:inline-block;width:4px;height:4px;border-radius:50%;
+  background:var(--chalk);vertical-align:middle;margin:-1px 6px 0 0}
 /* Onboarding. Two skippable questions using the chips and sheet the app already has, so it reads as the same
    product rather than a form bolted to the front of it. */
 .onbsub{font-size:15px;color:var(--d1);line-height:1.55;margin:-4px 0 26px}
@@ -264,7 +272,6 @@ a{color:inherit}
 
   <section class="view" id="imageView">
     <div id="slides"></div>
-    <div class="fy" id="fyImage" hidden></div>
     <button class="zone l" aria-label="Previous" onclick="step(-1)"></button>
     <button class="zone r" aria-label="Next" onclick="step(1)"></button>
     <div class="caption" id="caption"></div>
@@ -273,7 +280,6 @@ a{color:inherit}
 
   <section class="view" id="listView" hidden>
     <div class="fy" id="fyList" hidden></div>
-    <div class="srcline" id="srcLine"></div>
     <div id="rows"></div>
   </section>
 
@@ -326,6 +332,7 @@ a{color:inherit}
   <div class="sheet" id="filt">
     <button class="sx" onclick="closeAll()" aria-label="Close">✕</button>
     <div class="sh2">Filter</div>
+    <div class="grp" id="gSort" hidden><h3>Sort</h3><div class="opts" id="fSort"></div></div>
     <div class="grp"><h3>Genre</h3><div class="opts" id="fGen"></div></div>
     <div class="grp"><h3>Doors</h3><div class="opts" id="fDoor"></div></div>
     <div class="grp"><h3>Availability</h3><div class="opts" id="fAvail"></div></div>
@@ -430,7 +437,6 @@ let AREAS=['All','Queens','Brooklyn'];
 let CITIES=[['nyc','New York',true],['la','Los Angeles',false],['ldn','London',false],['ber','Berlin',false]];   /* replaced by /api/feed cities[] */
 /* When tab. Each preset asks the API for that window; the month calendar below picks a single night. */
 const PRESETS=[['tonight','Tonight'],['tomorrow','Tomorrow'],['weekend','This weekend']];
-let FEED_NOTE='This build covers the current weekend only.';
 let SOURCES=[['Resident Advisor','10 events, genres and set times',true],['Dice','4 events, prices only',true],['Eventbrite','1 event, full pricing',true],['Venue calendars','Nowadays, Signal, MoMA PS1',true],['Tixr','Not connected',false]];
 const HANDLES=['sunroommate','kj.wav','ninetyeight','lo.fidelity','marta.exe','pdrbk','yuna.tape','third.shift','glasshouse.ny','avenue.c','bk.basement','sable.tt','mmmoire','vhs.night','pale.route','okjune','tenpm.club','ridgewood.rave','soft.opening','nine.volt','curfew.bk','late.bloom'];
 const VIS=[['count','Count only','You add to the number. Nobody sees your handle, and you only see numbers back.'],
@@ -469,8 +475,6 @@ const vibesOf=e=>(e.vibes||[]).slice(0,2).map(v=>(v.glyph?v.glyph+' ':'')+v.labe
 /* enriched events lead with the primary genre and up to two vibe chips; untagged ones keep the raw source genres */
 const tagLine=e=>e.primary?[e.primary,...vibesOf(e)].join(' · '):genOf(e);
 const art=e=>e.image?` style="background:url(&quot;${e.image}&quot;) center/cover #0b0b0b"`:'';
-const srcNames=()=>SOURCES.filter(s=>s[2]).map(s=>s[0]);
-const joinNames=a=>a.length<2?a.join(''):`${a.slice(0,-1).join(', ')} and ${a[a.length-1]}`;
 
 /* going, with reciprocity.
    S.going / S.saved hold event UUIDs, not the numeric render ids: the feed renumbers on every load, so only
@@ -514,8 +518,11 @@ function ok(e){
   if(S.plat.size&&!e.srcs.some(x=>S.plat.has(platformOf(x[0]))))return false;
   return true;
 }
+/* A recommendation outranks any taste score (tasteScore is bounded far below 1000), and both only apply
+   under "For you" -- "By time" has to mean by time, or the sort control is a lie. */
+const rank=e=>(recFor(e)?1000:0)+tasteScore(e);
 const results=()=>EV.filter(ok).sort((a,b)=>a.d-b.d
-  ||(S.sortTaste?tasteScore(b)-tasteScore(a):0)
+  ||(S.sortTaste?rank(b)-rank(a):0)
   ||(a.door||'99').localeCompare(b.door||'99'));
 const nF=()=>S.gen.size+S.door.size+S.avail.size+S.plat.size;
 /* the preset's own words when one is active ("This weekend"), otherwise the nights themselves */
@@ -533,9 +540,10 @@ function renderImage(){
   $('#slides').innerHTML=list.map((e,n)=>`<div class="slide ${n===S.i?'on':''}"><div class="tex ${e.tex}"${n===S.i?art(e):''}></div></div>`).join('');
   $('#swipeLbl').textContent=list.length?`Swipe ${dateLabel().toLowerCase()}`:'Nothing here';
   if(!list.length){$('#caption').innerHTML=`<div class="sm">Nothing matches.</div><button class="lnk" onclick="clearAll()" style="margin-top:10px">Clear filters</button>`;return}
-  const e=list[S.i];
+  const e=list[S.i],rec=recFor(e);
   $('#caption').innerHTML=`
     <div class="idx sm">${S.i+1} of ${list.length} · ${dayFull(e.d)}</div>
+    ${rec?`<div class="fortag"><span class="fydot"></span>For you</div>`:''}
     <div class="name">${e.head}</div>
     <div class="gen">${tagLine(e)}</div>
     <div class="meta sm">${e.venue}${vInfo(e.venue).hood?', '+vInfo(e.venue).hood:''}${e.door?' · '+e.door:''}</div>
@@ -546,15 +554,12 @@ function step(n){const l=results();if(!l.length)return;S.i=(S.i+n+l.length)%l.le
 
 function renderList(){
   const list=results();
-  const sorted=S.sortTaste&&TASTE.length
-    ? ` Sorted for you — <button class="lnk" onclick="toggleTasteSort()">by time instead</button>.`
-    : (TASTE.length?` <button class="lnk" onclick="toggleTasteSort()">Sort for you</button>.`:'');
-  $('#srcLine').innerHTML=list.length?`${list.length} events, ${dateLabel().toLowerCase()}.${sorted} Pulled from ${joinNames(srcNames())}.`:'';
   let out='',cur=-1;
   list.forEach(e=>{
     if(e.d!==cur){cur=e.d;out+=`<div class="dayhead">${dayName(e.d)} · ${dayFull(e.d)}</div>`}
+    const rec=recFor(e);
     out+=`<div class="row" role="button" tabindex="0" onclick="openDet(${e.id})" onkeydown="if(event.key==='Enter'){openDet(${e.id})}">
-      <div class="rt">${e.door||'Time on listing'}</div>
+      <div class="rt">${rec?`<span class="rfor">For you</span> · `:''}${e.door||'Time on listing'}</div>
       <div class="rn">${e.head}</div>
       <div class="rg">${tagLine(e)}</div>
       <div class="rv">${e.venue}</div>
@@ -684,8 +689,7 @@ function tasteScore(e){
   });
   return hit*3+fam+Math.min((e.interested||0)/4000,.5);
 }
-function applyTaste(){S.sortTaste=TASTE.length>0;render()}
-function toggleTasteSort(){S.sortTaste=!S.sortTaste;S.i=0;render()}
+function applyTaste(){S.sortTaste=TASTE.length>0;buildAll();render()}
 function genreLabel(code){
   const o=ONB.opts.find(g=>g.code===code);if(o)return o.label;
   for(const e of EV){const t=(e.tags||[]).find(t=>t.code===code);if(t&&t.label)return t.label}
@@ -697,26 +701,27 @@ function editTaste(){
   if(!ONB.opts.length){maybeOnboard();return}
   ONB.step=1;ONB.genres=new Set(TASTE);renderOnb();$('#onb').classList.add('open');
 }
-const FY_MOUNTS=['fyImage','fyList','fyCal'];
+/* Image view is a full-bleed stack, so a rail of cards over the artwork fought the one thing that view is
+   for. It says "for you" by ORDER instead -- recommendations first within each night -- and marks the card.
+   The rail stays in list and calendar, where a strip above a list is an ordinary thing to put there. */
+const FY_MOUNTS=['fyList','fyCal'];
 const FY_MAX=8;
 function renderForYou(){
   const r=S.recs;
   const live=LIVE&&!r.error&&r.list.some(e=>!e.gone);
   const cards=live?r.list.map((e,i)=>[e,i]).filter(([e])=>!e.gone).slice(0,FY_MAX):[];
   const html=cards.length?`<div class="fyhd"><span class="fylab">For you</span>`
-      +`<button class="fymore" onclick="setView('saved')">All ${r.list.filter(e=>!e.gone).length} →</button></div>`
+      +`<button class="fymore" onclick="setView('saved')">All →</button></div>`
     +`<div class="fyrail">`+cards.map(([e,i])=>`<button class="fyc" onclick="openRec(${i})">`
       +`<div class="fyn">${e.head}</div>`
-      +`<div class="fym">${e.night_label}${e.venue?' · '+e.venue:''}</div>`
-      +`<div class="fyw">${e.why}</div></button>`).join('')+`</div>`:'';
+      +`<div class="fym">${e.night_label}${e.venue?' · '+e.venue:''}</div></button>`).join('')+`</div>`:'';
   FY_MOUNTS.forEach(id=>{const el=$('#'+id);if(!el)return;el.innerHTML=html;el.hidden=!cards.length});
-  if(cards.length)placeImageRail();
 }
-/* The image view is full-bleed, so the rail floats under the top controls rather than pushing them down. */
-function placeImageRail(){
-  const el=$('#fyImage'),top=$('#ctrlRow');if(!el||!top)return;
-  const b=top.getBoundingClientRect(),a=$('#app').getBoundingClientRect();
-  el.style.top=Math.max(72,b.bottom-a.top+16)+'px';
+/* A recommendation that also falls inside the loaded nights, by uuid: the rail and the feed are two views of
+   one answer, so a card can carry the reason the recommender already worked out. */
+function recFor(e){
+  if(!e||!e.uuid)return null;
+  return S.recs.list.find(r=>r.uuid===e.uuid&&!r.gone)||null;
 }
 /* A recommendation is usually on another night than the one loaded, so send people to the listing itself
    rather than silently reloading the feed underneath them. Opening one is recorded as a mild interest
@@ -977,13 +982,15 @@ function buildAll(){
   opt($('#oCity'),CITIES.map(c=>[c[0],c[2]?c[1]:c[1]+' (soon)']),v=>S.city===v,v=>{const c=CITIES.find(x=>x[0]===v);if(c&&c[2]&&S.city!==v){S.city=v;S.area='All';closeAll();loadFeed();}});
   opt($('#oArea'),AREAS,v=>S.area===v,v=>S.area=v);
   opt($('#oPreset'),PRESETS,v=>S.preset===v,v=>pickRange(v));
+  $('#gSort').hidden=!TASTE.length;                 /* nothing to sort by until a taste exists */
+  opt($('#fSort'),[['you','For you'],['time','By time']],v=>(v==='you')===S.sortTaste,v=>{S.sortTaste=(v==='you');S.i=0});
   opt($('#fGen'),GENRES,v=>S.gen.has(v),v=>S.gen.has(v)?S.gen.delete(v):S.gen.add(v));
   opt($('#fDoor'),DOORS,v=>S.door.has(v),v=>S.door.has(v)?S.door.delete(v):S.door.add(v));
   opt($('#fAvail'),AVAIL,v=>S.avail.has(v),v=>S.avail.has(v)?S.avail.delete(v):S.avail.add(v));
   opt($('#fPlat'),PLATS,v=>S.plat.has(v),v=>S.plat.has(v)?S.plat.delete(v):S.plat.add(v));
   renderCal();renderCalList();
 }
-function clearAll(){S.gen.clear();S.door.clear();S.avail.clear();S.plat.clear();S.i=0;buildAll();render()}
+function clearAll(){S.gen.clear();S.door.clear();S.avail.clear();S.plat.clear();S.sortTaste=TASTE.length>0;S.i=0;buildAll();render()}
 function useGeo(){S.geo=!S.geo;$('#geoState').textContent=S.geo?'On':'Off';render()}
 function resetLoc(){const was=S.city;S.city='nyc';S.area='All';S.geo=false;if(was!=='nyc'){closeAll();loadFeed();return}buildAll();render()}
 
@@ -1208,14 +1215,14 @@ function renderCal(){
     +`<div class="m">${MONTHS[p[1]-1]} ${p[0]}</div>`
     +`<button onclick="calMove(1)" aria-label="Next month">›</button></div>`
     +`<div class="calg">${WD.map(w=>`<div class="wd">${w}</div>`).join('')}${cells}</div>`
-    +`<div class="note">${S.countsNote||FEED_NOTE}</div>`;
+    +(S.countsNote?`<div class="note">${S.countsNote}</div>`:'');
 }
 /** Counts for the visible month, cached per month+city so reopening the sheet is free. */
 async function loadCounts(){
   const m=S.calMonth||dMonth(nyDate(0)),city=S.city||'nyc';
   if(S.countsMonth===m&&S.countsCity===city)return;
   if(/[?&]demo=1(&|$)/.test(location.search))return;
-  S.countsNote='Loading month…';renderCal();
+  renderCal();
   try{
     const qs=new URLSearchParams({city,from:monthStart(m),to:monthEnd(m),counts:'1'});
     const r=await fetch(`${API_BASE}/api/feed?${qs}`,{headers:{accept:'application/json'}});
@@ -1223,7 +1230,7 @@ async function loadCounts(){
     const j=await r.json();
     (j.days||[]).forEach(d=>{S.counts[d.date]=d.events|0});
     S.countsMonth=m;S.countsCity=city;
-    S.countsNote=`${j.total} event${j.total===1?'':'s'} in ${MONTHS[Number(m.slice(5,7))-1]}. Tap a night.`;
+    S.countsNote='';
   }catch(e){S.countsNote='Month counts unavailable.'}
   renderCal();
 }
@@ -1257,7 +1264,6 @@ function applyFeed(f){
   if(Array.isArray(f.cities)&&f.cities.length)CITIES=f.cities.map(c=>[c.key,clean(c.name),!!c.enabled]);
   if(f.city&&f.city.key)S.city=f.city.key;
   SOURCES=(f.sources||[]).map(s=>[clean(s.name),runLine(s),!!(s.last_run&&s.last_run.status!=='failed'&&s.last_run.status!=='skipped')]);
-  FEED_NOTE=`Live: ${DAYS.length} night${DAYS.length===1?'':'s'} from ${DAYS[0][2]==='Tonight'?'tonight':DAYS[0][1]}, refreshed every five minutes.`;
   /* the loaded window IS the selection now — the When tab decides what gets loaded */
   S.from=0;S.to=DAYS.length-1;S.i=0;
   if(!S.calMonth)S.calMonth=dMonth(DAYS[0][3]);
