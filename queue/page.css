@@ -1,0 +1,163 @@
+/* NOCT post queue. Split from page.html for the same reason app.css is split from index.html.
+   Two grounds on purpose: the page is a cool graphite work surface, the post is NOCT's true #0B0B0B.
+   The gap between them is what makes a post read as an object you can judge rather than as the page. */
+:root{
+  --bg:#16181B;               /* page: work surface */
+  --post:#0B0B0B;             /* the product's ground, untouched */
+  --paper:#FFFFFF;
+  --g1:rgba(255,255,255,.70);
+  --g2:rgba(255,255,255,.44);
+  --g3:rgba(255,255,255,.26);
+  --hair:rgba(255,255,255,.16);
+  --hair-2:rgba(255,255,255,.28);
+  --pw:420;                   /* preview width, unitless; /1080 = the scale a slide is shown at */
+  --f:'Archivo','Helvetica Neue',Helvetica,Arial,sans-serif;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg)}
+body{background:var(--bg);color:var(--paper);font-family:var(--f);font-size:15px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:left}
+textarea,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--paper);outline-offset:2px}
+img{max-width:100%}
+[hidden]{display:none!important}
+
+.wrap{max-width:1120px;margin:0 auto;padding:26px 22px 140px}
+.bar{display:flex;justify-content:space-between;font-size:22px;font-weight:700;letter-spacing:-.03em;
+  line-height:1;color:var(--g1);margin-bottom:30px}
+
+.mast{display:flex;align-items:baseline;justify-content:space-between;gap:20px;flex-wrap:wrap;
+  padding-bottom:16px;border-bottom:1px solid var(--hair)}
+.mast h1{font-size:26px;font-weight:600;letter-spacing:-.02em;line-height:1.1}
+.ready{font-size:14px;color:var(--g1)}
+.ready b{font-weight:600;font-variant-numeric:tabular-nums}
+
+.tools{position:sticky;top:0;z-index:50;display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+  padding:14px 0;margin-bottom:32px;background:var(--bg);border-bottom:1px solid var(--hair)}
+.chip{font-size:13px;font-weight:500;color:var(--g1);padding:7px 14px;border:1px solid var(--hair);
+  border-radius:999px;display:inline-flex;align-items:center;gap:7px;
+  transition:border-color .18s ease,background .18s ease,color .18s ease}
+.chip:hover{border-color:var(--hair-2);color:var(--paper)}
+.chip[aria-current="true"]{background:var(--paper);color:#0B0B0B;border-color:var(--paper)}
+.chip .n{font-variant-numeric:tabular-nums;opacity:.6}
+.tools .spacer{flex:1}
+
+.treat{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding-bottom:22px;margin-bottom:32px;
+  border-bottom:1px solid var(--hair)}
+.treat label{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--g2)}
+.treat select{background:rgba(255,255,255,.07);border:1px solid var(--hair);color:var(--paper);
+  padding:7px 9px;border-radius:4px;font-size:13px}
+.treat select:focus{border-color:var(--paper);outline:none}
+.treat-note{font-size:12.5px;color:var(--g2);flex:1 1 320px;min-width:0}
+
+#stream{display:flex;flex-direction:column}
+.row{display:grid;grid-template-columns:46px calc(var(--pw) * 1px) 1fr;gap:30px;align-items:start;
+  padding:44px 0;border-bottom:1px solid var(--hair)}
+.row:first-child{padding-top:0}
+.idx{font-size:13px;color:var(--g3);font-variant-numeric:tabular-nums;letter-spacing:.04em;padding-top:5px}
+.row.is-passed .deck,.row.is-passed .meta{opacity:.3}
+.deck,.meta{transition:opacity .35s ease}
+
+/* Slides scroll horizontally, one snap per slide, the way they will be swiped in the feed. */
+.deck{min-width:0;display:flex;flex-direction:column;gap:12px}
+.strip{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding-bottom:2px}
+.strip::-webkit-scrollbar{display:none}
+
+/* The post reads as a physical object on the work surface. */
+.shot{width:calc(var(--pw) * 1px);height:calc(var(--pw) * 1.25 * 1px);position:relative;overflow:hidden;
+  flex:none;background:var(--post);scroll-snap-align:start;
+  box-shadow:0 0 0 1px rgba(255,255,255,.10),0 26px 54px -22px rgba(0,0,0,.95)}
+.shot img{width:100%;height:100%;object-fit:cover;display:block}
+.shot .pending{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  color:var(--g3);font-size:13px;letter-spacing:.06em}
+.shot .failed{color:var(--g1);padding:0 24px;text-align:center;line-height:1.5}
+
+/* Per-slide controls, layered over the preview, never inside the rendered post. */
+.shot-ui{position:absolute;left:0;right:0;bottom:0;z-index:5;display:flex;gap:8px;align-items:center;
+  padding:9px 10px;background:linear-gradient(transparent,rgba(0,0,0,.82));opacity:0;transition:opacity .18s ease}
+.shot:hover .shot-ui,.shot-ui:focus-within{opacity:1}
+.shot-ui a,.shot-ui button{font-size:11.5px;font-weight:500;color:var(--paper);
+  border:1px solid rgba(255,255,255,.4);border-radius:999px;padding:5px 11px;text-decoration:none;
+  background:rgba(0,0,0,.5);white-space:nowrap;transition:background .16s,border-color .16s}
+.shot-ui a:hover,.shot-ui button:hover{background:rgba(255,255,255,.2);border-color:var(--paper)}
+.shot-ui [aria-pressed="true"]{background:var(--paper);color:#0B0B0B;border-color:var(--paper)}
+
+.dots{display:flex;align-items:center;gap:7px;height:16px}
+.dots button{width:7px;height:7px;border-radius:50%;background:var(--hair-2);flex:none;
+  transition:background .2s ease,transform .2s ease}
+.dots button[aria-current="true"]{background:var(--paper);transform:scale(1.25)}
+.dots .of{margin-left:8px;font-size:12px;color:var(--g2);font-variant-numeric:tabular-nums}
+
+.meta{display:flex;flex-direction:column;gap:22px;min-width:0}
+.head{display:flex;flex-direction:column;gap:9px}
+.slot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--g2);
+  font-variant-numeric:tabular-nums}
+.pip{width:8px;height:8px;border-radius:50%;flex:none;border:1.5px solid var(--g2)}
+.is-approved .pip{background:var(--paper);border-color:var(--paper)}
+.is-posted .pip{background:var(--paper);border-color:var(--paper);box-shadow:0 0 0 3.5px rgba(255,255,255,.2)}
+.is-passed .pip{border-color:var(--g3)}
+.tag{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--g2);
+  border:1px solid var(--hair);padding:3px 7px;border-radius:3px}
+.title{font-size:25px;font-weight:600;letter-spacing:-.022em;line-height:1.14;text-wrap:balance}
+.sub{font-size:14px;color:var(--g2)}
+
+/* The caption is a bare editorial field, not a form box. */
+.field{display:flex;flex-direction:column;gap:7px}
+.field label{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--g2)}
+.field textarea{width:100%;background:transparent;border:0;border-bottom:1px solid var(--hair);
+  padding:4px 0 12px;font-size:15px;line-height:1.62;resize:vertical;min-height:186px;
+  transition:border-color .18s ease}
+.field textarea:hover{border-bottom-color:var(--hair-2)}
+.field textarea:focus{border-bottom-color:var(--paper);outline:none}
+.counts{display:flex;gap:14px;align-self:flex-end}
+.count{font-size:12px;color:var(--g3);font-variant-numeric:tabular-nums}
+.count.over{color:var(--paper);font-weight:600}
+.rules{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--g1)}
+.rules li{list-style:none;padding-left:16px;position:relative}
+.rules li::before{content:'';position:absolute;left:0;top:7px;width:6px;height:6px;border-radius:50%;
+  background:var(--paper)}
+
+.acts{display:flex;align-items:center;gap:11px;flex-wrap:wrap}
+.btn{font-size:14px;font-weight:500;padding:11px 22px;border-radius:999px;border:1px solid var(--hair-2);
+  color:var(--paper);letter-spacing:-.005em;
+  transition:background .18s ease,border-color .18s ease,color .18s ease,opacity .18s ease}
+.btn:hover{border-color:var(--paper);background:rgba(255,255,255,.08)}
+.btn-go{background:var(--paper);color:#0B0B0B;border-color:var(--paper)}
+.btn-go:hover{background:rgba(255,255,255,.86);border-color:transparent}
+.btn-on{background:rgba(255,255,255,.12);border-color:var(--paper)}
+.btn[disabled]{opacity:.4;cursor:default}
+.btn[disabled]:hover{background:none;border-color:var(--hair-2)}
+.state{font-size:13px;color:var(--g2);margin-left:auto;white-space:nowrap}
+.state a{color:var(--paper)}
+
+.empty{color:var(--g2);font-size:15px;padding:76px 0;max-width:52ch;line-height:1.6}
+.empty strong{color:var(--paper);font-weight:600}
+.err{color:var(--paper);font-size:13.5px;border-left:2px solid var(--paper);padding-left:12px;margin-top:4px}
+
+/* Sign in. Deliberately plain: it is a door, not a destination. */
+.gate{max-width:360px;margin:16vh auto 0;display:flex;flex-direction:column;gap:18px}
+.gate h1{font-size:26px;font-weight:600;letter-spacing:-.02em}
+.gate p{font-size:14px;color:var(--g2);line-height:1.55}
+.gate input{background:transparent;border:0;border-bottom:1px solid var(--hair-2);color:var(--paper);
+  font:inherit;padding:10px 0;width:100%}
+.gate input:focus{border-bottom-color:var(--paper);outline:none}
+
+@media (max-width:960px){
+  :root{--pw:340}
+  .row{grid-template-columns:36px calc(var(--pw) * 1px) 1fr;gap:22px}
+}
+@media (max-width:780px){
+  :root{--pw:330}
+  .row{grid-template-columns:1fr;gap:20px;padding:36px 0}
+  .idx{padding-top:0}
+  .shot{width:100%;max-width:calc(var(--pw) * 1px)}
+}
+@media (max-width:440px){
+  :root{--pw:300}
+  .acts .btn{flex:1 1 auto;text-align:center}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;transition-duration:.001ms!important}
+}

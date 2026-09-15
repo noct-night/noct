@@ -1,15 +1,77 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/ingest/*.ts": { "maxDuration": 300 },
-    "api/enrich.ts": { "maxDuration": 300 },
-    "api/feed.ts": { "maxDuration": 30 }
+    "api/ingest/*.ts": {
+      "maxDuration": 300
+    },
+    "api/enrich.ts": {
+      "maxDuration": 300
+    },
+    "api/feed.ts": {
+      "maxDuration": 30
+    },
+    "api/render.ts": {
+      "maxDuration": 60,
+      "memory": 2048
+    },
+    "api/img.ts": {
+      "maxDuration": 30,
+      "memory": 2048
+    },
+    "api/publish.ts": {
+      "maxDuration": 120
+    },
+    "api/posts.ts": {
+      "maxDuration": 60
+    },
+    "api/queue.ts": {
+      "maxDuration": 15,
+      "includeFiles": "queue/**"
+    }
   },
   "crons": [
-    { "path": "/api/ingest/all", "schedule": "17 9 * * *" },
-    { "path": "/api/enrich", "schedule": "47 9 * * *" }
+    {
+      "path": "/api/ingest/all",
+      "schedule": "17 9 * * *"
+    },
+    {
+      "path": "/api/enrich",
+      "schedule": "47 9 * * *"
+    }
   ],
   "headers": [
-    { "source": "/api/feed", "headers": [ { "key": "Access-Control-Allow-Origin", "value": "*" } ] }
+    {
+      "source": "/api/feed",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        }
+      ]
+    },
+    {
+      "source": "/api/img",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        }
+      ]
+    },
+    {
+      "source": "/api/render",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/queue",
+      "destination": "/api/queue"
+    }
   ]
 }

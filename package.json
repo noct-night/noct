@@ -24,6 +24,8 @@
     "@anthropic-ai/sdk": "^0.125.0",
     "cheerio": "^1.2.0",
     "pg": "^8.23.0",
+    "satori": "^0.18.4",
+    "sharp": "^0.34.5",
     "zod": "^4.6.4"
   },
   "devDependencies": {
