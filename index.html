@@ -372,7 +372,7 @@ let PLATS=['RA','Dice','Eventbrite','Nowadays RSVP'];
 let AREAS=['All','Queens','Brooklyn'];
 let CITIES=[['nyc','New York',true],['la','Los Angeles',false],['ldn','London',false],['ber','Berlin',false]];   /* replaced by /api/feed cities[] */
 /* When tab. Each preset asks the API for that window; the month calendar below picks a single night. */
-const PRESETS=[['tonight','Tonight'],['tomorrow','Tomorrow'],['weekend','This weekend'],['week','This week']];
+const PRESETS=[['tonight','Tonight'],['tomorrow','Tomorrow'],['weekend','This weekend']];
 let FEED_NOTE='This build covers the current weekend only.';
 let SOURCES=[['Resident Advisor','10 events, genres and set times',true],['Dice','4 events, prices only',true],['Eventbrite','1 event, full pricing',true],['Venue calendars','Nowadays, Signal, MoMA PS1',true],['Tixr','Not connected',false]];
 const HANDLES=['sunroommate','kj.wav','ninetyeight','lo.fidelity','marta.exe','pdrbk','yuna.tape','third.shift','glasshouse.ny','avenue.c','bk.basement','sable.tt','mmmoire','vhs.night','pale.route','okjune','tenpm.club','ridgewood.rave','soft.opening','nine.volt','curfew.bk','late.bloom'];
@@ -432,7 +432,7 @@ function ok(e){
 }
 const results=()=>EV.filter(ok).sort((a,b)=>a.d-b.d||(a.door||'99').localeCompare(b.door||'99'));
 const nF=()=>S.gen.size+S.door.size+S.avail.size+S.plat.size;
-/* the preset's own words when one is active ("This week"), otherwise the nights themselves */
+/* the preset's own words when one is active ("This weekend"), otherwise the nights themselves */
 const dateLabel=()=>{
   if(S.rangeLabel)return S.rangeLabel;
   if(S.from===S.to){const d=DAYS[S.from]||DAYS[0];return d[2]==='Tonight'||d[2]==='Tomorrow'?d[2]:`${d[0]} ${d[1]}`}
@@ -767,7 +767,6 @@ const monthAdd=(m,n)=>{const p=m.split('-').map(Number);return new Date(Date.UTC
 function rangeOf(key){
   const t=nyDate(0);
   if(key==='tomorrow')return [nyDate(1),nyDate(1),'Tomorrow'];
-  if(key==='week')return [t,nyDate(6),'This week'];
   if(key==='weekend'){
     const dow=dDow(t);
     if(dow===0)return [t,t,'Tonight'];                        /* Sunday: the weekend ends tonight */

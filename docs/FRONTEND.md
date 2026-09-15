@@ -25,7 +25,7 @@ the server applies the same default when the parameters are missing.
 
 Two controls, both in `#dateSheet`:
 
-- **Presets** — Tonight / Tomorrow / This weekend / This week. `rangeOf(key)` computes the window in New York's
+- **Presets** — Tonight / Tomorrow / This weekend. `rangeOf(key)` computes the window in New York's
   calendar (Mon–Thu "this weekend" jumps to the coming Friday; on a Sunday it collapses to tonight) and
   `pickRange()` reloads the feed for it. The default load follows the active preset, so a city switch re-asks
   for the same window in the new city's own calendar.
