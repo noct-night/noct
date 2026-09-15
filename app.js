@@ -110,8 +110,10 @@ const dayName=i=>DAYS[i][2];
 const dayFull=i=>`${DAYS[i][0]} ${DAYS[i][1]}`;
 const band=e=>!e.door?'UNK':(+e.door.slice(0,2)<22?'EARLY':'LATE');
 const prices=e=>e.srcs.map(s=>s[1]).filter(v=>v!==null);
-const low=e=>prices(e).length?Math.min(...prices(e)):null;
-const high=e=>prices(e).length?Math.max(...prices(e)):null;
+/* `from` is the cheapest price NOCT knows, including from a source that cannot sell a ticket -- 19hz lists
+   door prices and is the main source outside New York, so without this half of Chicago read "See listing". */
+const low=e=>prices(e).length?Math.min(...prices(e)):(typeof e.from==='number'?e.from:null);
+const high=e=>prices(e).length?Math.max(...prices(e)):(typeof e.from==='number'?e.from:null);
 const priceLbl=e=>e.soldout?'Sold out':(low(e)===null?'See listing':(high(e)!==low(e)?'From $':'$')+low(e));
 const genOf=e=>e.genre.length?e.genre.join(', '):'Not tagged';
 const esc=s=>String(s).replace(/'/g,"\\'");
@@ -980,6 +982,7 @@ function applyFeed(f){
     vibes:(e.vibes||[]).map(v=>({code:clean(v.code),label:clean(v.label),glyph:clean(v.glyph)})),
     scalars:e.scalars||{},sound:clean(e.sound),age:clean(e.age),interested:e.interested||0,
     srcs:(e.srcs||[]).map(s=>[SHORT_PLAT[s[0]]||clean(s[0]),typeof s[1]==='number'?s[1]:null,clean(s[2]),cleanUrl(s[3])]),
+    from:typeof e.from==='number'?e.from:null,
     ra:cleanUrl(e.ra),dice:cleanUrl(e.dice),eb:cleanUrl(e.eb),url:cleanUrl(e.url),tex:TEX.indexOf(e.tex)>=0?e.tex:'x1',
     full:!!e.full,soldout:!!e.soldout,note:clean(e.note),status:clean(e.status),image:cleanUrl(e.image),going_count:e.going_count||0
   }));

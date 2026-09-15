@@ -170,6 +170,11 @@ export interface FeedEvent {
   age: string;
   interested: number;
   srcs: FeedSrc[];
+  /**
+   * Cheapest known price, including from a source that cannot sell a ticket (19hz lists door prices but is a
+   * community board, so it never appears in `srcs`). The label may use it; the ticket list must not.
+   */
+  from: number | null;
   platforms: string[];
   ra: string;
   dice: string;
@@ -416,6 +421,7 @@ export function shapeEvent(row: FeedRow, opts: { n?: number; d?: number; tz?: st
     age: ageLabel(row.age_min),
     interested: row.interested_count ?? 0,
     srcs: shapeSrcs(row),
+    from: row.cheapest_price === null || row.cheapest_price === undefined ? null : Number(row.cheapest_price),
     platforms: row.platforms ?? [],
     ra: urlOf(sources, (s) => s.source === 'ra'),
     // Public Records links out through link.dice.fm short links, which count as a DICE way in

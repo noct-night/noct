@@ -110,3 +110,24 @@ Artwork is **48%**, against 94% in New York — New York has DICE and four venue
 and Chicago has neither. (RA's CDN 403s a bare `curl` on User-Agent, which looks alarming and is not: any
 browser gets a 200. Check image problems in a browser, not with curl.) The fix for Chicago is a source that
 carries flyers; DICE is the obvious one, and its adapter is still hardcoded to New York.
+
+## A price from a source that cannot sell you one
+
+`event_offer` is ticketing sources only (`source.is_ticketer`), which is right — 19hz is a community listing
+board and a "buy here" link would be a lie. But `event_feed.cheapest_price` read **only** from `event_offer`,
+so a 19hz price was thrown away along with the offer. Outside New York 19hz is the dominant source, and the
+cost was blunt: **495 priced 19hz listings produced 0 offers**, and 96 of Chicago's 250 upcoming nights showed
+no price at all while their own listing knew it.
+
+`0019` makes `cheapest_price` fall back to the cheapest live listing price from any source. `event_offer` is
+untouched, so the Tickets section still lists only places that can sell you a ticket; the shaped event gains
+`from`, and the client's price label uses it when no offer carries a number.
+
+| city | price coverage before | after |
+| --- | --- | --- |
+| Chicago | 41.2% | **79.6%** |
+| Los Angeles | 45.8% | **94.5%** |
+| New York | 86.3% | 89.1% |
+
+Verified on the boundary: "Unreal Chicago" now reads **$18** in the list, while its Tickets section shows only
+its two Resident Advisor ways in, with no price attached.
