@@ -119,6 +119,8 @@ const vInfo=v=>VENUES[v]||{hood:'',boro:'',tones:['x1','x2','x3','x4'],verified:
 const vibesOf=e=>(e.vibes||[]).slice(0,2).map(v=>(v.glyph?v.glyph+' ':'')+v.label);
 /* enriched events lead with the primary genre and up to two vibe chips; untagged ones keep the raw source genres */
 const tagLine=e=>e.primary?[e.primary,...vibesOf(e)].join(' · '):genOf(e);
+/* image view: sound only. Free / RSVP / ages are logistics and belong on the event page. */
+const genreLine=e=>e.primary||(e.genre&&e.genre.length?e.genre.join(', '):'');
 const art=e=>e.image?` style="background:url(&quot;${e.image}&quot;) center/cover #0b0b0b"`:'';
 
 /* going, with reciprocity.
@@ -189,15 +191,31 @@ function renderImage(){
     <div class="idx sm">${S.i+1} of ${list.length} · ${dayFull(e.d)}</div>
     ${rec?`<div class="fortag"><span class="fydot"></span>For you</div>`:''}
     <div class="name">${e.head}</div>
-    <div class="gen">${tagLine(e)}</div>
-    <div class="meta sm">${e.venue}${vInfo(e.venue).hood?', '+vInfo(e.venue).hood:''}${e.door?' · '+e.door:''}</div>
-    <div class="go sm">${goCount(e.id)} going${isGoing(e.id)?' · you':''}</div>
+    <div class="gen">${genreLine(e)}</div>
+    <div class="meta sm">${e.venue}</div>
     <button class="lnk" onclick="openDet(${e.id})">View event</button>`;
 }
-function step(n){const l=results();if(!l.length)return;S.i=(S.i+n+l.length)%l.length;renderImage()}
+function filmCut(){
+  const g=document.getElementById('gate'); if(!g) return;
+  if(typeof gsap!=='undefined'){
+    gsap.killTweensOf(g);
+    gsap.timeline()
+      .set(g,{opacity:0})
+      .to(g,{opacity:.66,duration:.06,ease:'power2.in'})
+      .to(g,{opacity:.08,duration:.05})
+      .to(g,{opacity:.44,duration:.05})
+      .to(g,{opacity:0,duration:.24,ease:'power2.out'});
+  } else { g.classList.remove('flick'); void g.offsetWidth; g.classList.add('flick'); }
+}
+function captionIn(){
+  if(typeof gsap==='undefined')return;
+  gsap.fromTo('#caption > *',{y:9,opacity:0},{y:0,opacity:1,duration:.5,stagger:.045,ease:'power3.out',overwrite:true});
+}
+function step(n){const l=results();if(!l.length)return;S.i=(S.i+n+l.length)%l.length;filmCut();renderImage();captionIn()}
 
 function renderList(){
   const list=results();
+  renderFbar();
   let out='',cur=-1;
   list.forEach(e=>{
     if(e.d!==cur){cur=e.d;out+=`<div class="dayhead">${dayName(e.d)} · ${dayFull(e.d)}</div>`}
@@ -273,16 +291,14 @@ function closeOnb(){$('#onb').classList.remove('open')}
 function renderOnb(){
   const b=$('#onbBody');if(!b)return;
   if(ONB.step===1){
-    b.innerHTML=`<button class="sx" onclick="onbSkip()" aria-label="Close">✕</button>`
-      +`<div class="sh2">What do you play loud?</div>`
+    b.innerHTML=`<div class="sh2">What do you play loud?</div>`
       +`<div class="onbsub">Pick whatever fits. It only sorts your feed — you can change it any time.</div>`
       +`<div class="opts">`+ONB.opts.map((g,i)=>`<button aria-pressed="${ONB.genres.has(g.code)}" onclick="onbGenre(${i})">${clean(g.label)}</button>`).join('')+`</div>`
       +`<div class="onbfoot"><button class="lnk" style="color:var(--d2)" onclick="onbSkip()">Skip</button>`
       +`<button class="lnk" onclick="onbNext()">${ONB.genres.size?'Next →':'Not sure yet →'}</button></div>`;
     return;
   }
-  b.innerHTML=`<button class="sx" onclick="onbBack()" aria-label="Back to genres">←</button>`
-    +`<div class="sh2">Would you go?</div>`
+  b.innerHTML=`<div class="sh2">Would you go?</div>`
     +`<div class="onbsub">Tap the ones you like the look of. That is all NOCT needs to start.</div>`
     +(ONB.cards.length?`<div class="pk">`+ONB.cards.map((e,i)=>`<button class="pkc" aria-pressed="${ONB.picks.has(e.uuid)}" onclick="onbPick(${i})">`
       +`<img src="${e.image}" alt="" loading="lazy">`
@@ -292,14 +308,11 @@ function renderOnb(){
     +`<div class="onbfoot"><button class="lnk" style="color:var(--d2)" onclick="onbDone()">Skip</button>`
     +`<button class="lnk" onclick="onbDone()">${ONB.picks.size?`Done · ${ONB.picks.size} saved`:'Done'}</button></div>`;
 }
-/* Back to step 1 with the same chips still selected. Nights already tapped stay saved -- they were saved the
-   moment they were tapped, and going back to change a genre is not a reason to un-save a night. */
-function onbBack(){ONB.step=1;renderOnb();$('#onb').scrollTop=0}
 function onbGenre(i){const g=ONB.opts[i];if(!g)return;
   ONB.genres.has(g.code)?ONB.genres.delete(g.code):ONB.genres.add(g.code);renderOnb()}
 async function onbNext(){
   TASTE=[...ONB.genres];tasteRemember();applyTaste();          /* the feed re-sorts behind the sheet */
-  ONB.step=2;ONB.cards=[];renderOnb();$('#onb').scrollTop=0;
+  ONB.step=2;ONB.cards=[];renderOnb();
   try{
     const q=TASTE.length?`&genres=${encodeURIComponent(TASTE.join(','))}`:'';
     const r=await fetch(`${API_BASE}/api/taste?picks=1&limit=8&city=${encodeURIComponent(S.city||'nyc')}${q}`,{headers:{accept:'application/json'}});
@@ -642,7 +655,7 @@ function resetLoc(){const was=S.city;S.city='nyc';S.area='All';S.geo=false;if(wa
 
 function renderMenu(){
   const tasteLbl=TASTE.length?TASTE.map(c=>genreLabel(c)).slice(0,2).join(', ')+(TASTE.length>2?` +${TASTE.length-2}`:''):'Not set';
-  $('#mNav').innerHTML=[['Events','Back to the feed'],['Venues',''],['Saved',''],['Your taste',tasteLbl],['Profile',S.signedIn?(S.ig?'@'+S.ig:'Signed in'):'Sign in'],['Filter',nF()?`${nF()} on`:'']]
+  $('#mNav').innerHTML=[['Events','Back to the feed'],['Venues',''],['Saved',''],['Your taste',tasteLbl],['Profile',S.signedIn?(S.ig?'@'+S.ig:'Signed in'):'Sign in']]
     .map(n=>`<button onclick="menuGo('${n[0]}')">${n[0]}<span>${n[1]}</span></button>`).join('');
 }
 function menuGo(n){closeAll();
@@ -650,10 +663,27 @@ function menuGo(n){closeAll();
   if(n==='Venues')setView('venues');
   if(n==='Saved')setView('saved');
   if(n==='Profile')setView('profile');
-  if(n==='Filter')$('#filt').classList.add('open');
   if(n==='Your taste')editTaste();
 }
 function closeAll(){document.querySelectorAll('.sheet').forEach(el=>el.classList.remove('open'))}
+function goProfile(){closeAll();closePage('det');closePage('ven');setView('profile')}
+function openFilter(){closeAll();document.getElementById('filt').classList.add('open')}
+function renderFbar(){
+  const bar=document.getElementById('fbar'); if(!bar) return;
+  const inRange=EV.filter(e=>e.d>=S.from&&e.d<=S.to);
+  const tally={};
+  inRange.forEach(e=>{
+    const g=e.primary||(e.genre&&e.genre[0]);
+    if(g)tally[g]=(tally[g]||0)+1;
+  });
+  const gs=Object.keys(tally).sort((a,b)=>tally[b]-tally[a]||a.localeCompare(b)).slice(0,6);
+  const n=nF();
+  bar.innerHTML=
+    `<button class="fb ${n?'on':''}" onclick="openFilter()">Filter${n?' \u00b7 '+n:''}</button>`+
+    gs.map(g=>`<button class="fb ${S.gen.has(g)?'on':''}" onclick="quickGen('${String(g).replace(/'/g,"\\'")}')">${g}</button>`).join('')+
+    (n?`<button class="fb plain" onclick="clearAll()">Clear</button>`:'');
+}
+function quickGen(g){S.gen.has(g)?S.gen.delete(g):S.gen.add(g);S.i=0;buildAll();render()}
 function goBack(){setView(S.mode)}
 function goHome(){
   closeAll();closePage('det');closePage('ven');
@@ -671,6 +701,11 @@ function setView(v){
   $('#imageView').hidden=v!=='image';$('#listView').hidden=v!=='list';
   $('#savedView').hidden=v!=='saved';$('#venuesView').hidden=v!=='venues';$('#profileView').hidden=v!=='profile';
   document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mode===S.mode&&(v==='image'||v==='list')));
+  const listy=(v==='list');
+  const bar=$('#fbar');
+  if(bar){bar.hidden=!listy; if(listy)renderFbar();}
+  $('#listView').classList.toggle('withbar',listy);
+  $('#topscrim').classList.toggle('tall',listy);
   $('#topscrim').classList.remove('on');
   $('#botscrim').classList.toggle('on',v!=='image');
   render();
