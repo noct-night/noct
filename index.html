@@ -621,14 +621,16 @@ function closeOnb(){$('#onb').classList.remove('open')}
 function renderOnb(){
   const b=$('#onbBody');if(!b)return;
   if(ONB.step===1){
-    b.innerHTML=`<div class="sh2">What do you play loud?</div>`
+    b.innerHTML=`<button class="sx" onclick="onbSkip()" aria-label="Close">✕</button>`
+      +`<div class="sh2">What do you play loud?</div>`
       +`<div class="onbsub">Pick whatever fits. It only sorts your feed — you can change it any time.</div>`
       +`<div class="opts">`+ONB.opts.map((g,i)=>`<button aria-pressed="${ONB.genres.has(g.code)}" onclick="onbGenre(${i})">${clean(g.label)}</button>`).join('')+`</div>`
       +`<div class="onbfoot"><button class="lnk" style="color:var(--d2)" onclick="onbSkip()">Skip</button>`
       +`<button class="lnk" onclick="onbNext()">${ONB.genres.size?'Next →':'Not sure yet →'}</button></div>`;
     return;
   }
-  b.innerHTML=`<div class="sh2">Would you go?</div>`
+  b.innerHTML=`<button class="sx" onclick="onbBack()" aria-label="Back to genres">←</button>`
+    +`<div class="sh2">Would you go?</div>`
     +`<div class="onbsub">Tap the ones you like the look of. That is all NOCT needs to start.</div>`
     +(ONB.cards.length?`<div class="pk">`+ONB.cards.map((e,i)=>`<button class="pkc" aria-pressed="${ONB.picks.has(e.uuid)}" onclick="onbPick(${i})">`
       +`<img src="${e.image}" alt="" loading="lazy">`
@@ -638,11 +640,14 @@ function renderOnb(){
     +`<div class="onbfoot"><button class="lnk" style="color:var(--d2)" onclick="onbDone()">Skip</button>`
     +`<button class="lnk" onclick="onbDone()">${ONB.picks.size?`Done · ${ONB.picks.size} saved`:'Done'}</button></div>`;
 }
+/* Back to step 1 with the same chips still selected. Nights already tapped stay saved -- they were saved the
+   moment they were tapped, and going back to change a genre is not a reason to un-save a night. */
+function onbBack(){ONB.step=1;renderOnb();$('#onb').scrollTop=0}
 function onbGenre(i){const g=ONB.opts[i];if(!g)return;
   ONB.genres.has(g.code)?ONB.genres.delete(g.code):ONB.genres.add(g.code);renderOnb()}
 async function onbNext(){
   TASTE=[...ONB.genres];tasteRemember();applyTaste();          /* the feed re-sorts behind the sheet */
-  ONB.step=2;ONB.cards=[];renderOnb();
+  ONB.step=2;ONB.cards=[];renderOnb();$('#onb').scrollTop=0;
   try{
     const q=TASTE.length?`&genres=${encodeURIComponent(TASTE.join(','))}`:'';
     const r=await fetch(`${API_BASE}/api/taste?picks=1&limit=8&city=${encodeURIComponent(S.city||'nyc')}${q}`,{headers:{accept:'application/json'}});
