@@ -14,7 +14,8 @@
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { checkCaption } from '../src/post/caption.js';
-import { igCredentials, publishCarousel, PublishError, remainingQuota } from '../src/post/publish.js';
+import { igUserId, publishCarousel, PublishError, remainingQuota, verifyCredentials } from '../src/post/publish.js';
+import { currentToken, daysUntilExpiry, TokenError } from '../src/post/token.js';
 import { signedRenderPath } from '../src/post/sign.js';
 import { claimForPublish, failPublish, finishPublish, PostConflict, recordContainers } from '../src/post/store.js';
 import { createLogger } from '../src/lib/log.js';
@@ -39,12 +40,39 @@ function publicOrigin(req: VercelRequest, source = process.env): string {
   return `${proto}://${host ?? 'localhost:3000'}`;
 }
 
+/**
+ * GET /api/publish — does the Instagram credential work?
+ *
+ * Posts nothing. Asks the account for its own handle, reads the remaining daily quota, and reports how
+ * long the token has left. Worth having because the alternative way to discover a bad token is a failed
+ * carousel halfway through, and because on this API the token expires every 60 days.
+ */
+async function preflight(req: VercelRequest, res: VercelResponse): Promise<void> {
+  const log = createLogger('api:publish');
+  try {
+    const token = await currentToken(log);
+    const creds = { userId: igUserId(), token: token.token };
+    const [account, quota] = await Promise.all([verifyCredentials(creds), remainingQuota(creds)]);
+    sendJson(res, 200, {
+      ok: true,
+      account: account.username,
+      token_days_left: daysUntilExpiry(token),
+      posts_left_today: quota,
+    }, NO_STORE);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.warn('preflight failed', { error: message });
+    sendJson(res, 200, { ok: false, error: message }, NO_STORE);
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
-  if (req.method !== 'POST') {
-    sendJson(res, 405, { error: 'method not allowed' }, { allow: 'POST' });
+  if (req.method !== 'POST' && req.method !== 'GET') {
+    sendJson(res, 405, { error: 'method not allowed' }, { allow: 'GET, POST' });
     return;
   }
   if (!requireStudio(req, res)) return;
+  if (req.method === 'GET') return await preflight(req, res);
 
   const log = createLogger('api:publish');
   const id = firstParam(req.query.id);
@@ -55,11 +83,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   let creds;
   try {
-    creds = igCredentials();
-  } catch {
+    // The id comes from the environment; the token comes from the store, which refreshes it when it is
+    // within two weeks of its 60-day expiry. Doing this before the claim means a dead credential fails
+    // without marking a publish attempt against the post.
+    const token = await currentToken(log);
+    creds = { userId: igUserId(), token: token.token };
+    const left = daysUntilExpiry(token);
+    if (left !== null && left < 7) log.warn('Instagram token is close to expiry', { days_left: left });
+  } catch (err) {
     // Named explicitly: this is the failure someone will hit on a fresh deploy, and "unavailable" would
     // send them looking in the wrong place.
-    sendJson(res, 503, { error: 'IG_USER_ID and IG_ACCESS_TOKEN are not set on this deployment' }, NO_STORE);
+    const detail = err instanceof TokenError ? err.message : 'IG_USER_ID and IG_ACCESS_TOKEN are not set on this deployment';
+    sendJson(res, 503, { error: detail }, NO_STORE);
     return;
   }
 
