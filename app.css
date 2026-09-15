@@ -228,6 +228,10 @@ a{color:inherit}
 .dx{position:absolute;top:calc(20px + env(safe-area-inset-top));right:var(--pad);z-index:5;font-size:22px;line-height:1}
 .dbody{padding:26px var(--pad) 50px}
 .dname{font-size:27px;font-weight:500;letter-spacing:-.032em;line-height:1.1}
+/* when the title IS the act, the title is the way to their sets */
+.asact{font:inherit;color:inherit;text-align:left;padding:0}
+.asarrow{color:var(--d2);font-size:20px}
+.asact:active .asarrow{color:var(--chalk)}
 .dsup{font-size:15px;color:var(--d1);margin-top:10px;line-height:1.5}
 .specs{display:grid;grid-template-columns:104px minmax(0,1fr);gap:9px 18px;margin-top:28px;font-size:15px;line-height:1.5}
 .specs .k{color:var(--d2)}

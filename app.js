@@ -117,6 +117,15 @@ const high=e=>prices(e).length?Math.max(...prices(e)):(typeof e.from==='number'?
 const priceLbl=e=>e.soldout?'Sold out':(low(e)===null?'See listing':(high(e)!==low(e)?'From $':'$')+low(e));
 const genOf=e=>e.genre.length?e.genre.join(', '):'Not tagged';
 const esc=s=>String(s).replace(/'/g,"\\'");
+/* A single-name line-up that repeats the title is the norm, not an error: of 55 such events 19 in 20 are real
+   headliners (Ben Bohmer, Cat Dealers, Six Sex) and the odd one is a party brand (Indo Warehouse). Printing
+   the same string as the title and again under "Line-up" just reads like a bug, so the TITLE becomes the tap
+   target and the row is dropped. */
+const sameName=(a,b)=>String(a||'').toLowerCase().replace(/\s+/g,' ').trim()===String(b||'').toLowerCase().replace(/\s+/g,' ').trim();
+const titleIsTheAct=e=>{
+  const one=(e.lineup&&e.lineup.length===1)?e.lineup[0]:(!(e.lineup||[]).length&&e.act?e.act:null);
+  return one&&sameName(one,e.head)?one:null;
+};
 const vInfo=v=>VENUES[v]||{hood:'',boro:'',tones:['x1','x2','x3','x4'],verified:false};
 const vibesOf=e=>(e.vibes||[]).slice(0,2).map(v=>(v.glyph?v.glyph+' ':'')+v.label);
 /* enriched events lead with the primary genre and up to two vibe chips; untagged ones keep the raw source genres */
@@ -486,7 +495,7 @@ function openDet(eid){
   $('#det').innerHTML=`
   <div class="dhero"><div class="tex ${e.tex}"${art(e)}></div><button class="dx" onclick="closePage('det')" aria-label="Close">✕</button></div>
   <div class="dbody">
-    <div class="dname">${e.head}</div>
+    <div class="dname">${titleIsTheAct(e)?`<button class="asact" onclick="openArtistByName('${esc(titleIsTheAct(e))}')">${e.head} <span class="asarrow">→</span></button>`:e.head}</div>
     <div class="dsup">${dayFull(e.d)}${e.door?` · ${e.door}${e.close?' to '+e.close:''}`:''} · ${e.venue}${e.room?' · '+e.room:''}</div>
     <div class="specs">
       <div class="k">Genre</div><div>${e.genre.length
@@ -494,7 +503,7 @@ function openDet(eid){
         :`<span style="color:var(--d2)">No genre yet.</span> <button class="go" onclick="suggestGenre(${e.id})">Suggest one</button>`}</div>
       ${e.sound?`<div class="k">Sound</div><div>${e.sound}</div>`:''}
       ${(e.vibes||[]).length?`<div class="k">Vibe</div><div>${e.vibes.map(v=>(v.glyph?v.glyph+' ':'')+v.label).join(' · ')}</div>`:''}
-      ${!e.set&&(e.lineup.length||e.act)?`<div class="k">Line-up</div><div class="lineup">${(e.lineup.length?e.lineup:[e.act]).map(a=>`<button class="go" onclick="openArtistByName('${esc(a)}')">${a}</button>`).join('<span class="sep2"> · </span>')}<div class="hint">Tap a name to hear their sets</div></div>`:''}
+      ${!e.set&&!titleIsTheAct(e)&&(e.lineup.length||e.act)?`<div class="k">Line-up</div><div class="lineup">${(e.lineup.length?e.lineup:[e.act]).map(a=>`<button class="go" onclick="openArtistByName('${esc(a)}')">${a}</button>`).join('<span class="sep2"> · </span>')}<div class="hint">Tap a name to hear their sets</div></div>`:''}
       <div class="k">Venue</div><div><button class="go" onclick="openVenue('${esc(e.venue)}')">${e.venue} →</button></div>
       ${vInfo(e.venue).hood?`<div class="k">Area</div><div>${vInfo(e.venue).hood}${vInfo(e.venue).boro?', '+vInfo(e.venue).boro:''}</div>`:''}
       ${e.age?`<div class="k">Ages</div><div>${e.age}</div>`:''}
