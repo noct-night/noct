@@ -34,6 +34,13 @@ a{color:inherit}
 .ctrl .sep{width:.7px;height:15px;background:var(--hair);flex:none}
 .ctrl b{font-weight:400;overflow:hidden;text-overflow:ellipsis}
 .ctrl[hidden]{display:none}
+/* A single label could not say whether it was the state or the action ("All" — am I seeing all, or will
+   tapping give me all?). Both options are shown, and the live one is marked the way every other choice in
+   the app is marked: chalk and underlined. */
+.seg{display:flex;align-items:center;gap:14px;margin-top:11px;pointer-events:auto}
+.seg[hidden]{display:none}
+.seg button{font-size:16px;color:var(--d2);white-space:nowrap}
+.seg button[aria-pressed="true"]{color:var(--chalk);text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
 #backRow button{gap:11px}
 .vtitle{font-size:29px;font-weight:700;letter-spacing:-.03em;padding:0 var(--pad);margin-bottom:26px}
 .view{position:absolute;inset:0}

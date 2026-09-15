@@ -195,18 +195,18 @@ const results=()=>EV.filter(ok).filter(e=>!S.only||forMe(e)).sort((a,b)=>a.d-b.d
   ||(S.sortTaste?rank(b)-rank(a):0)
   ||(a.door||'99').localeCompare(b.door||'99'));
 /** One switch for both views. In image view the caption's "1 of N" is what makes the change legible. */
-function toggleOnly(){
-  S.only=!S.only;
-  if(S.only)S.sortTaste=true;            /* filtering by taste while ignoring it in the order is incoherent */
+function setOnly(on){
+  if(S.only===on)return;
+  S.only=on;
+  if(on)S.sortTaste=true;                /* filtering by taste while ignoring it in the order is incoherent */
   S.i=0;buildAll();render();renderOnlyBtn();
 }
 function renderOnlyBtn(){
-  const b=$('#btnFor'),sep=$('#forSep'),lbl=$('#forLbl');
-  if(!b||!sep||!lbl)return;
+  const b=$('#btnFor');
+  if(!b)return;
   const show=canFilterForMe()&&(S.view==='image'||S.view==='list');
-  b.hidden=!show;sep.hidden=!show;
-  lbl.textContent=S.only?'For you':'All';
-  b.setAttribute('aria-pressed',String(S.only));
+  b.hidden=!show;
+  b.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String((x.dataset.only==='1')===S.only)));
 }
 const nF=()=>S.gen.size+S.door.size+S.avail.size;
 /* the preset's own words when one is active ("This weekend"), otherwise the nights themselves */
@@ -1180,6 +1180,10 @@ async function loadFeed(range){
     liveNote('Live data unavailable — showing sample weekend');
   }
 }
+(function(){
+  const seg=document.getElementById('btnFor');
+  if(seg)seg.querySelectorAll('button').forEach(b=>b.onclick=()=>setOnly(b.dataset.only==='1'));
+})();
 (function(){
   const i=document.getElementById('srchIn');if(!i)return;
   let t=null;
