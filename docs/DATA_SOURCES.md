@@ -88,3 +88,25 @@ Angeles are ingested in production.
 - **Ticketmaster + Eventbrite keys** are self-serve; both need a NOCT account (owner action).
 - **Plan upgrades before launch:** Vercel Pro (commercial use, per-minute crons, 800 s functions) and
   Supabase Pro (no inactivity pause). Estimated < $50/month at current volume.
+
+## Chicago (live 2026-09-15)
+
+Enabled by adding `chi` to `NOCT_CITIES` — no code change. Both adapters already knew the city from
+`src/lib/cities.ts` (`raAreaId: 17`, `hzRegion: 'CHI'`).
+
+| source | listings | note |
+| --- | --- | --- |
+| 19hz `CHI` | 197 | 320 rows on the page; the wide net, but a text table, so no artwork and thin genres |
+| RA area 17 | 117 | genres and flyers |
+
+**239 canonical events, 76 of them merged across both sources** — a clean test of entity resolution on a city
+with no seeded venues, where every venue is provisional. smartbar, Radius, Podlasie Club, Spybar and Chop Shop
+all resolved correctly, and each city keeps its own "TBA" venue rather than sharing one.
+
+Genre coverage is **66%** against NYC's 92%: 19hz-only events arrive without labels, and RA's Chicago tags are
+thinner than its New York ones. The LLM chain lifts these over time.
+
+Artwork is **48%**, against 94% in New York — New York has DICE and four venue calendars supplying images,
+and Chicago has neither. (RA's CDN 403s a bare `curl` on User-Agent, which looks alarming and is not: any
+browser gets a 200. Check image problems in a browser, not with curl.) The fix for Chicago is a source that
+carries flyers; DICE is the obvious one, and its adapter is still hardcoded to New York.
