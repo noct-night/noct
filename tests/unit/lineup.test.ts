@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lineupFromTitle } from '../../src/lib/lineup.js';
+import { actFromTitle, lineupFromTitle } from '../../src/lib/lineup.js';
 
 /** Every title here is a real upcoming 19hz row. */
 describe('lineupFromTitle', () => {
@@ -62,5 +62,34 @@ describe('lineupFromTitle', () => {
     expect(lineupFromTitle('')).toEqual({ headline: '', lineup: [] });
     expect(lineupFromTitle(null).lineup).toEqual([]);
     expect(lineupFromTitle('Night Ft. 2026, ///').lineup).toEqual([]);
+  });
+});
+
+describe('actFromTitle — the title IS the act', () => {
+  it('reads a bare act name', () => {
+    for (const t of ['Ian Asher', 'Green Velvet', 'Fedde Le Grand', 'Dusky', 'CHIAMI'])
+      expect(actFromTitle(t), t).toBe(t);
+  });
+
+  it('strips the booking, keeps the booked', () => {
+    expect(actFromTitle('Gianni Blu & Friends')).toBe('Gianni Blu');
+    expect(actFromTitle('Daphni All Night')).toBe('Daphni');
+  });
+
+  it('refuses series and furniture', () => {
+    for (const t of [
+      'Various Distractions 002',      // a series edition, not a person
+      'Reggaeton Fridays',
+      'Scott Guerin Memorial',
+      'Spothero Aragon Ballroom',
+      'Soiree Sets',
+      'Distrikt Fundraiser',
+      'House De Gringo Wednesdays',
+    ]) expect(actFromTitle(t), t).toBeNull();
+  });
+
+  it('leaves titles that carry a real line-up to lineupFromTitle', () => {
+    expect(actFromTitle('Minimal Madness Ft. Zack Darza')).toBeNull();
+    expect(actFromTitle('Niteharts: Isoxo, Jane Remover')).toBeNull();
   });
 });

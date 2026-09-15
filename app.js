@@ -494,7 +494,7 @@ function openDet(eid){
         :`<span style="color:var(--d2)">No genre yet.</span> <button class="go" onclick="suggestGenre(${e.id})">Suggest one</button>`}</div>
       ${e.sound?`<div class="k">Sound</div><div>${e.sound}</div>`:''}
       ${(e.vibes||[]).length?`<div class="k">Vibe</div><div>${e.vibes.map(v=>(v.glyph?v.glyph+' ':'')+v.label).join(' · ')}</div>`:''}
-      ${!e.set&&e.lineup.length?`<div class="k">Line-up</div><div class="lineup">${e.lineup.map(a=>`<button class="go" onclick="openArtistByName('${esc(a)}')">${a}</button>`).join('<span class="sep2"> · </span>')}<div class="hint">Tap a name to hear their sets</div></div>`:''}
+      ${!e.set&&(e.lineup.length||e.act)?`<div class="k">Line-up</div><div class="lineup">${(e.lineup.length?e.lineup:[e.act]).map(a=>`<button class="go" onclick="openArtistByName('${esc(a)}')">${a}</button>`).join('<span class="sep2"> · </span>')}<div class="hint">Tap a name to hear their sets</div></div>`:''}
       <div class="k">Venue</div><div><button class="go" onclick="openVenue('${esc(e.venue)}')">${e.venue} →</button></div>
       ${vInfo(e.venue).hood?`<div class="k">Area</div><div>${vInfo(e.venue).hood}${vInfo(e.venue).boro?', '+vInfo(e.venue).boro:''}</div>`:''}
       ${e.age?`<div class="k">Ages</div><div>${e.age}</div>`:''}
@@ -1109,7 +1109,8 @@ function applyFeed(f){
     srcs:(e.srcs||[]).map(s=>[SHORT_PLAT[s[0]]||clean(s[0]),typeof s[1]==='number'?s[1]:null,clean(s[2]),cleanUrl(s[3])]),
     from:typeof e.from==='number'?e.from:null,
     ra:cleanUrl(e.ra),dice:cleanUrl(e.dice),eb:cleanUrl(e.eb),url:cleanUrl(e.url),tex:TEX.indexOf(e.tex)>=0?e.tex:'x1',
-    full:!!e.full,soldout:!!e.soldout,note:clean(e.note),status:clean(e.status),image:cleanUrl(e.image),going_count:e.going_count||0
+    full:!!e.full,soldout:!!e.soldout,note:clean(e.note),status:clean(e.status),image:cleanUrl(e.image),going_count:e.going_count||0,
+    act:e.act?clean(e.act):null
   }));
   const vs={};
   Object.keys(f.venues||{}).forEach(k=>{const v=f.venues[k]||{};vs[clean(k)]={addr:clean(v.addr),hood:clean(v.hood),boro:clean(v.boro),

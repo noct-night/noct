@@ -4,6 +4,7 @@
  * pass has not touched yet (no primary_genre, no vibes, no scalars): the UI then falls back to raw source genres.
  */
 import { NY_TZ, localDatePlus, toLocalParts } from '../lib/time.js';
+import { actFromTitle } from '../lib/lineup.js';
 
 /** One row of event_offer, as node-postgres returns it (numeric comes back as a string). */
 export interface OfferRow {
@@ -170,6 +171,11 @@ export interface FeedEvent {
   age: string;
   interested: number;
   srcs: FeedSrc[];
+  /**
+   * The title read as an act, when the event has no line-up of its own ("Ian Asher", "Green Velvet").
+   * DISPLAY ONLY — it is a guess, roughly three in four, and never reaches event.lineup or the artist table.
+   */
+  act: string | null;
   /**
    * Cheapest known price, including from a source that cannot sell a ticket (19hz lists door prices but is a
    * community board, so it never appears in `srcs`). The label may use it; the ticket list must not.
@@ -439,6 +445,7 @@ export function shapeEvent(row: FeedRow, opts: { n?: number; d?: number; tz?: st
     age: ageLabel(row.age_min),
     interested: row.interested_count ?? 0,
     srcs: shapeSrcs(row),
+    act: (row.lineup ?? []).length ? null : actFromTitle(row.title),
     from: row.cheapest_price === null || row.cheapest_price === undefined ? null : Number(row.cheapest_price),
     platforms: row.platforms ?? [],
     ra: urlOf(sources, (s) => s.source === 'ra'),

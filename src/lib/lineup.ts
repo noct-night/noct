@@ -28,6 +28,8 @@ const NOT_A_NAME = new RegExp(
     'free', 'rsvp', 'tickets?', 'sold out', 'open to close', 'all night long', 'more', 'guests?',
     'the album', 'listening (party|session)', 'release party', 'birthday', 'anniversary', 'edition',
     'presented by', 'season', 'vol\\.?', 'part (i|ii|iii|\\d)', 'night', 'party', 'sessions?',
+    'memorial', 'ballroom', 'theat(re|er)', 'lounge', 'sets', 'fundraiser', 'benefit', 'market', 'fair',
+    'mondays?', 'tuesdays?', 'wednesdays?', 'thursdays?', 'fridays?', 'saturdays?', 'sundays?', 'weekends?',
   ].join('|') + ')\\b', 'i');
 
 const MAX_ITEMS = 15;
@@ -100,4 +102,27 @@ export function lineupFromTitle(raw: string | null | undefined): TitleLineup {
   // One survivor out of a long tail means the split found furniture, not a bill.
   if (!lineup.length) return { headline: title, lineup: [] };
   return { headline: clean(head) || title, lineup };
+}
+
+/**
+ * When a title IS the act — "Ian Asher", "Green Velvet", "Fedde Le Grand" — there is no line-up to parse and
+ * the reader can plainly see the artist the app claims not to know.
+ *
+ * This is for DISPLAY ONLY and must never reach `event.lineup` or the `artist` table. On a sample of bare
+ * titles about three in four are real acts and the rest are things like "Reggaeton Fridays", "Scott Guerin
+ * Memorial" and "Spothero Aragon Ballroom" — good enough to offer a tap, nowhere near good enough to write a
+ * row that recommendations will then treat as a fact.
+ */
+export function actFromTitle(raw: string | null | undefined): string | null {
+  const title = (raw ?? '').trim();
+  if (!title) return null;
+  // a title with a line-up marker is lineupFromTitle()'s job, not this one
+  if (FEAT.test(title) || /[:|*]|\sb2b\s/i.test(title)) return null;
+  // "& Friends", "Live", "All Night" describe the booking, not the booked: "Gianni Blu & Friends" is Gianni Blu
+  const name = clean(title).replace(/\s+(?:&|and|b2b)\s+friends$|\s+(?:live|all night(?: long)?|dj set|extended set)$/i, '').trim();
+  if (!plausible(name)) return null;
+  if (name.split(/\s+/).length > 4) return null;
+  // a trailing edition number is a series, not a person: "Various Distractions 002", "Deep Tech 38"
+  if (/\s\d{1,4}$/.test(name)) return null;
+  return name;
 }
