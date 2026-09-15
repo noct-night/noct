@@ -53,6 +53,10 @@ describe.skipIf(!process.env.DATABASE_URL)('recommend_events against Postgres', 
     await mkEvent('cap1', 'Cap One', 10, ['house.deep'], [], `Cap Room ${MARK}`, [`RecTest DJ Eps`]);
     await mkEvent('cap2', 'Cap Two', 11, ['house.deep'], [], `Cap Room ${MARK}`, [`RecTest DJ Zeta`]);
     await mkEvent('cap3', 'Cap Three', 12, ['house.deep'], [], `Cap Room ${MARK}`, [`RecTest DJ Eta`]);
+    // the same show on three nights: a run, not three recommendations (0017)
+    await mkEvent('run1', 'Run Show', 14, ['house.deep'], [], `Cap Room ${MARK}`, [`RecTest DJ Theta`]);
+    await mkEvent('run2', 'Run Show', 15, ['house.deep'], [], `Cap Room ${MARK}`, [`RecTest DJ Theta`]);
+    await mkEvent('run3', 'Run Show', 16, ['house.deep'], [], `Cap Room ${MARK}`, [`RecTest DJ Theta`]);
     // a workshop at the venue the user already goes to: the strongest possible case for the class filter
     await mkEvent('class', 'Intro to Ableton Lab: Building Chords', 13, ['house.deep'], ['all_nighter'], `Home Room ${MARK}`, []);
 
@@ -153,6 +157,15 @@ describe.skipIf(!process.env.DATABASE_URL)('recommend_events against Postgres', 
     const all = await asUser<{ event_id: string }>(ME, `select * from recommend_events(20, 'nyc', 60, 1)`);
     expect(all.map((r) => r.event_id)).toContain(ids.sameArtist);
     expect(all.map((r) => r.event_id)).toContain(ids.sameGenre);
+  });
+
+  it('recommends one night of a multi-night run, not the whole run', async () => {
+    const rows = await asUser<{ event_id: string }>(ME, `select * from recommend_events(40, 'nyc', 60, 5)`);
+    const ids_ = rows.map((r) => r.event_id);
+    const fromRun = [ids.run1!, ids.run2!, ids.run3!].filter((i) => ids_.includes(i));
+    expect(fromRun).toHaveLength(1);
+    // and a generous venue cap must not bring the rest of the run back
+    expect(ids_).toContain(ids.cap1);
   });
 
   it('a dismissal removes that night and demotes the ones like it', async () => {

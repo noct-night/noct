@@ -147,7 +147,33 @@ a{color:inherit}
 .recend{display:flex;align-items:center;gap:12px}
 .recx{color:var(--d2);font-size:13px;line-height:1;padding:11px 9px;margin:-11px -7px -11px 0;border-radius:999px}
 .recx:active{background:#141414;color:var(--t)}
-.gone{color:var(--d2);font-size:13.5px}
+.recgone{color:var(--d2);font-size:13.5px}
+/* "For you" rail: one component pinned to the top of image, list and calendar. Monochrome like the rest of
+   the app, so "highlighted" means contrast and a hairline, not a colour this design does not have. */
+.fy{padding-bottom:6px}
+.fy[hidden]{display:none}
+.fyhd{display:flex;align-items:baseline;justify-content:space-between;padding:0 var(--pad);margin-bottom:12px}
+.fylab{font-size:13px;color:var(--chalk);letter-spacing:.02em}
+.fylab::before{content:'';display:inline-block;width:5px;height:5px;border-radius:50%;
+  background:var(--chalk);margin-right:8px;vertical-align:middle}
+.fymore{font-size:13px;color:var(--d2);white-space:nowrap}
+.fyrail{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x proximity;
+  padding:2px var(--pad) 4px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.fyrail::-webkit-scrollbar{display:none}
+.fyc{flex:0 0 auto;width:188px;scroll-snap-align:start;border:.7px solid var(--hair);
+  border-radius:3px;padding:12px 13px;background:rgba(255,255,255,.04)}
+.fyc:active{background:rgba(255,255,255,.10)}
+.fyn{font-size:15px;line-height:1.24;font-weight:600;letter-spacing:-.012em;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.fym{font-size:12px;color:var(--d1);margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fyw{font-size:11.5px;color:var(--d2);margin-top:5px;
+  display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+/* over artwork the rail needs its own ground so the cards stay legible on any image */
+#fyImage{position:absolute;left:0;right:0;z-index:23;padding-top:12px;
+  background:linear-gradient(180deg,rgba(11,11,11,.84) 0%,rgba(11,11,11,.64) 62%,rgba(11,11,11,0) 100%)}
+#fyImage .fyc{background:rgba(11,11,11,.55);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px)}
+#fyList{padding-top:4px;margin-bottom:26px}
+#fyCal{margin:22px 0 6px}
 /* the night's cards inside the When sheet: the sheet already pads the sides, so the rows only need a rule */
 #calList .row{padding-left:0;padding-right:0;border-top:.7px solid var(--hair)}
 .field{display:flex;align-items:baseline;gap:8px;border-bottom:.7px solid var(--hair);padding:12px 0}
@@ -220,6 +246,7 @@ a{color:inherit}
 
   <section class="view" id="imageView">
     <div id="slides"></div>
+    <div class="fy" id="fyImage" hidden></div>
     <button class="zone l" aria-label="Previous" onclick="step(-1)"></button>
     <button class="zone r" aria-label="Next" onclick="step(1)"></button>
     <div class="caption" id="caption"></div>
@@ -227,6 +254,7 @@ a{color:inherit}
   </section>
 
   <section class="view" id="listView" hidden>
+    <div class="fy" id="fyList" hidden></div>
     <div class="srcline" id="srcLine"></div>
     <div id="rows"></div>
   </section>
@@ -272,6 +300,7 @@ a{color:inherit}
     <button class="sx" onclick="closeAll()" aria-label="Close">✕</button>
     <div class="sh2">When</div>
     <div class="opts" id="oPreset"></div>
+    <div class="fy" id="fyCal" hidden></div>
     <div class="cal" id="rcal"></div>
     <div id="calList"></div>
   </div>
@@ -398,7 +427,7 @@ const S={mode:'image',view:'image',from:0,to:0,i:0,city:'nyc',area:'All',geo:fal
  /* going rows by uuid -> created_at, the feed's generated_at, and rows removed that the feed had counted:
     together these correct a cached going_count without guessing */
  mineAt:new Map(),feedAt:'',goOff:new Set(),
- recs:{loading:false,error:false,list:[],history:0}};
+ recs:{loading:false,loaded:false,error:false,list:[],history:0}};
 /* true once a real feed replaces the sample weekend: only then are there rows to read and write */
 let LIVE=false;
 const $=s=>document.querySelector(s);
@@ -514,10 +543,11 @@ function renderList(){
 /* "For you": events scored against this account's own going/saved history (0015). Recommendations are not
    part of the loaded feed — they span other nights — so each carries its own date and opens on its platform. */
 function renderRecs(){
+  renderForYou();
   const el=$('#recList');if(!el)return;
   if(!LIVE){el.innerHTML=`<div class="empty">Live data only.</div>`;return}
   const r=S.recs;
-  if(r.loading){el.innerHTML=`<div class="empty">Reading your nights…</div>`;return}
+  if(r.loading&&!r.list.length){el.innerHTML=`<div class="empty">Reading your nights…</div>`;return}
   if(r.error){el.innerHTML=`<div class="empty">Recommendations unavailable right now.</div>`;return}
   if(!r.list.length){
     el.innerHTML=r.history
@@ -526,13 +556,37 @@ function renderRecs(){
     return;
   }
   el.innerHTML=r.list.map((e,i)=>e.gone
-    ? `<div class="frow rec"><div class="gone">Not for me — <button class="lnk" onclick="undoRec(${i})">Undo</button></div></div>`
+    ? `<div class="frow rec"><div class="recgone">Not for me — <button class="lnk" onclick="undoRec(${i})">Undo</button></div></div>`
     : `<div class="frow rec">`
       +`<button class="recmain" onclick="openRec(${i})"><div class="fn">${e.head}</div>`
       +`<div class="fm">${e.night_label}${e.venue?' · '+e.venue:''}${e.door?' · '+e.door:''}</div>`
       +`<div class="why">${e.why}</div></button>`
       +`<div class="recend"><span class="tg">${e.price}</span>`
       +`<button class="recx" onclick="dismissRec(${i})" aria-label="Not for me, stop suggesting this">✕</button></div></div>`).join('');
+}
+/* The same recommendations, pinned to the top of image / list / calendar. The rail is a shortcut, not a
+   second feature: it reads S.recs, indexes into the same array, and stays hidden until there is something
+   worth pinning — an empty "For you" over the artwork would be pure noise. */
+const FY_MOUNTS=['fyImage','fyList','fyCal'];
+const FY_MAX=8;
+function renderForYou(){
+  const r=S.recs;
+  const live=LIVE&&!r.error&&r.list.some(e=>!e.gone);
+  const cards=live?r.list.map((e,i)=>[e,i]).filter(([e])=>!e.gone).slice(0,FY_MAX):[];
+  const html=cards.length?`<div class="fyhd"><span class="fylab">For you</span>`
+      +`<button class="fymore" onclick="setView('saved')">All ${r.list.filter(e=>!e.gone).length} →</button></div>`
+    +`<div class="fyrail">`+cards.map(([e,i])=>`<button class="fyc" onclick="openRec(${i})">`
+      +`<div class="fyn">${e.head}</div>`
+      +`<div class="fym">${e.night_label}${e.venue?' · '+e.venue:''}</div>`
+      +`<div class="fyw">${e.why}</div></button>`).join('')+`</div>`:'';
+  FY_MOUNTS.forEach(id=>{const el=$('#'+id);if(!el)return;el.innerHTML=html;el.hidden=!cards.length});
+  if(cards.length)placeImageRail();
+}
+/* The image view is full-bleed, so the rail floats under the top controls rather than pushing them down. */
+function placeImageRail(){
+  const el=$('#fyImage'),top=$('#ctrlRow');if(!el||!top)return;
+  const b=top.getBoundingClientRect(),a=$('#app').getBoundingClientRect();
+  el.style.top=Math.max(72,b.bottom-a.top+16)+'px';
 }
 /* A recommendation is usually on another night than the one loaded, so send people to the listing itself
    rather than silently reloading the feed underneath them. Opening one is recorded as a mild interest
@@ -567,17 +621,17 @@ function whyLine(why){
 }
 async function loadRecs(){
   if(!LIVE)return;
-  S.recs={loading:true,error:false,list:[],history:S.recs.history};renderRecs();
+  S.recs={loading:true,loaded:false,error:false,list:S.recs.list,history:S.recs.history};renderRecs();
   try{
     const s=await sbSession();if(!s)throw new Error('no session');
     const r=await fetch(`${API_BASE}/api/recommend?limit=12`,{headers:{accept:'application/json',authorization:'Bearer '+s.access_token}});
     if(!r.ok)throw new Error('HTTP '+r.status);
     const j=await r.json();
-    S.recs={loading:false,error:false,history:j.history_size||0,
+    S.recs={loading:false,loaded:true,error:false,history:j.history_size||0,
       list:(j.events||[]).map(e=>({uuid:e.id,head:clean(e.head),venue:clean(e.venue),door:clean(e.door),
         night_label:nightLabel(e.night),price:clean(priceOf(e)),why:whyLine(e.why),
         url:cleanUrl(e.url),ra:cleanUrl(e.ra),dice:cleanUrl(e.dice)}))};
-  }catch(err){S.recs={loading:false,error:true,list:[],history:S.recs.history}}
+  }catch(err){S.recs={loading:false,loaded:true,error:true,list:[],history:S.recs.history}}
   renderRecs();
 }
 /* the recommendation JSON is the feed's event shape, so reuse its price wording */
@@ -735,7 +789,7 @@ function toggleGoing(id){const u=uuidOf(id);if(!u)return;
   if(on){S.going.add(u);S.mineAt.set(u,new Date().toISOString());S.goOff.delete(u)}
   else{S.going.delete(u);S.mineAt.delete(u);if(!(was&&was>S.feedAt))S.goOff.add(u)}
   openDet(id);render();
-  S.recs.list=[];S.recs.error=false;                                  /* the taste profile just changed */
+  invalidateRecs();                                                   /* the taste profile just changed */
   persist('going',u,on).then(ok=>{if(ok)return;                       /* server said no: put the UI back */
     if(on){S.going.delete(u);S.mineAt.delete(u)}else{S.going.add(u);if(was)S.mineAt.set(u,was);S.goOff.delete(u)}
     liveNote('Could not save that — check your connection');openDet(id);render()});
@@ -743,6 +797,7 @@ function toggleGoing(id){const u=uuidOf(id);if(!u)return;
 function toggleSave(id){const u=uuidOf(id);if(!u)return;
   const on=!S.saved.has(u);
   on?S.saved.add(u):S.saved.delete(u);
+  invalidateRecs();
   render();
   persist('saved',u,on).then(ok=>{if(ok)return;on?S.saved.delete(u):S.saved.add(u);
     liveNote('Could not save that — check your connection');render()});
@@ -822,8 +877,7 @@ function goHome(){
   $('#topscrim').classList.remove('on');
 }
 function setView(v){
-  /* recommendations are a private per-user query, so fetch them when that view is actually opened */
-  if(v==='saved'&&LIVE&&!S.recs.loading&&!S.recs.list.length&&!S.recs.error)loadRecs();
+  if(LIVE&&!S.recs.loading&&!S.recs.loaded)loadRecs();
   S.view=v;if(v==='image'||v==='list')S.mode=v;
   const secondary=(v==='saved'||v==='venues'||v==='profile');
   $('#ctrlRow').hidden=secondary;
@@ -923,6 +977,9 @@ async function sbRest(method,path,body){
   }
   return r;
 }
+/** A new mark changes the taste profile. Mark it stale rather than blanking it: the rail keeps showing the
+    previous answer until a fresh one lands, so marking a night does not make it flicker. */
+function invalidateRecs(){S.recs.loaded=false;S.recs.error=false}
 /** Mirror one toggle into Postgres. user_id is defaulted to auth.uid() server-side (0014). */
 async function persist(table,uuid,on){
   if(!LIVE)return true;                                    /* the sample weekend has no rows to write */
@@ -1105,6 +1162,7 @@ async function loadFeed(range){
     applyFeed(await r.json());
     liveNote('');
     syncMine();                      /* restore this account's going/saved; renders again when it lands */
+    loadRecs();                      /* the rail is pinned to every view, so recommendations load with the feed */
   }catch(err){
     liveNote('Live data unavailable — showing sample weekend');
   }
