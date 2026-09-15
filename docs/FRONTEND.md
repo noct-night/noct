@@ -31,15 +31,16 @@ Two controls, both in `#dateSheet`:
   for the same window in the new city's own calendar.
 - **Month calendar** — `renderCal()` draws a 7-column grid for `S.calMonth`: past nights and nights with no
   events are disabled, today carries `aria-current="date"`, the selected night is underlined, and each cell
-  shows its event count. Tapping a night calls `pickDate()` → one-night feed. ‹ › move months; the back arrow
-  stops at the current month.
+  shows its event count. ‹ › move months; the back arrow stops at the current month.
+  Tapping a night calls `pickDate()`, which **keeps the sheet open** and renders that night's cards under the
+  grid (`renderCalList()`, the same `.row` markup as the list view). Tapping one of those cards runs
+  `openFromCal(i)` — closes the sheet and opens that event in the image view at index `i`. The sheet has no
+  "Show results" button: the calendar itself is the result.
 
 Counts come from `GET /api/feed?counts=1&from&to&city`, which returns one integer per night (~3 KB for a
 month) instead of the ~320 KB a month of full event records costs. They are cached per month+city in
 `S.counts`, so reopening the sheet is free. `MAX_COUNTS_DAYS` (62) lets a six-week grid through where full
 feeds stop at `MAX_RANGE_DAYS` (31).
-
-Tapping a night keeps whatever view mode is active (Image or List) — the date filter applies to both.
 
 ## The API
 

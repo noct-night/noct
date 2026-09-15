@@ -141,6 +141,8 @@ a{color:inherit}
 .calg button[aria-current="date"]{color:var(--chalk)}
 .calg button[aria-pressed="true"]{color:var(--chalk);text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
 .calg .pad{height:48px}
+/* the night's cards inside the When sheet: the sheet already pads the sides, so the rows only need a rule */
+#calList .row{padding-left:0;padding-right:0;border-top:.7px solid var(--hair)}
 .field{display:flex;align-items:baseline;gap:8px;border-bottom:.7px solid var(--hair);padding:12px 0}
 .field b{font-weight:400;font-size:20px;color:var(--d2)}
 .field input{flex:1;min-width:0;background:none;border:0;color:#fff;font:inherit;font-size:20px;outline:none;padding:0}
@@ -263,7 +265,7 @@ a{color:inherit}
     <div class="sh2">When</div>
     <div class="opts" id="oPreset"></div>
     <div class="cal" id="rcal"></div>
-    <div class="foot"><button class="lnk" onclick="closeAll()">Show results</button></div>
+    <div id="calList"></div>
   </div>
 
   <div class="sheet" id="filt">
@@ -384,7 +386,7 @@ const S={mode:'image',view:'image',from:0,to:0,i:0,city:'nyc',area:'All',geo:fal
  gen:new Set(),door:new Set(),avail:new Set(),plat:new Set(),
  saved:new Set(),going:new Set(),signedIn:false,ig:'',vis:'count',signStep:1,
  /* When tab: which preset is active, the night picked on the calendar, and the month grid's cached counts */
- preset:'tonight',rangeLabel:'',picked:'',calMonth:'',counts:{},countsMonth:'',countsCity:'',countsNote:''};
+ preset:'tonight',rangeLabel:'',picked:'',dayList:'',calMonth:'',counts:{},countsMonth:'',countsCity:'',countsNote:''};
 const $=s=>document.querySelector(s);
 const dayName=i=>DAYS[i][2];
 const dayFull=i=>`${DAYS[i][0]} ${DAYS[i][1]}`;
@@ -668,7 +670,7 @@ function buildAll(){
   opt($('#fDoor'),DOORS,v=>S.door.has(v),v=>S.door.has(v)?S.door.delete(v):S.door.add(v));
   opt($('#fAvail'),AVAIL,v=>S.avail.has(v),v=>S.avail.has(v)?S.avail.delete(v):S.avail.add(v));
   opt($('#fPlat'),PLATS,v=>S.plat.has(v),v=>S.plat.has(v)?S.plat.delete(v):S.plat.add(v));
-  renderCal();
+  renderCal();renderCalList();
 }
 function clearAll(){S.gen.clear();S.door.clear();S.avail.clear();S.plat.clear();S.i=0;buildAll();render()}
 function useGeo(){S.geo=!S.geo;$('#geoState').textContent=S.geo?'On':'Off';render()}
@@ -776,12 +778,34 @@ function rangeOf(key){
 }
 function pickRange(key){
   const r=rangeOf(key);
-  S.preset=key;S.rangeLabel=r[2];S.picked=r[0]===r[1]?r[0]:'';S.calMonth=dMonth(r[0]);
+  S.preset=key;S.rangeLabel=r[2];S.picked=r[0]===r[1]?r[0]:'';S.calMonth=dMonth(r[0]);S.dayList='';
   closeAll();loadFeed({from:r[0],to:r[1]});
 }
-function pickDate(date){
-  S.preset='';S.rangeLabel='';S.picked=date;
-  closeAll();loadFeed({from:date,to:date});
+/* A calendar night previews in place: the sheet stays open and the night's cards render under the grid. */
+async function pickDate(date){
+  S.preset='';S.rangeLabel='';S.picked=date;S.dayList=date;
+  renderCal();renderCalList();
+  await loadFeed({from:date,to:date});
+  renderCalList();
+}
+/** Tapping one of those cards leaves the sheet and opens that event in the image view. */
+function openFromCal(i){closeAll();S.i=i;setView('image')}
+function renderCalList(){
+  const el=$('#calList');if(!el)return;
+  if(!S.dayList){el.innerHTML='';return}
+  if(!DAYS.length||DAYS[0][3]!==S.dayList){el.innerHTML=`<div class="grp"><div class="note">Loading…</div></div>`;return}
+  const list=results(),d=DAYS[0];
+  if(!list.length){el.innerHTML=`<div class="grp"><div class="note">Nothing on ${d[0]} ${d[1]}${nF()?' with your filters':''}.</div></div>`;return}
+  el.innerHTML=`<div class="grp"><h3>${d[0]} ${d[1]} · ${list.length} event${list.length===1?'':'s'}</h3>`
+    +list.map((e,i)=>`<div class="row" role="button" tabindex="0" onclick="openFromCal(${i})" onkeydown="if(event.key==='Enter'){openFromCal(${i})}">`
+      +`<div class="rt">${e.door||'Time on listing'}</div>`
+      +`<div class="rn">${e.head}</div>`
+      +`<div class="rg">${tagLine(e)}</div>`
+      +`<div class="rv">${e.venue}</div>`
+      +`<div class="rp ${e.soldout||low(e)===null?'gone':''}">${priceLbl(e)}</div>`
+      +`<div class="rs">${platsOf(e)}</div>`
+      +`<div class="rgo">${goCount(e.id)} going</div></div>`).join('')
+    +`</div>`;
 }
 function calMove(n){S.calMonth=monthAdd(S.calMonth||dMonth(nyDate(0)),n);renderCal();loadCounts()}
 function renderCal(){
