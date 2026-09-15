@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildFeed, FeedParamError, resolveParams } from '../../src/feed/query.js';
 import {
-  ageLabel, buildDays, feedCacheHeaders, genreDisplay, genreFilterList, shapeEvent, shapeSource, sortOffers, texOf,
+  ageLabel, buildDays, feedCacheHeaders, genreDisplay, genreFilterList, moodVibes, shapeEvent, shapeSource,
+  sortOffers, texOf,
   type FeedRow, type OfferRow,
 } from '../../src/feed/shape.js';
 import type pg from 'pg';
@@ -329,5 +330,40 @@ describe.skipIf(!process.env.DATABASE_URL)('buildFeed against Postgres', () => {
     expect(only.days).toHaveLength(1);
     expect(only.events.filter((e) => e.head.startsWith('Feed Test')).map((e) => e.venue)).toEqual(['Signal', 'BASEMENT', 'Good Room']);
     await expect(buildFeed({ from: SAT, to: FRI })).rejects.toBeInstanceOf(FeedParamError);
+  });
+});
+
+describe('vibes are moods, not door policy', () => {
+  const v = (code: string, kind: string, label: string) => ({ code, kind, label, glyph: '' }) as never;
+
+  it('drops the paperwork and keeps the room', () => {
+    // 21+ was the most-assigned vibe in the city (1,098 events) and is already its own row in the sheet
+    const out = moodVibes([
+      v('21_plus', 'policy', '21+'),
+      v('free_rsvp', 'policy', 'Free / RSVP'),
+      v('underground', 'crowd', 'Underground'),
+      v('dark_warehouse', 'space', 'Warehouse'),
+    ]);
+    expect(out.map((x) => x.label)).toEqual(['Underground', 'Warehouse']);
+  });
+
+  it('keeps the two policies that describe the room rather than the door', () => {
+    const out = moodVibes([v('phone_free', 'policy', 'Phone-free'), v('dress_code', 'policy', 'Dress code')]);
+    expect(out.map((x) => x.label)).toEqual(['Phone-free']);
+  });
+
+  it('orders crowd, then space, then format, then time', () => {
+    const out = moodVibes([
+      v('all_nighter', 'time', 'All night'),
+      v('live_act', 'format', 'Live'),
+      v('rooftop', 'space', 'Rooftop'),
+      v('queer_party', 'crowd', 'Queer'),
+    ]);
+    expect(out.map((x) => x.label)).toEqual(['Queer', 'Rooftop', 'Live', 'All night']);
+  });
+
+  it('survives an empty or missing list', () => {
+    expect(moodVibes(null)).toEqual([]);
+    expect(moodVibes([])).toEqual([]);
   });
 });

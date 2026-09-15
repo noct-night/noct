@@ -384,6 +384,24 @@ function shapeSrcs(row: FeedRow): FeedSrc[] {
 const urlOf = (sources: FeedSourceLink[], pick: (s: FeedSourceLink) => boolean): string => sources.find((s) => s.url && pick(s))?.url ?? '';
 
 /** One event_feed row -> one prototype event. `n` is its 1-based position, `d` the index into days[]. */
+/**
+ * "Vibe" has to answer what kind of night this is — underground, warehouse, mainstream, queer, listening —
+ * not what the door policy is. The taxonomy already separates them by `kind`; the feed was shipping all of
+ * them, so the most-assigned vibe in the city was `21+` (1,098 of ~1,600 events), which says nothing and is
+ * already its own row in the sheet. `policy` is dropped except the two entries that describe the room's
+ * culture rather than its paperwork, and the rest are ordered mood-first.
+ */
+const VIBE_ORDER: Record<string, number> = { crowd: 0, space: 1, format: 2, time: 3 };
+const POLICY_KEEP = new Set(['phone_free', 'sober_friendly']);
+
+export function moodVibes(vibes: FeedVibe[] | null | undefined): FeedVibe[] {
+  return (vibes ?? [])
+    .filter((v) => (v.kind === 'policy' ? POLICY_KEEP.has(v.code ?? '') : true))
+    .map((v, i) => ({ v, rank: (VIBE_ORDER[v.kind ?? ''] ?? 4) * 100 + i }))
+    .sort((a, b) => a.rank - b.rank)
+    .map((x) => x.v);
+}
+
 export function shapeEvent(row: FeedRow, opts: { n?: number; d?: number; tz?: string } = {}): FeedEvent {
   const { n = 1, d = 0, tz = NY_TZ } = opts;
   const sources = row.sources ?? [];
@@ -407,7 +425,7 @@ export function shapeEvent(row: FeedRow, opts: { n?: number; d?: number; tz?: st
     genre_codes: row.genre_codes ?? [],
     tags: (row.genre_tags ?? (row.genre_codes ?? []).map((code) => ({ code, label: null }))).map((t) => ({ code: t.code, label: t.label ?? t.code })),
     genre_confidence: num(row.genre_confidence),
-    vibes: row.vibes ?? [],
+    vibes: moodVibes(row.vibes),
     scalars: {
       energy: row.energy ?? null,
       darkness: row.darkness ?? null,

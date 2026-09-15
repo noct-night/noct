@@ -209,3 +209,26 @@ in 13.14s`; the first version of this treated that as exhaustion and threw the b
 prompt plus `max_tokens`. The 6000 default (headroom for Gemini's thinking) reserved ~7.7k of the 8k by
 itself, capping throughput at one call a minute. Groq therefore defaults to `max_tokens: 2500` and a 32s
 spacing. Measured: 5 events classified in 3m45s, all on Groq, with Gemini exhausted.
+
+## Vibe is a mood, not a door policy
+
+The taxonomy has always split vibes by `kind` — `crowd`, `space`, `format`, `time`, `policy` — and the feed
+was shipping all five. The result was that the most-assigned vibe in the city was **`21+`, on 1,098 of ~1,600
+events**, which says nothing about the night and is already its own row in the event sheet. Free / RSVP,
+Pricey and Cheaper early are in the price label. The mood words were there — Underground (227), Intimate
+(125), Mainstream (111), Warehouse (85), Basement (60) — just outnumbered.
+
+`moodVibes()` now drops `policy` (keeping `phone_free` and `sober_friendly`, which describe the room's culture
+rather than its paperwork) and orders the rest **crowd → space → format → time**, so the answer reads
+`Underground · Local crews · Intimate · Basement` instead of `21+ · Free / RSVP · Ends early`.
+
+**This is where the model earns its keep**, and the numbers say so:
+
+| | events | with a mood vibe | logistics only |
+| --- | --- | --- | --- |
+| classified by the LLM | 568 | **62.3%** | 33.1% |
+| rules only (`provisional/`) | 957 | 41.3% | 44.3% |
+
+Rules can read a door time and a ticket price off a listing. Whether a night is underground or mainstream,
+a warehouse or a listening room, is a judgement — so mood coverage rises by half once the model reaches an
+event, and 957 upcoming events are still waiting on the free tier's daily quota.
