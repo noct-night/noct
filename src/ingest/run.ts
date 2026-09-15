@@ -68,6 +68,8 @@ const FETCH_HEADROOM_MS = 20_000;
 const STALE_RUN_MINUTES = 15;
 /** resolve_pending() work per transaction. Keeps transactions short on the pooler and lets the budget interrupt. */
 const RESOLVE_CHUNK = 200;
+/** Events whose line-up is re-linked to artists per run (0013). Only changed line-ups are pending. */
+const ARTIST_LINK_CHUNK = 3000;
 const MAX_ERROR_LEN = 2000;
 
 interface RunCounts {
@@ -167,6 +169,22 @@ async function sweep(runId: number): Promise<number> {
   return Number(r.rows[0]?.n ?? 0);
 }
 
+/**
+ * Resolve canonical line-ups into artist rows (0013). Only events whose line-up changed are revisited, so this
+ * is cheap after the first pass; a failure here must not fail the ingest, since the listings are already stored.
+ */
+async function linkArtists(log: Logger): Promise<number> {
+  try {
+    const r = await query<{ n: number }>('select link_pending_artists($1) as n', [ARTIST_LINK_CHUNK]);
+    const n = Number(r.rows[0]?.n ?? 0);
+    if (n) log.info('artists linked', { events: n });
+    return n;
+  } catch (err) {
+    log.warn('artist linking failed; listings are unaffected', { error: err instanceof Error ? err.message : String(err) });
+    return 0;
+  }
+}
+
 /** The order of work for one adapter; every branch ends with the run row closed. */
 async function runOne(
   adapter: SourceAdapter,
@@ -187,6 +205,7 @@ async function runOne(
       throw new Error(`none of ${result.listings.length} listings could be stored: ${persisted.warnings[0] ?? 'unknown'}`);
     }
     const pending = await resolvePending(adapter.key, deadline);
+    await linkArtists(log);
     const warnings = [...result.warnings, ...persisted.warnings, ...pending.warnings];
 
     // A window authorises tombstoning everything in it that this run did not see, so it is only honoured when the
