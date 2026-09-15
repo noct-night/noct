@@ -494,6 +494,7 @@ function openDet(eid){
         :`<span style="color:var(--d2)">No genre yet.</span> <button class="go" onclick="suggestGenre(${e.id})">Suggest one</button>`}</div>
       ${e.sound?`<div class="k">Sound</div><div>${e.sound}</div>`:''}
       ${(e.vibes||[]).length?`<div class="k">Vibe</div><div>${e.vibes.map(v=>(v.glyph?v.glyph+' ':'')+v.label).join(' · ')}</div>`:''}
+      ${!e.set&&e.lineup.length?`<div class="k">Line-up</div><div class="lineup">${e.lineup.map(a=>`<button class="go" onclick="openArtistByName('${esc(a)}')">${a}</button>`).join('<span class="sep2"> · </span>')}<div class="hint">Tap a name to hear their sets</div></div>`:''}
       <div class="k">Venue</div><div><button class="go" onclick="openVenue('${esc(e.venue)}')">${e.venue} →</button></div>
       ${vInfo(e.venue).hood?`<div class="k">Area</div><div>${vInfo(e.venue).hood}${vInfo(e.venue).boro?', '+vInfo(e.venue).boro:''}</div>`:''}
       ${e.age?`<div class="k">Ages</div><div>${e.age}</div>`:''}
@@ -502,13 +503,12 @@ function openDet(eid){
     <div class="grp"><h3>Going on NOCT · ${goCount(e.id)}</h3>${guest}
       <div class="foot" style="margin-top:18px"><button class="lnk" aria-pressed="${me}" onclick="toggleGoing(${e.id})">${me?"You're going":"I'm going"}</button></div>
     </div>
+    ${e.set?`<div class="grp"><h3>Set times<span class="hint"> · tap a name to hear their sets</span></h3>${e.set.map(t=>`<div class="ro"><div class="t">${t[0]}</div><div class="who"><button class="go" onclick="openArtistByName('${esc(t[1])}')">${t[1]} →</button></div></div>`).join('')}</div>`:''}
     <div class="grp"><h3>Tickets · ${e.srcs.length} way${e.srcs.length===1?'':'s'} in</h3>
       ${e.srcs.map(s=>`<div class="tk ${e.soldout?'dead':''}"><div><div class="src">${s[2]||'Ticket'}</div></div><div class="amt">${s[1]===null?'':'$'+s[1]}</div><a class="lnk" href="${s[3]||e.ra||e.dice||e.url||'#'}" target="_blank" rel="noopener">${e.soldout?'Resale':'Open'}</a></div>`).join('')}
       ${gap>0?`<div class="gapnote">Two prices for the same night, $${gap} apart. The RSVP is cheaper but does not guarantee entry.</div>`:''}
       ${!e.full?`<div class="gapnote">Price and set times are not listed here yet. Open the listing for the full record.</div>`:''}
     </div>
-    ${e.set?`<div class="grp"><h3>Set times</h3>${e.set.map(t=>`<div class="ro"><div class="t">${t[0]}</div><div class="who"><button class="go" onclick="openArtistByName('${esc(t[1])}')">${t[1]} →</button></div></div>`).join('')}</div>`
-      :e.lineup.length?`<div class="grp"><h3>Line-up</h3>${e.lineup.map(a=>`<div class="ro"><div class="t"></div><div class="who"><button class="go" onclick="openArtistByName('${esc(a)}')">${a} →</button></div></div>`).join('')}</div>`:''}
     ${e.note?`<div class="grp"><h3>About</h3><p class="prose">${e.note}</p></div>`:''}
     <div class="dacts">
       <button class="lnk" onclick="toggleSave(${e.id});openDet(${e.id})">${isSaved(e.id)?'Saved':'Save'}</button>

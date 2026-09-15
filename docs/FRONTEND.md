@@ -237,6 +237,12 @@ feed will then refuse to show is a link to nowhere.
 
 A DJ's name is only useful if it leads somewhere, so every line-up entry and set time is a button now.
 
+**Where to tap** was the first thing to get wrong. The line-up started as its own section at the bottom of the
+event sheet — 1,060px down an 812px screen, below Going and Tickets, and a bare name with an arrow that looked
+exactly like the venue link above it. Nobody found it. The line-up is now a row in the specs block beside
+Genre and Vibe, at ~620px, visible without scrolling, with "Tap a name to hear their sets" under it. Set times
+keep their own section, because they need the time column.
+
 - **Listen** — YouTube and SoundCloud are searched for `"<name> dj set"`, which is the search a listener
   actually runs; Spotify and RA are searched for the name alone, since neither indexes sets.
 - **Playing** — their upcoming nights, shaped as feed cards.
