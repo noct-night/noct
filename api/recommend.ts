@@ -2,7 +2,7 @@
  * GET /api/recommend — events picked from the caller's own going/saved history.
  *
  * The caller's Supabase access token is forwarded to PostgREST so `auth.uid()` inside recommend_events()
- * (0015) is Supabase's own verdict on who this is: NOCT never verifies or stores a JWT itself, and cannot be
+ * (0015/0016) is Supabase's own verdict on who this is: NOCT never verifies or stores a JWT itself, and cannot be
  * tricked into profiling somebody else. The ids that come back are then shaped through the same event_feed
  * read model and shapeEvent() the feed uses, so the UI renders a recommendation exactly like any other card.
  *
@@ -31,6 +31,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       limit: firstParam(req.query.limit),
       city: firstParam(req.query.city),
       days: firstParam(req.query.days),
+      perVenue: firstParam(req.query.per_venue),
     });
     sendJson(res, 200, body, NO_STORE);
   } catch (err) {

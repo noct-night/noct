@@ -3,7 +3,8 @@
 "For you" in the Saved view: upcoming nights scored against the account's own `going` / `saved` history, each
 one carrying the reason it was picked.
 
-Code: `supabase/migrations/0015_recommendations.sql` (`recommend_events()`), `src/feed/recommend.ts`,
+Code: `supabase/migrations/0015_recommendations.sql` (`recommend_events()`) and
+`supabase/migrations/0016_rec_quality.sql` (class filter, venue cap, feedback), `src/feed/recommend.ts`,
 `api/recommend.ts`, the `#recList` block in `index.html`.
 
 ## Why content-based
@@ -16,7 +17,7 @@ score later without changing the interface.
 ## The profile
 
 Built per request from the caller's own marks — `going` weighted **1.0**, `saved` **0.4** (a bookmark is not a
-decision). For each mark: its genre codes, genre families, vibe codes, artists (via `event_artist`), venue
+decision), and a recommendation the person *opened* **0.25** (interest, not a decision). For each mark: its genre codes, genre families, vibe codes, artists (via `event_artist`), venue
 family, and scalars. Every component is expressed as *the share of the history it accounts for*, so someone
 with fifty marks does not get larger scores than someone with three.
 
@@ -37,8 +38,49 @@ scalars only *rank* what is already relevant — almost every club night starts 
 $20, so letting them admit an event on their own would recommend the entire calendar. (That was a real bug the
 tests caught.)
 
-Excluded: anything already marked, past nights, other cities, `is_electronic = false`, and non-`scheduled`
-status. The city defaults to the one the most recent mark was in.
+Excluded: anything already marked or dismissed, past nights, other cities, `is_electronic = false`,
+non-`scheduled` status, and anything `event_is_class()` calls a class. The city defaults to the one the most
+recent mark was in.
+
+## Not a night out
+
+`is_electronic` answers "is this electronic music" — an Ableton production class at Nowadays passes it.
+`event_is_class()` is the separate question, and its patterns are **anchored**, never substrings, because the
+live calendar is full of titles that read like classes and are not:
+
+| spared | why a substring match would have killed it |
+| --- | --- |
+| `Ivy Lab: A Farewell Tour` | a drum & bass act, matched by `lab` |
+| `Elsewhere Presents: Jam City @ Market Hotel` | Market Hotel is a venue |
+| `Italo Horror Disco … & Dark Karaoke` | a club night that happens to end in karaoke |
+| `Banda Brunch - Sunset Mexican Independence Party` | a party, matched by `brunch` |
+| `mezza 2 in collab with Le Frique Sonique` | "collab" ends in "lab" |
+| `Working Class` | why `class` only counts in the plural or after a teaching noun |
+
+So karaoke counts only when karaoke *is* the event (title start, `Karaoke <weekday>`, or after a short label
+like `DOWNSTAIRS:`), `intro to` only at the start, and `lab` not at all. On the live calendar the function
+takes out 22 upcoming events — four Ableton labs, sixteen karaoke nights, a free workshop, a techno yoga
+class — and nothing else.
+
+## Diversity
+
+`p_per_venue` (default **2**) caps how many nights one venue family can contribute, applied by score before
+the final limit, so three Lot Radio nights cannot be the whole list. Events with no venue each get their own
+partition: "venue unknown" is not a venue, and grouping them would cap that whole tail at two.
+
+## The feedback loop
+
+`rec_feedback(user_id, event_id, action)` holds one row per reaction, `dismissed` or `opened`, RLS-scoped to
+its owner with `user_id default auth.uid()`. The client writes it straight to PostgREST, the same path
+`going`/`saved` take.
+
+A **dismissal** does two things: that event never comes back, and its artists, genres, vibes and venue join a
+negative profile subtracted from every other score — artist **1.5**, genre **0.9**, vibe **0.5**, venue
+**0.5**. Deliberately smaller than their positive counterparts: one "no" should tilt the ranking, not
+blacklist a genre, so a strong artist match still survives a dismissal in the same genre.
+
+**Opening** a recommendation adds it to the positive profile at 0.25. The ✕ is undoable — it sits a
+thumb-width from the row, so a mis-tap must not permanently bury an event.
 
 ## Explanations
 
@@ -79,14 +121,12 @@ Live check with three marks (Nils Hoffmann @ Elsewhere, a Lot Radio deep-house b
 
 ## Known gaps
 
-- **Workshops and classes rank as nights out.** "Intro to Ableton Lab" at Nowadays scores on the venue and a
-  house genre prior. `is_electronic` answers "is this electronic music", not "is this a night out"; the
-  classifier needs an event-kind flag, or the rules need a class/workshop detector.
 - **Rules-only events carry no `energy`/`darkness`**, so the scalar term is weaker than designed until the
   Gemini backlog finishes.
-- **No diversity control.** Three Lot Radio nights can fill the list; a per-venue or per-artist cap would
-  spread it out.
-- **No feedback loop.** Nothing learns from a recommendation being ignored. `tag_vote` is the existing model
-  for that if it is wanted.
 - **`saved` and `going` are both "interest"** — neither means attendance. A post-night "did you go?" prompt
   would make the strongest signal much cleaner.
+- **No per-artist cap.** A resident playing three nights in one month can still appear three times; only
+  venues are capped.
+- **Dismissals are permanent** apart from the inline Undo, and there is no way to review them later.
+- **`event_is_class()` reads titles only.** A class with a party-shaped name gets through until the
+  enrichment pass gains a real event-kind field.

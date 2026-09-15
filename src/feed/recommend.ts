@@ -1,5 +1,5 @@
 /**
- * Recommendations: ask Postgres (recommend_events, 0015) as the caller, then shape the winners with the same
+ * Recommendations: ask Postgres (recommend_events, 0015 + 0016) as the caller, then shape the winners with the same
  * read model the feed uses so the client renders them as ordinary event cards carrying a `why`.
  *
  * The RPC is called through PostgREST with the caller's own token rather than over our pooled `postgres`
@@ -27,6 +27,8 @@ interface RpcRow { event_id: string; score: number; reasons: RecommendationReaso
 const DEFAULT_LIMIT = 12;
 const MAX_LIMIT = 50;
 const DEFAULT_DAYS = 28;
+/** At most two nights from one venue family, so a single room cannot fill the list (0016). */
+const DEFAULT_PER_VENUE = 2;
 
 function intParam(v: string | undefined, dflt: number, min: number, max: number, name: string): number {
   if (v === undefined || v === '') return dflt;
@@ -38,10 +40,11 @@ function intParam(v: string | undefined, dflt: number, min: number, max: number,
 
 export async function recommendationsFor(
   authHeader: string,
-  opts: { limit?: string; city?: string; days?: string } = {},
+  opts: { limit?: string; city?: string; days?: string; perVenue?: string } = {},
 ): Promise<RecommendResponse> {
   const limit = intParam(opts.limit, DEFAULT_LIMIT, 1, MAX_LIMIT, 'limit');
   const days = intParam(opts.days, DEFAULT_DAYS, 1, 60, 'days');
+  const perVenue = intParam(opts.perVenue, DEFAULT_PER_VENUE, 1, 10, 'per_venue');
   const city = opts.city && opts.city.trim() ? opts.city.trim() : null;
 
   const url = env('SUPABASE_URL');
@@ -51,7 +54,7 @@ export async function recommendationsFor(
   const res = await fetch(`${url.replace(/\/+$/, '')}/rest/v1/rpc/recommend_events`, {
     method: 'POST',
     headers: { apikey: key, authorization: authHeader, 'content-type': 'application/json' },
-    body: JSON.stringify({ p_limit: limit, p_city: city, p_days: days }),
+    body: JSON.stringify({ p_limit: limit, p_city: city, p_days: days, p_per_venue: perVenue }),
     signal: AbortSignal.timeout(15_000),
   });
   if (res.status === 401 || res.status === 403) throw new FeedParamError('that session is not valid any more; sign in again');

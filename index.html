@@ -142,6 +142,12 @@ a{color:inherit}
 .calg button[aria-pressed="true"]{color:var(--chalk);text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
 .calg .pad{height:48px}
 .why{font-size:12.5px;color:var(--d2);line-height:1.5;margin-top:4px}
+.rec{align-items:center}
+.rec .recmain{width:100%;min-width:0}
+.recend{display:flex;align-items:center;gap:12px}
+.recx{color:var(--d2);font-size:13px;line-height:1;padding:8px;margin:-8px -6px -8px 0;border-radius:999px}
+.recx:active{background:#141414;color:var(--t)}
+.gone{color:var(--d2);font-size:13.5px}
 /* the night's cards inside the When sheet: the sheet already pads the sides, so the rows only need a rule */
 #calList .row{padding-left:0;padding-right:0;border-top:.7px solid var(--hair)}
 .field{display:flex;align-items:baseline;gap:8px;border-bottom:.7px solid var(--hair);padding:12px 0}
@@ -519,15 +525,41 @@ function renderRecs(){
       : `<div class="empty">Mark a few nights you're going to and NOCT will start suggesting others.</div>`;
     return;
   }
-  el.innerHTML=r.list.map(e=>`<button class="frow" onclick="openRec('${clean(e.url||e.ra||e.dice)}')">`
-    +`<div><div class="fn">${e.head}</div>`
-    +`<div class="fm">${e.night_label}${e.venue?' · '+e.venue:''}${e.door?' · '+e.door:''}</div>`
-    +`<div class="why">${e.why}</div></div>`
-    +`<div class="tg">${e.price}</div></button>`).join('');
+  el.innerHTML=r.list.map((e,i)=>e.gone
+    ? `<div class="frow rec"><div class="gone">Not for me — <button class="lnk" onclick="undoRec(${i})">Undo</button></div></div>`
+    : `<div class="frow rec">`
+      +`<button class="recmain" onclick="openRec(${i})"><div class="fn">${e.head}</div>`
+      +`<div class="fm">${e.night_label}${e.venue?' · '+e.venue:''}${e.door?' · '+e.door:''}</div>`
+      +`<div class="why">${e.why}</div></button>`
+      +`<div class="recend"><span class="tg">${e.price}</span>`
+      +`<button class="recx" onclick="dismissRec(${i})" aria-label="Not for me, stop suggesting this">✕</button></div></div>`).join('');
 }
 /* A recommendation is usually on another night than the one loaded, so send people to the listing itself
-   rather than silently reloading the feed underneath them. */
-function openRec(url){if(url)window.open(url,'_blank','noopener')}
+   rather than silently reloading the feed underneath them. Opening one is recorded as a mild interest
+   signal (0016) — after window.open, so a blocked-popup heuristic can never eat the click. */
+function openRec(i){
+  const e=S.recs.list[i];if(!e)return;
+  const url=e.url||e.ra||e.dice;
+  if(url)window.open(url,'_blank','noopener');
+  feedback(e.uuid,'opened');
+}
+/* "Not for me": the event goes away and, from the next load on, its artists/genre/venue count against
+   similar suggestions. Reversible, because ✕ sits one thumb-width from the row itself. */
+function dismissRec(i){
+  const e=S.recs.list[i];if(!e||e.gone)return;
+  e.gone=true;renderRecs();
+  feedback(e.uuid,'dismissed');
+}
+function undoRec(i){
+  const e=S.recs.list[i];if(!e)return;
+  e.gone=false;renderRecs();
+  if(LIVE&&e.uuid)sbRest('DELETE','/rec_feedback?event_id=eq.'+encodeURIComponent(e.uuid)).catch(()=>{});
+}
+/** Record a reaction to a recommendation. Fire and forget: it tunes the next load, never this one. */
+function feedback(uuid,action){
+  if(!LIVE||!uuid)return;
+  try{sbRest('POST','/rec_feedback',{event_id:uuid,action:action}).catch(()=>{})}catch(e){}
+}
 const WHY_LEAD={artist:'You saw',genre:'You go to',venue:'You go to',vibe:'Your nights are'};
 function whyLine(why){
   const parts=(why||[]).slice(0,2).map(w=>`${WHY_LEAD[w.kind]||'Matches'} ${clean(w.detail)}`);
@@ -542,7 +574,7 @@ async function loadRecs(){
     if(!r.ok)throw new Error('HTTP '+r.status);
     const j=await r.json();
     S.recs={loading:false,error:false,history:j.history_size||0,
-      list:(j.events||[]).map(e=>({head:clean(e.head),venue:clean(e.venue),door:clean(e.door),
+      list:(j.events||[]).map(e=>({uuid:e.id,head:clean(e.head),venue:clean(e.venue),door:clean(e.door),
         night_label:nightLabel(e.night),price:clean(priceOf(e)),why:whyLine(e.why),
         url:cleanUrl(e.url),ra:cleanUrl(e.ra),dice:cleanUrl(e.dice)}))};
   }catch(err){S.recs={loading:false,error:true,list:[],history:S.recs.history}}
