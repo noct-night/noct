@@ -24,13 +24,15 @@ api/                        Vercel Functions
   img.ts                    GET /api/img — one promoter flyer, treated, as JPEG (host allowlist)
   render.ts                 GET composes one 1080x1350 slide from a signed URL; POST signs a deck
   publish.ts                POST /api/publish — puts one approved deck on Instagram. Manual, never cron
+                            GET — preflight: does the credential work, how many posts left today
 src/
   sources/                  one adapter per source (RA, DICE, Elsewhere, Good Room, Public Records, SILO, Ticketmaster, EDMTrain): fetch + normalise, no DB
   ingest/                   runner: adapter → upsert_listing() → resolve_pending() → tombstone_sweep()
   enrich/                   taxonomy, crosswalk, rules engine, Claude reconciler
   feed/                     read model → UI shape, and the recommendation scorer's caller
   post/                     Instagram: slide templates (satori), tones/veil/grain (sharp), flyer treatments,
-                            weekend drafting, caption house rules, the queue store, the Graph API client
+                            weekend drafting, caption house rules, the queue store, the Instagram API
+                            client, and the 60-day token refresh that keeps a weekly post unattended
   lib/                      http (polite fetch, block detection), time (NY ⇄ UTC), normalize, db
 supabase/migrations/        Postgres schema: listings, events, venues/aliases, resolution SQL, enrichment,
                             app tables, views + RLS, pg_cron schedules

@@ -13,7 +13,7 @@ is opened, the deck is reviewed, a button is pressed. That is the whole product.
                                                           │
                                                           │  /api/publish
                                                           ▼
-                       /api/render ◀────── Meta fetches each image_url ──── Instagram Graph API
+                       /api/render ◀────── Meta fetches each image_url ──── graph.instagram.com
 ```
 
 ## The pieces
@@ -25,11 +25,13 @@ is opened, the deck is reviewed, a button is pressed. That is the whole product.
 | `api/posts.ts` | The queue's data API: list, draft a weekend, patch caption/status/slides/look. |
 | `api/img.ts` | One flyer, treated, as JPEG. Public, CORS, cached hard. |
 | `api/render.ts` | `GET` composes one slide (signed URL); `POST` signs a deck (session). |
-| `api/publish.ts` | Puts one approved deck on the account. The only endpoint that speaks in public. |
+| `api/publish.ts` | `POST` puts one approved deck on the account; `GET` is a preflight that posts nothing. |
+| `src/post/token.ts` | Keeps the 60-day Instagram token alive so a weekly post needs no attention. |
 | `src/post/` | Templates, layers, treatments, drafting, the store, the Graph API client. |
 | `queue/page.{html,css,js}` | The queue's source, inlined into one gated response. |
 | `queue/gate.js` | The sign-in door's script, and the only one a stranger receives. |
 | `supabase/migrations/0019_ig_posts.sql` | `ig_post` and `ig_publish_run`. |
+| `supabase/migrations/0020_ig_token.sql` | `ig_token`, the one row holding the live credential. |
 
 ## Why the queue lives here
 
@@ -175,12 +177,44 @@ words would be worse than leaving a mistake.
 
 ## Setting it up
 
-1. `supabase db push` (or `npm run db:local`) to apply `0019_ig_posts.sql`.
-2. Set on Vercel: `STUDIO_PASSWORD`, `IG_USER_ID`, `IG_ACCESS_TOKEN`, `NOCT_PUBLIC_ORIGIN`, and
-   `NOCT_RENDER_SECRET` (or rely on `CRON_SECRET`). See `.env.example` for what each one does.
-3. Open `/queue`, sign in, press **Draft the coming weekend**.
+1. `supabase db push` (or `npm run db:local`) to apply `0019_ig_posts.sql` and `0020_ig_token.sql`.
+2. In the Meta app dashboard: **Use cases -> Customize -> Permissions and features**, add
+   `instagram_business_basic` and `instagram_business_content_publish`. Both show *Ready for testing*,
+   meaning they work in Development mode against an account holding the **Instagram Tester** role — so no
+   App Review is needed to post to an account you own. Assign that role under **Roles**, then generate the
+   token under **API setup with Instagram login -> Generate access tokens**.
+3. Set on Vercel: `STUDIO_PASSWORD`, `IG_USER_ID`, `IG_ACCESS_TOKEN`, `NOCT_PUBLIC_ORIGIN`, and
+   `NOCT_RENDER_SECRET` (or rely on `CRON_SECRET`). See `.env.example` for what each one does. **Redeploy**
+   afterwards: Vercel does not apply new environment variables to a running deployment.
+4. Check the credential without posting anything: `GET /api/publish` (signed in) returns the account handle,
+   the remaining daily quota, and how many days the token has left.
+5. Open `/queue`, sign in, press **Draft the coming weekend**.
 
 `IG_ACCESS_TOKEN` can post as NOCT. Never in the repo, never in the client bundle, never pasted into a chat.
+
+### Which Instagram API, and why it matters
+
+This uses **Instagram API with Instagram Login** (`graph.instagram.com`), not the Facebook-login variant.
+The app authenticates as the Instagram account itself: no Facebook Page has to exist, and no personal
+Facebook profile sits in the middle owning the credential.
+
+The carousel flow is identical between the two. What differs:
+
+| | Instagram Login (this) | Facebook Login |
+|---|---|---|
+| Host | `graph.instagram.com` | `graph.facebook.com` |
+| Permissions | `instagram_business_basic`, `instagram_business_content_publish` | `instagram_basic`, `instagram_content_publish`, plus Page perms |
+| Needs a Facebook Page | no | yes |
+| Token lifetime | **60 days, refreshable** | does not expire |
+
+That last row is the one with consequences, and it is why `src/post/token.ts` and `0020_ig_token.sql`
+exist. A weekly post reading a token from the environment would work beautifully for two months and then
+fail on a Friday with nobody watching. So `IG_ACCESS_TOKEN` is a **seed**: the first publish copies it into
+`ig_token`, and every later run refreshes it once it is within 14 days of lapsing. A post a week keeps it
+alive indefinitely; only a two-month gap can break it, and there is a test pinning that.
+
+A refresh failure is deliberately not fatal — the current token is still good for up to two more weeks, so
+the post goes out and the problem is logged rather than blocking a deadline on a credential that still works.
 
 ### Graph API limits
 

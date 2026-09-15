@@ -1,5 +1,5 @@
 /**
- * Publishing a carousel through the Instagram Graph API.
+ * Publishing a carousel through the Instagram API with Instagram Login.
  *
  * Three steps, and all three have to succeed in order:
  *   1. one container per slide, each with is_carousel_item and a public image_url
@@ -13,9 +13,17 @@
  *   - At most 10 items in a carousel, and 100 API-published posts per rolling 24 hours (a carousel is one).
  *   - No shopping tags, no branded content tags, no filters.
  *
- * The token and the user id come from the environment and are never logged, never returned in a response,
- * and never put in a URL that ends up somewhere. Graph API errors are passed back with their message
- * because that is what makes a failure fixable, and they do not contain the token.
+ * Why graph.instagram.com and not graph.facebook.com: the NOCT app is configured for Instagram Login, which
+ * authenticates as the Instagram account itself. No Facebook Page has to exist, and no personal Facebook
+ * profile sits in the middle owning the credential. The carousel flow is identical either way; the host,
+ * the permission names (instagram_business_*) and the token lifecycle are what differ.
+ *
+ * The token lifecycle is the part worth knowing about: an Instagram token lasts 60 days, where a Page token
+ * did not expire at all. A weekly post would therefore break silently after two months, so the token is
+ * refreshed and persisted rather than read from the environment on every call -- see src/post/token.ts.
+ *
+ * The token is never logged, never returned in a response, and never put in a query string. Graph API
+ * errors are passed back with their message because that is what makes a failure fixable.
  */
 import { requireEnv } from '../lib/env.js';
 import type { Logger } from '../lib/log.js';
@@ -24,7 +32,8 @@ import { CAROUSEL_MAX } from './types.js';
 
 /** Pinned rather than floating: a version bump that changes a field should be a deliberate edit here. */
 export const GRAPH_VERSION = 'v21.0';
-const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
+export const GRAPH_HOST = 'https://graph.instagram.com';
+const GRAPH = `${GRAPH_HOST}/${GRAPH_VERSION}`;
 
 export class PublishError extends Error {
   constructor(message: string, public readonly step: string) {
@@ -38,8 +47,13 @@ export interface IgCredentials {
   token: string;
 }
 
-export function igCredentials(env = process.env): IgCredentials {
-  return { userId: requireEnv('IG_USER_ID', env), token: requireEnv('IG_ACCESS_TOKEN', env) };
+/**
+ * The account being posted to. The token is deliberately not read here: it is refreshed and stored
+ * (src/post/token.ts), so the environment holds only the seed, and reading env directly at publish time
+ * would use a token that expired a month ago.
+ */
+export function igUserId(env = process.env): string {
+  return requireEnv('IG_USER_ID', env);
 }
 
 interface GraphError {
@@ -149,6 +163,29 @@ export async function publishCarousel(
     childIds,
     containerId: carousel.id,
   };
+}
+
+/**
+ * Check that the credential actually works, without posting anything.
+ *
+ * The cheapest honest test there is: ask the account for its own handle. A wrong token, a wrong id, a
+ * token for a different account, or a missing permission all fail here rather than halfway through a
+ * carousel, and the handle coming back is proof the two halves belong together.
+ */
+export async function verifyCredentials(creds: IgCredentials): Promise<{ username: string }> {
+  const url = `${GRAPH}/${creds.userId}?fields=username`;
+  const res = await politeFetch(url, {
+    headers: { authorization: `Bearer ${creds.token}` },
+    timeoutMs: 10_000,
+    retries: 0,
+  }).catch((err: unknown) => {
+    throw new PublishError(messageOf(err), 'verify');
+  });
+  const body = (await res.json()) as { username?: string; error?: { message?: string } };
+  if (body.error || !body.username) {
+    throw new PublishError(body.error?.message ?? 'the account did not return a username', 'verify');
+  }
+  return { username: body.username };
 }
 
 /** The public URL of a published post. Best effort: the post exists whether or not this comes back. */
