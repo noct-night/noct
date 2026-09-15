@@ -19,7 +19,7 @@ import type { Logger } from '../lib/log.js';
 import { GENRES, GENRE_CODES, VIBES, VIBE_CODES, VIBE_KINDS, type GenreCode, type VibeCode } from './taxonomy.js';
 import { createOpenAICompatibleClient } from './providers.js';
 
-export const PROMPT_VERSION = 'p1';
+export const PROMPT_VERSION = 'p2';   // p2 adds `lineup`
 export const DEFAULT_MODEL = 'claude-opus-5';
 
 // ---- output schema --------------------------------------------------------------------------------
@@ -50,6 +50,13 @@ export const OutputSchema = z.object({
   }),
   sound_summary: z.string(),
   is_electronic: z.boolean(),
+  /**
+   * Performers the sources did not put in a line-up field but the evidence names anyway -- usually the title
+   * ("Ian Asher", "Minimal Madness Ft. Zack Darza"). 684 of 1,531 upcoming events have no line-up at all, and
+   * whether a title is a person or a party is a judgement, which is the one thing rules cannot do: a title
+   * heuristic tops out around three in four.
+   */
+  lineup: z.array(z.string()).max(12),
   flags: z.array(z.enum(FLAGS)),
 });
 export type RawClassifierOutput = z.infer<typeof OutputSchema>;
@@ -62,6 +69,7 @@ export interface ClassifierOutput {
   scalars: { energy: number; darkness: number; crowd_size: number; start_lateness: number; end_lateness: number; underground_index: number; price_tier: number };
   sound_summary: string;
   is_electronic: boolean;
+  lineup: string[];
   flags: ClassifierFlag[];
 }
 
@@ -76,6 +84,7 @@ export function toClassifierOutput(raw: RawClassifierOutput): ClassifierOutput {
     },
     sound_summary: raw.sound_summary.trim(),
     is_electronic: raw.is_electronic,
+    lineup: [...new Set((raw.lineup ?? []).map((x) => x.trim()).filter((x) => x.length > 1 && x.length <= 60))],
     flags: [...new Set(raw.flags)],
   };
 }
@@ -169,7 +178,13 @@ ${NYC_GLOSSARY}
 7. conflicting_sources when sources disagree at the family level (e.g. RA says Techno, DICE says Reggaeton). needs_review when you would not stand behind the primary genre.
 8. sound_summary: one human-facing sentence, at most 20 words, describing the sound and the setting ("Slow, psychedelic leftfield selections for a full night in Nowadays' main room").
 9. Vibes must not repeat what the rules already emitted unless you disagree with the rule; prefer adding crowd/format vibes the text supports (queer_party, local_crews, international_headliner, listening_focus, live_act, black_diaspora_party, latinx_party).
-10. Do not invent prices, times or venues that are not in the bundle.`;
+10. Do not invent prices, times or venues that are not in the bundle.
+11. lineup: performers the bundle names but no source put in a line-up field — usually the title. "Ian Asher"
+    is a line-up of one; "Minimal Madness Ft. Zack Darza" is ["Zack Darza"]. Leave it EMPTY when the title is a
+    party, a series or a venue ("Reggaeton Fridays", "Various Distractions 002", "Club Capri"), when the bundle
+    already carries a line-up, or whenever you are unsure — these names become artist records, so a wrong one
+    is worse than a missing one. Never invent a name that is not written in the bundle, and drop set-format
+    words ("b2b", "live", "all night", "& friends") from the name itself.`;
 
 // ---- client -----------------------------------------------------------------------------------------
 /** Minimal structural view of `Anthropic['messages']['parse']` so tests can inject a fake. */

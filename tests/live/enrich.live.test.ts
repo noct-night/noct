@@ -62,13 +62,13 @@ const CANNED_BY_TITLE: Array<[RegExp, RawClassifierOutput]> = [
     genres: [{ code: 'leftfield.experimental', confidence: '0.8', why: 'description: coldwave, outsider dance music; artist profile' }, { code: 'techno.dub', confidence: '0.5', why: 'RA tag Techno, low tempo all night' }],
     vibes: [{ code: 'underground', why: 'venue prior' }],
     scalars: { energy: '2', darkness: '4', crowd_size: '3', start_lateness: '4', end_lateness: '4', underground_index: '5', price_tier: '1' },
-    sound_summary: 'Slow, psychedelic leftfield selections all night in the main room.', is_electronic: true, flags: [],
+    sound_summary: 'Slow, psychedelic leftfield selections all night in the main room.', is_electronic: true, lineup: [], flags: [],
   }],
   [/Mister Sunday/, {
     genres: [{ code: 'house.deep', confidence: '0.65', why: 'promoter prior house/disco; resident DJ' }, { code: 'house.disco', confidence: '0.5', why: 'promoter prior' }],
     vibes: [{ code: 'local_crews', why: 'resident-run series' }],
     scalars: { energy: '3', darkness: '1', crowd_size: '3', start_lateness: '1', end_lateness: '1', underground_index: '4', price_tier: '1' },
-    sound_summary: 'Sun-soaked deep house and disco in the yard, one resident all day.', is_electronic: true, flags: ['sparse_input'],
+    sound_summary: 'Sun-soaked deep house and disco in the yard, one resident all day.', is_electronic: true, lineup: [], flags: ['sparse_input'],
   }],
 ];
 
@@ -149,7 +149,7 @@ describe.skipIf(!process.env.DATABASE_URL)('runEnrichment against the database (
     expect(Number(iv.genre_confidence)).toBe(0.8);
     expect(iv.vibe_codes).toEqual(expect.arrayContaining(['all_nighter', 'one_dj_all_night', 'long_sets', 'cheap_early', 'phone_free', 'sound_system_focus', '21_plus', 'underground']));
     expect(iv).toMatchObject({ energy: 2, darkness: 4, crowd_size: 3, start_lateness: 4, end_lateness: 4, price_tier: 1, underground_index: 5, is_electronic: true, needs_review: false });
-    expect(iv.classification_version).toBe('rules-v1/p1/claude-opus-5');
+    expect(iv.classification_version).toBe('rules-v1/p2/claude-opus-5');
     expect(iv.classified_at).toBeTruthy();
     expect(iv.input_hash).toMatch(/^[0-9a-f]{64}$/);
 
@@ -197,12 +197,12 @@ describe.skipIf(!process.env.DATABASE_URL)('runEnrichment against the database (
     expect(iv.vibe_codes).toContain('all_nighter');
     expect(iv.energy).toBeNull();                                    // rules cannot judge energy
     // provisional, not done: a rules-only result must stay a candidate, or the model could never upgrade it
-    expect(iv.classification_version).toBe('provisional/rules-v1/p1/rules');
+    expect(iv.classification_version).toBe('provisional/rules-v1/p2/rules');
     expect(iv.needs_review).toBe(true);
     const stillCandidate = await query<{ n: string }>(
       `select count(*) as n from event where event_id = $1
          and (classified_at is null or updated_at > classified_at
-              or classification_version is null or classification_version not like 'rules-v1/p1/' || '%')`,
+              or classification_version is null or classification_version not like 'rules-v1/p2/' || '%')`,
       [ivkovicId],
     );
     expect(Number(stillCandidate.rows[0]!.n)).toBe(1);

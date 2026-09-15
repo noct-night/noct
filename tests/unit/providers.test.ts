@@ -56,7 +56,7 @@ describe('OUTPUT_JSON_SCHEMA (zod 4 native)', () => {
     expect(s.properties.genres.items.properties.code.enum).toContain('house.deep');
     expect(s.properties.scalars.properties.energy.enum).toEqual(['1', '2', '3', '4', '5']);
     expect(s.additionalProperties).toBe(false);
-    expect(s.required).toEqual(['genres', 'vibes', 'scalars', 'sound_summary', 'is_electronic', 'flags']);
+    expect(s.required).toEqual(['genres', 'vibes', 'scalars', 'sound_summary', 'is_electronic', 'lineup', 'flags']);
   });
 });
 

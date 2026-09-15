@@ -232,3 +232,21 @@ rather than its paperwork) and orders the rest **crowd → space → format → 
 Rules can read a door time and a ticket price off a listing. Whether a night is underground or mainstream,
 a warehouse or a listening room, is a judgement — so mood coverage rises by half once the model reaches an
 event, and 957 upcoming events are still waiting on the free tier's daily quota.
+
+## The line-up the model reads (p2)
+
+684 of 1,531 upcoming events carry no line-up: RA and 19hz both title the night "Ian Asher" and leave the
+field empty. A title heuristic (`actFromTitle`) gets about three in four, which is enough for a tap target and
+not enough for a record — deciding whether a title is a person or a party is a judgement, so the classifier
+does it. Prompt rule 11 asks for performers the bundle names but no source filed, and tells it to stay empty
+on a party, a series, a venue, or any doubt: these become artist records, so a wrong name is worse than none.
+
+It lands in **`event.lineup_model`**, not `event.lineup` — `refresh_event()` rebuilds the latter from
+`listing.lineup_raw` on every ingest and would wipe it. `event_feed` reads the source line-up first and falls
+back to the model's, verified both ways in a rolled-back transaction.
+
+**Not wired into `event_artist`.** Artists drive recommendations; a model reading is worth showing before it
+is worth treating as a fact. That comes once there is enough of it to measure.
+
+`PROMPT_VERSION` is `p2`, so every event becomes a candidate again — the output contract changed, and a p1
+result is not a p2 result.

@@ -90,6 +90,8 @@ export interface Merged {
   scalars: { energy: number | null; darkness: number | null; crowd_size: number | null; start_lateness: number | null; end_lateness: number | null; price_tier: number | null; underground_index: number | null };
   sound_summary: string | null;
   is_electronic: boolean | null;
+  /** performers the model read out of the evidence; empty on a rules-only pass */
+  lineup: string[];
   needs_review: boolean;
   flags: string[];
 }
@@ -159,6 +161,8 @@ export function mergeOutputs(c: CandidateRow, rules: RuleOutput, llm: Classifier
     genres: genreList,
     vibes: [...vibes.entries()].map(([code, sources]) => ({ code, sources })),
     scalars,
+    // only the model reads a line-up out of a title; a rules pass must not blank one it cannot produce
+    lineup: llm?.lineup ?? [],
     sound_summary: llm?.sound_summary || null,
     is_electronic: llm ? llm.is_electronic : rules.crosswalk.is_electronic,
     needs_review,
@@ -185,7 +189,8 @@ async function persist(client: pg.PoolClient, c: CandidateRow, merged: Merged, i
     `update event set
        primary_genre = $2, genre_codes = $3, genre_confidence = $4, vibe_codes = $5,
        energy = $6, darkness = $7, crowd_size = $8, start_lateness = $9, end_lateness = $10, price_tier = $11, underground_index = $12,
-       sound_summary = $13, is_electronic = $14, needs_review = $15, classification_version = $16, classified_at = now(), input_hash = $17
+       sound_summary = $13, is_electronic = $14, needs_review = $15, classification_version = $16, classified_at = now(), input_hash = $17,
+       lineup_model = $18
      where event_id = $1`,
     [
       c.event_id, merged.genres[0]?.code ?? null, merged.genres.map((gx) => gx.code), merged.genres[0]?.confidence ?? null,
@@ -193,6 +198,7 @@ async function persist(client: pg.PoolClient, c: CandidateRow, merged: Merged, i
       merged.scalars.energy, merged.scalars.darkness, merged.scalars.crowd_size, merged.scalars.start_lateness, merged.scalars.end_lateness,
       merged.scalars.price_tier, merged.scalars.underground_index,
       merged.sound_summary, merged.is_electronic, merged.needs_review, version, inputHash,
+      merged.lineup,
     ],
   );
   // replace the machine-written rows only; confirmed / community / rejected rows are human state

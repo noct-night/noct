@@ -14,6 +14,7 @@ const CANNED: RawClassifierOutput = {
   vibes: [{ code: 'underground', why: 'venue prior 5/5' }],
   scalars: { energy: '2', darkness: '4', crowd_size: '3', start_lateness: '4', end_lateness: '4', underground_index: '5', price_tier: '1' },
   sound_summary: 'Slow, psychedelic leftfield selections for a full night in the main room.',
+  lineup: [],
   is_electronic: true,
   flags: [],
 };
@@ -60,7 +61,7 @@ describe('classifier output schema', () => {
     for (const code of VIBE_CODES) expect(SYSTEM_PROMPT).toContain(`- ${code} —`);
     expect(SYSTEM_PROMPT).not.toMatch(/20\d\d-\d\d-\d\d/);
     expect(SYSTEM_PROMPT).toMatch(/Nowadays/);
-    expect(PROMPT_VERSION).toBe('p1');
+    expect(PROMPT_VERSION).toBe('p2');
   });
 });
 
