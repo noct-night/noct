@@ -104,7 +104,8 @@ function localMidnightOf(date: string): Date {
 // Columns are listed rather than `f.*` so `night` can come back as text and a view change cannot silently
 // reshape the API. Offers are aggregated per event in the order event_offer declares (available first,
 // cheapest first, then source priority); shape.ts re-sorts anyway so the JSON never depends on it.
-const EVENTS_SQL = `
+/** The select + offer aggregation of the feed, reusable with a different WHERE (recommendations). */
+export const EVENTS_COLUMNS_SQL = `
   select f.event_id, f.title, f.night::text as night, f.starts_at, f.ends_at, f.has_time, f.status,
          f.venue_id, f.venue_name, f.venue_kind, f.family_id, f.family_name, f.borough, f.neighborhood, f.lat, f.lng,
          f.age_min, f.lineup, f.description, f.image_url, f.interested_count, f.genres, f.genre_source,
@@ -122,7 +123,9 @@ const EVENTS_SQL = `
              'available', x.available, 'note', x.note, 'sold_out', x.sold_out)
            order by (x.available is not false) desc, x.price nulls last, x.platform_priority desc) as offers
     from event_offer x where x.event_id = f.event_id
-  ) o on true
+  ) o on true`;
+
+const EVENTS_SQL = `${EVENTS_COLUMNS_SQL}
   where f.night between $1::date and $2::date
     and f.city = $5::text
     and ($3::text is null or f.borough = $3)

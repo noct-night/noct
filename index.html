@@ -141,6 +141,7 @@ a{color:inherit}
 .calg button[aria-current="date"]{color:var(--chalk)}
 .calg button[aria-pressed="true"]{color:var(--chalk);text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
 .calg .pad{height:48px}
+.why{font-size:12.5px;color:var(--d2);line-height:1.5;margin-top:4px}
 /* the night's cards inside the When sheet: the sheet already pads the sides, so the rows only need a rule */
 #calList .row{padding-left:0;padding-right:0;border-top:.7px solid var(--hair)}
 .field{display:flex;align-items:baseline;gap:8px;border-bottom:.7px solid var(--hair);padding:12px 0}
@@ -226,6 +227,7 @@ a{color:inherit}
 
   <section class="view" id="savedView" hidden>
     <div class="vtitle">Saved</div>
+    <div class="blk"><div class="slab">For you</div><div id="recList"></div></div>
     <div class="blk"><div class="slab">Going</div><div id="goingList"></div></div>
     <div class="blk"><div class="slab">Saved</div><div id="savedList"></div></div>
     <div class="blk"><div class="slab">Where we pull from</div><div id="srcList"></div></div>
@@ -389,7 +391,8 @@ const S={mode:'image',view:'image',from:0,to:0,i:0,city:'nyc',area:'All',geo:fal
  preset:'tonight',rangeLabel:'',picked:'',dayList:'',calMonth:'',counts:{},countsMonth:'',countsCity:'',countsNote:'',
  /* going rows by uuid -> created_at, the feed's generated_at, and rows removed that the feed had counted:
     together these correct a cached going_count without guessing */
- mineAt:new Map(),feedAt:'',goOff:new Set()};
+ mineAt:new Map(),feedAt:'',goOff:new Set(),
+ recs:{loading:false,error:false,list:[],history:0}};
 /* true once a real feed replaces the sample weekend: only then are there rows to read and write */
 let LIVE=false;
 const $=s=>document.querySelector(s);
@@ -502,7 +505,58 @@ function renderList(){
   $('#rows').innerHTML=list.length?out:`<div class="empty">Nothing matches. <button class="lnk" onclick="clearAll()">Clear filters</button></div>`;
 }
 
+/* "For you": events scored against this account's own going/saved history (0015). Recommendations are not
+   part of the loaded feed — they span other nights — so each carries its own date and opens on its platform. */
+function renderRecs(){
+  const el=$('#recList');if(!el)return;
+  if(!LIVE){el.innerHTML=`<div class="empty">Live data only.</div>`;return}
+  const r=S.recs;
+  if(r.loading){el.innerHTML=`<div class="empty">Reading your nights…</div>`;return}
+  if(r.error){el.innerHTML=`<div class="empty">Recommendations unavailable right now.</div>`;return}
+  if(!r.list.length){
+    el.innerHTML=r.history
+      ? `<div class="empty">Nothing close enough to your ${r.history} mark${r.history===1?'':'s'} yet — check back as more nights are listed.</div>`
+      : `<div class="empty">Mark a few nights you're going to and NOCT will start suggesting others.</div>`;
+    return;
+  }
+  el.innerHTML=r.list.map(e=>`<button class="frow" onclick="openRec('${clean(e.url||e.ra||e.dice)}')">`
+    +`<div><div class="fn">${e.head}</div>`
+    +`<div class="fm">${e.night_label}${e.venue?' · '+e.venue:''}${e.door?' · '+e.door:''}</div>`
+    +`<div class="why">${e.why}</div></div>`
+    +`<div class="tg">${e.price}</div></button>`).join('');
+}
+/* A recommendation is usually on another night than the one loaded, so send people to the listing itself
+   rather than silently reloading the feed underneath them. */
+function openRec(url){if(url)window.open(url,'_blank','noopener')}
+const WHY_LEAD={artist:'You saw',genre:'You go to',venue:'You go to',vibe:'Your nights are'};
+function whyLine(why){
+  const parts=(why||[]).slice(0,2).map(w=>`${WHY_LEAD[w.kind]||'Matches'} ${clean(w.detail)}`);
+  return parts.join(' · ')||'Close to your taste';
+}
+async function loadRecs(){
+  if(!LIVE)return;
+  S.recs={loading:true,error:false,list:[],history:S.recs.history};renderRecs();
+  try{
+    const s=await sbSession();if(!s)throw new Error('no session');
+    const r=await fetch(`${API_BASE}/api/recommend?limit=12`,{headers:{accept:'application/json',authorization:'Bearer '+s.access_token}});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const j=await r.json();
+    S.recs={loading:false,error:false,history:j.history_size||0,
+      list:(j.events||[]).map(e=>({head:clean(e.head),venue:clean(e.venue),door:clean(e.door),
+        night_label:nightLabel(e.night),price:clean(priceOf(e)),why:whyLine(e.why),
+        url:cleanUrl(e.url),ra:cleanUrl(e.ra),dice:cleanUrl(e.dice)}))};
+  }catch(err){S.recs={loading:false,error:true,list:[],history:S.recs.history}}
+  renderRecs();
+}
+/* the recommendation JSON is the feed's event shape, so reuse its price wording */
+const priceOf=e=>{const p=(e.srcs||[]).map(s=>s[1]).filter(v=>typeof v==='number');
+  return e.soldout?'Sold out':(!p.length?'See listing':(Math.max(...p)!==Math.min(...p)?'From $':'$')+Math.min(...p))};
+const nightLabel=d=>{if(!d)return '';const t=new Date(d+'T12:00:00Z');
+  return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][t.getUTCDay()]+' '+
+    ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][t.getUTCMonth()]+' '+t.getUTCDate()};
+
 function renderSaved(){
+  renderRecs();
   const go=EV.filter(e=>S.going.has(e.uuid));
   $('#goingList').innerHTML=go.length?go.map(e=>`<button class="frow" onclick="openDet(${e.id})"><div><div class="fn">${e.head}</div><div class="fm">${dayFull(e.d)} · ${e.venue}</div></div><div class="tg">${priceLbl(e)}</div></button>`).join('')
     :`<div class="empty">Not going to anything yet.</div>`;
@@ -649,6 +703,7 @@ function toggleGoing(id){const u=uuidOf(id);if(!u)return;
   if(on){S.going.add(u);S.mineAt.set(u,new Date().toISOString());S.goOff.delete(u)}
   else{S.going.delete(u);S.mineAt.delete(u);if(!(was&&was>S.feedAt))S.goOff.add(u)}
   openDet(id);render();
+  S.recs.list=[];S.recs.error=false;                                  /* the taste profile just changed */
   persist('going',u,on).then(ok=>{if(ok)return;                       /* server said no: put the UI back */
     if(on){S.going.delete(u);S.mineAt.delete(u)}else{S.going.add(u);if(was)S.mineAt.set(u,was);S.goOff.delete(u)}
     liveNote('Could not save that — check your connection');openDet(id);render()});
@@ -735,6 +790,8 @@ function goHome(){
   $('#topscrim').classList.remove('on');
 }
 function setView(v){
+  /* recommendations are a private per-user query, so fetch them when that view is actually opened */
+  if(v==='saved'&&LIVE&&!S.recs.loading&&!S.recs.list.length&&!S.recs.error)loadRecs();
   S.view=v;if(v==='image'||v==='list')S.mode=v;
   const secondary=(v==='saved'||v==='venues'||v==='profile');
   $('#ctrlRow').hidden=secondary;

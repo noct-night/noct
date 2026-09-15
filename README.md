@@ -13,6 +13,8 @@ genre and a vibe.
 index.html                  the app (mobile-first, 440px). Loads /api/feed; falls back to the sample weekend
 api/                        Vercel Functions
   feed.ts                   GET /api/feed?from&to → events/venues/days in the shape the UI expects
+                            (&counts=1 → per-night counts only, what the month calendar draws)
+  recommend.ts              GET /api/recommend → nights picked from the caller's own going/saved history
   ingest/[source].ts        GET|POST /api/ingest/ra|dice|elsewhere|…|all  (Bearer CRON_SECRET)
   enrich.ts                 POST /api/enrich  — genre/vibe pass over new/changed events
   health.ts                 GET /api/health — last run per source
@@ -20,12 +22,13 @@ src/
   sources/                  one adapter per source (RA, DICE, Elsewhere, Good Room, Public Records, SILO, Ticketmaster, EDMTrain): fetch + normalise, no DB
   ingest/                   runner: adapter → upsert_listing() → resolve_pending() → tombstone_sweep()
   enrich/                   taxonomy, crosswalk, rules engine, Claude reconciler
-  feed/                     read model → UI shape
+  feed/                     read model → UI shape, and the recommendation scorer's caller
   lib/                      http (polite fetch, block detection), time (NY ⇄ UTC), normalize, db
 supabase/migrations/        Postgres schema: listings, events, venues/aliases, resolution SQL, enrichment,
                             app tables, views + RLS, pg_cron schedules
 tests/                      vitest — unit tests on real captured payloads; DB tests; opt-in live tests
-docs/                       DATA_SOURCES.md (terms + decisions), OPERATIONS.md, GENRE_VIBE.md, sources/*.md
+docs/                       DATA_SOURCES.md (terms + decisions), OPERATIONS.md, GENRE_VIBE.md,
+                            RECOMMENDATIONS.md, FRONTEND.md, sources/*.md
 ```
 
 ## How it works
