@@ -179,15 +179,19 @@ function ok(e){
    under "For you" -- "By time" has to mean by time, or the sort control is a lie. */
 const rank=e=>(recFor(e)?1000:0)+tasteScore(e);
 /**
- * Does NOCT have a reason to show this one? A recommendation, or a real genre overlap with the declared taste.
- * Deliberately NOT `tasteScore(e) > 0`: that score carries a popularity tiebreak, so almost every event with
- * an interested count passed it and "For you" barely narrowed anything (197 -> 142 on a weekend).
+ * Does NOCT have a reason to show this one? A recommendation, or one of your genres among its MAIN ones.
+ *
+ * Two loosenings have been taken back out. `tasteScore(e) > 0` carried a popularity tiebreak, so nearly every
+ * event with an interested count passed (197 -> 142 on a weekend). Family matching then let any `techno.*`
+ * through for a `techno.peak` taste — and `techno.peak` is the crosswalk's generic bucket for a bare "techno"
+ * tag, so it is on 146 events citywide. Requiring an exact code among the event's top two, where genre_codes
+ * is ordered by confidence, is the rule that actually shortlists: 198 -> 50 -> 32 on the same weekend.
  */
+const LEAD_GENRES=2;
 const forMe=e=>{
   if(recFor(e))return true;
   if(!TASTE.length)return false;
-  const codes=e.genre_codes||[];
-  return TASTE.some(t=>codes.includes(t)||codes.some(c=>c.split('.')[0]===t.split('.')[0]));
+  return (e.genre_codes||[]).slice(0,LEAD_GENRES).some(c=>TASTE.includes(c));
 };
 /** Nothing to filter by until there is a taste or a recommendation, so the control stays hidden until then. */
 const canFilterForMe=()=>TASTE.length>0||S.recs.list.some(r=>!r.gone);

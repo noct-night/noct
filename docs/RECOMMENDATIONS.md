@@ -49,9 +49,16 @@ carries it instead, three ways at once:
 - **A switch** — `All` / `For you` in the top row beside city and date, which *filters* both views. The
   caption's "1 of 50" against "1 of 197" is what makes the change legible.
 
-`forMe()` is a real genre overlap (code or family), deliberately **not** `tasteScore(e) > 0`: that score
-carries a popularity tiebreak, so nearly every event with an interested count passed it and the switch barely
-narrowed anything — 197 to 142 on a weekend, against 197 to 50 once it tested overlap properly.
+`forMe()` admits a night when NOCT recommends it, or when one of your genres is among the event's **top two**
+(`genre_codes` is ordered by confidence). Two looser rules were tried and taken back out:
+
+| rule | a NYC weekend |
+| --- | --- |
+| `tasteScore(e) > 0` | 198 → 142 — the score carries a popularity tiebreak, so almost everything passed |
+| exact code **or family** | 198 → 50 — `techno.peak` is the crosswalk's generic bucket for a bare "techno" tag and sits on 146 events, so family matching let most of the techno calendar through |
+| **exact code in the top two** | 198 → **32**, spread 16 / 14 / 2 across the three nights |
+
+Primary genre only was measured too and is far too strict: 5 of 198.
 
 The reason a night was picked stays in the Saved list, which is the view you open to see recommendations; in
 the feed the mark is just a mark.
