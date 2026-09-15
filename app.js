@@ -960,13 +960,21 @@ async function sbAuth(path,body){
   return r.ok?sbRemember(await r.json()):null;
 }
 /** A live token, refreshing or re-registering as needed. Null when Supabase is unreachable. */
+/* One sign-in at a time. loadFeed() fires syncMine() and loadRecs() together and neither awaits the other, so
+   on a first visit both found SB null and both signed up: two anonymous users per visit, which is why 80
+   accounts existed for 4 people's worth of data. Callers now share the in-flight promise. */
+let SB_INFLIGHT=null;
 async function sbSession(){
   if(SB&&SB.expires_at>Date.now())return SB;
-  try{
-    if(SB&&SB.refresh_token){const s=await sbAuth('token?grant_type=refresh_token',{refresh_token:SB.refresh_token});if(s)return s}
-    SB=null;try{localStorage.removeItem(SB_STORE)}catch(e){}
-    return await sbAuth('signup',{});                      /* anonymous sign-in */
-  }catch(e){return null}
+  if(SB_INFLIGHT)return SB_INFLIGHT;
+  SB_INFLIGHT=(async()=>{
+    try{
+      if(SB&&SB.refresh_token){const s=await sbAuth('token?grant_type=refresh_token',{refresh_token:SB.refresh_token});if(s)return s}
+      SB=null;try{localStorage.removeItem(SB_STORE)}catch(e){}
+      return await sbAuth('signup',{});                    /* anonymous sign-in */
+    }catch(e){return null}
+  })();
+  try{return await SB_INFLIGHT}finally{SB_INFLIGHT=null}
 }
 async function sbRest(method,path,body){
   const s=await sbSession();if(!s)return null;
