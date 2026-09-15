@@ -58,7 +58,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const force = ['1', 'true', 'yes'].includes((first(req.query.force) ?? '').toLowerCase());
   try {
     const summary: EnrichSummary = await runEnrichment({ limit, force, eventIds: eventIds.length ? eventIds : undefined, log });
-    res.status(200).json({ ok: summary.errors.length === 0, force, limit, eventIds, ...summary, ms: Date.now() - started });
+    // With a fallback chain, a primary that is out of quota is the chain working, not the run failing: every
+    // event still got classified. Report failure only when something was actually left undone.
+    const ok = summary.errors.length === 0
+      || (summary.classified + summary.skipped >= summary.considered && !summary.deferred && !summary.quotaStopped);
+    res.status(200).json({ ok, force, limit, eventIds, ...summary, ms: Date.now() - started });
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     log.error('enrich run failed', { error });
