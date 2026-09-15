@@ -196,7 +196,16 @@ describe.skipIf(!process.env.DATABASE_URL)('runEnrichment against the database (
     expect(iv.vibe_codes).not.toContain('underground');              // rejected by humans
     expect(iv.vibe_codes).toContain('all_nighter');
     expect(iv.energy).toBeNull();                                    // rules cannot judge energy
-    expect(iv.classification_version).toBe('rules-v1/p1/rules');
+    // provisional, not done: a rules-only result must stay a candidate, or the model could never upgrade it
+    expect(iv.classification_version).toBe('provisional/rules-v1/p1/rules');
+    expect(iv.needs_review).toBe(true);
+    const stillCandidate = await query<{ n: string }>(
+      `select count(*) as n from event where event_id = $1
+         and (classified_at is null or updated_at > classified_at
+              or classification_version is null or classification_version not like 'rules-v1/p1/' || '%')`,
+      [ivkovicId],
+    );
+    expect(Number(stillCandidate.rows[0]!.n)).toBe(1);
     const tags = await query<{ code: string; status: string }>(`select code, status from event_tag where event_id = $1 and kind = 'genre' order by code`, [ivkovicId]);
     expect(tags.rows.find((t) => t.code === 'electro.ebm_industrial')?.status).toBe('community');
     const conf = await query<{ confidence: string }>(`select confidence from event_tag where event_id = $1 and code = 'techno.peak'`, [ivkovicId]);

@@ -300,6 +300,8 @@ export interface NamedClient { name: string; model: string; client: ClassifierCl
  */
 export function createClientChain(e: Record<string, string | undefined> = process.env, log?: Logger): NamedClient[] {
   const chain: NamedClient[] = [];
+  // NOCT_LLM_PROVIDER=none means none: a configured fallback key must not quietly re-enable the LLM.
+  if (resolveProvider(e) === 'none') return chain;
   const primary = createClient(e, log);
   if (primary) chain.push({ name: resolveProvider(e), model: resolveModel(e), client: primary });
   for (const f of resolveFallbacks(e)) {

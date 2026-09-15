@@ -330,7 +330,15 @@ export async function runEnrichment(opts: EnrichOptions = {}): Promise<EnrichSum
       const merged = mergeOutputs(c, rules, llm);
       // a refusal or API error still gets rules-only labels but stays flagged for a human look
       if (client && !llm) merged.needs_review = true;
-      const version = `${RULES_VERSION}/${PROMPT_VERSION}/${usedModel}`;
+      // A rules-only result nobody asked an LLM about is PROVISIONAL. The candidate query excludes anything
+      // whose classification_version starts with the current rules/prompt prefix, so writing the plain version
+      // here would park the event at rules quality for good -- the exact trap the quota branch avoids. The
+      // `provisional/` prefix keeps it eligible, and the ordering (never-classified first) means new events
+      // still get the model before these are revisited.
+      if (outcome === 'none' && !llm) merged.needs_review = true;
+      const version = outcome === 'none' && !llm
+        ? `provisional/${RULES_VERSION}/${PROMPT_VERSION}/rules`
+        : `${RULES_VERSION}/${PROMPT_VERSION}/${usedModel}`;
       await withTx((tx) => persist(tx, c, merged, inputHash, version, record));
       log.info('enriched', { event: c.event_id, title: c.title.slice(0, 50), genres: merged.genres.map((gx) => `${gx.code}@${gx.confidence}`), vibes: merged.vibes.length, model: usedModel });
     } catch (err) {

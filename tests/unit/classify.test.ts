@@ -1,9 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { describe, expect, it } from 'vitest';
 import {
-  buildRequest, classifyEvent, estimateCostUsd, MODEL_PRICES, OutputSchema, PROMPT_VERSION, SYSTEM_PROMPT, toClassifierOutput,
-  type ClassifierClient, type ClassifierResponse, type RawClassifierOutput,
-} from '../../src/enrich/classify.js';
+  buildRequest, classifyEvent, createClientChain, estimateCostUsd, MODEL_PRICES, OutputSchema, PROMPT_VERSION,
+  SYSTEM_PROMPT, toClassifierOutput,
+  type ClassifierClient, type ClassifierResponse, type RawClassifierOutput } from '../../src/enrich/classify.js';
 import { GENRE_CODES, VIBE_CODES } from '../../src/enrich/taxonomy.js';
 
 const CANNED: RawClassifierOutput = {
@@ -145,5 +145,27 @@ describe('classifyEvent with an injected client', () => {
     const plain = fakeClient([new Error('socket hang up')]);
     const c = await classifyEvent({ bundle: 'x', client: plain.client, model: 'claude-opus-5' });
     expect(!c.ok && c.error).toBe('socket hang up');
+  });
+});
+
+describe('rules-only provider selection', () => {
+  it('NOCT_LLM_PROVIDER=none means none, even with a fallback key present', () => {
+    const chain = createClientChain({ NOCT_LLM_PROVIDER: 'none', GROQ_API_KEY: 'gsk_test' });
+    expect(chain).toEqual([]);
+  });
+
+  it('a fallback key adds a second backend behind the primary', () => {
+    const chain = createClientChain({
+      NOCT_LLM_PROVIDER: 'openai', NOCT_LLM_BASE_URL: 'https://x/v1', NOCT_LLM_API_KEY: 'k', NOCT_LLM_MODEL: 'm',
+      GROQ_API_KEY: 'gsk_test',
+    });
+    expect(chain.map((c) => c.name)).toEqual(['openai', 'groq']);
+  });
+
+  it('no fallback key means the chain is just the primary', () => {
+    const chain = createClientChain({
+      NOCT_LLM_PROVIDER: 'openai', NOCT_LLM_BASE_URL: 'https://x/v1', NOCT_LLM_API_KEY: 'k', NOCT_LLM_MODEL: 'm',
+    });
+    expect(chain.map((c) => c.name)).toEqual(['openai']);
   });
 });
