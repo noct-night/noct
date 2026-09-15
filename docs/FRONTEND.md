@@ -110,26 +110,46 @@ source labels with `gsrc` naming the sources that tagged ("DICE + RA tags").
 Still client-side only (unchanged from the prototype): sign-in, the going/saved sets, the fake "crowd" handles
 and reciprocity rule, venue photos and Instagram tiles.
 
-## Sign-in, going, saved: the storage exists, the wiring does not
+## Sign-in, going, saved
 
-`supabase/migrations/0005_app.sql` creates `profile (user_id, ig_handle citext unique, visibility count|mutuals|public)`,
-`going`, `saved` and `follow`, with RLS so a signed-in user reads and writes only their own rows (`auth.uid()`
-policies, created only where the `auth` schema exists). `going_count(event_id, n)` is the one public aggregate and
-is already joined into `event_feed.going_count`.
+**Going and saved are wired (2026-09-15).** Every visitor gets an **anonymous Supabase session** on first
+load — no login screen, no personal data — so marks survive a reload and a taste history starts accumulating
+immediately. The same account is upgraded in place later (`linkIdentity()` / `updateUser()`), so nothing
+collected now is lost when a real identity arrives.
 
-Why it is not wired: **Instagram is not a Supabase Auth provider.** Options, in order of least effort:
+How it works, all in `index.html` (no third-party runtime dependency — the page still loads nothing external):
 
-1. Supabase Auth with email magic link (or Apple/Google) plus the Instagram handle as a free-text profile field —
-   the prototype's flow already asks for the handle first, so nothing in the UI changes.
-2. Facebook Login for Business with the `instagram_basic` scope through a small Vercel function, exchanging the
-   token for a Supabase session via `signInWithIdToken`-style custom claims. Meta app review required.
-3. Handle-only pseudo-identity (no auth) — rejected: guest lists would be trivially spoofable.
+- `sbSession()` restores a session from `localStorage`, refreshes it, or registers a new anonymous user
+  (`POST /auth/v1/signup` with `{}`). `sbRest()` talks to PostgREST and retries once on a 401.
+- `S.going` / `S.saved` hold **event UUIDs**, not the numeric render ids — the feed renumbers on every load,
+  so only the uuid is stable enough to persist. `evById` / `isGoing` / `isSaved` keep the call sites in
+  numeric ids.
+- Toggles are optimistic: the UI updates, then `persist()` writes (`POST`/`DELETE` on `going`/`saved`); a
+  failure reverts and shows a note. `user_id` is never sent — it defaults to `auth.uid()` (0014) and RLS
+  rejects a row claiming another user.
+- `goCount()` corrects the edge-cached feed precisely: `/api/feed` is cached five minutes, so a row whose
+  `created_at` is newer than the response's `generated_at` is not in `going_count` yet (+1), and a row removed
+  that the feed *had* counted is the −1 case. No guessing, no drift.
+- The publishable key sits in the page by design; RLS is the protection. A session reads and writes only its
+  own `going`/`saved` rows, and `going_count` is the one public aggregate (owner-privilege view — see 0013,
+  and do not put `security_invoker` on it).
+- On the sample weekend (`?demo=1`, `file://` without a feed) `LIVE` is false: nothing is read or written and
+  the old simulated handles still render, so the offline demo is unchanged.
 
-Wiring steps when the time comes: add `@supabase/supabase-js` to the page with `SUPABASE_URL` and
-`SUPABASE_PUBLISHABLE_KEY` (already in `.env.example`); on sign-in, upsert `profile`; `toggleGoing`/`toggleSave`
-become inserts/deletes on `going`/`saved` keyed by `EV[i].uuid`; `goCount()` reads `going_count` from the feed
-instead of the fake crowd; `visibleTo()` becomes a query joining `going`, `profile.visibility` and `follow`.
-`tag_vote` (0004) is the same pattern for the "Suggest a genre" prompt.
+Still simulated: the **guest list**. Live events show counts only, because no profile rows exist behind them
+yet — `crowdOf()` returns `[]` when `LIVE`. The Instagram-handle sheet still only sets local state; it becomes
+`profile.ig_handle` when the social layer is built, and the visibility rule in 0005 is already modelled.
+
+Operational notes for anonymous auth: Supabase rate-limits anonymous sign-ups to **30/hour per IP**, an
+invisible CAPTCHA (Turnstile) is recommended before any real traffic, and **old anonymous users have to be
+pruned by hand** — they accumulate in `auth.users` forever otherwise.
+
+Identity options when a durable, cross-device account is wanted, in order of least effort:
+
+1. Email magic link (or Apple/Google) plus the Instagram handle as a profile field — `linkIdentity()` upgrades
+   the existing anonymous account, so going/saved carry over untouched.
+2. Facebook Login for Business with `instagram_basic` through a small Vercel function. Meta app review required.
+3. Handle-only pseudo-identity — rejected: guest lists would be trivially spoofable.
 
 ## Security model of the read models
 

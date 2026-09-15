@@ -386,7 +386,12 @@ const S={mode:'image',view:'image',from:0,to:0,i:0,city:'nyc',area:'All',geo:fal
  gen:new Set(),door:new Set(),avail:new Set(),plat:new Set(),
  saved:new Set(),going:new Set(),signedIn:false,ig:'',vis:'count',signStep:1,
  /* When tab: which preset is active, the night picked on the calendar, and the month grid's cached counts */
- preset:'tonight',rangeLabel:'',picked:'',dayList:'',calMonth:'',counts:{},countsMonth:'',countsCity:'',countsNote:''};
+ preset:'tonight',rangeLabel:'',picked:'',dayList:'',calMonth:'',counts:{},countsMonth:'',countsCity:'',countsNote:'',
+ /* going rows by uuid -> created_at, the feed's generated_at, and rows removed that the feed had counted:
+    together these correct a cached going_count without guessing */
+ mineAt:new Map(),feedAt:'',goOff:new Set()};
+/* true once a real feed replaces the sample weekend: only then are there rows to read and write */
+let LIVE=false;
 const $=s=>document.querySelector(s);
 const dayName=i=>DAYS[i][2];
 const dayFull=i=>`${DAYS[i][0]} ${DAYS[i][1]}`;
@@ -408,8 +413,15 @@ const art=e=>e.image?` style="background:url(&quot;${e.image}&quot;) center/cove
 const srcNames=()=>SOURCES.filter(s=>s[2]).map(s=>s[0]);
 const joinNames=a=>a.length<2?a.join(''):`${a.slice(0,-1).join(', ')} and ${a[a.length-1]}`;
 
-/* going, with reciprocity */
-const crowdOf=id=>{const n=3+(id*11)%16,o=[];for(let k=0;k<n;k++)o.push(HANDLES[(id*7+k*3)%HANDLES.length]);return[...new Set(o)]};
+/* going, with reciprocity.
+   S.going / S.saved hold event UUIDs, not the numeric render ids: the feed renumbers on every load, so only
+   the uuid is stable enough to persist. These helpers keep the call sites talking in numeric ids. */
+const evById=id=>EV.find(e=>e.id===id);
+const uuidOf=id=>{const e=evById(id);return e?e.uuid:''};
+const isGoing=id=>{const u=uuidOf(id);return !!u&&S.going.has(u)};
+const isSaved=id=>{const u=uuidOf(id);return !!u&&S.saved.has(u)};
+/* Handles are simulated only on the sample weekend; live events have no profiles behind them yet. */
+const crowdOf=id=>{if(LIVE)return [];const n=3+(id*11)%16,o=[];for(let k=0;k<n;k++)o.push(HANDLES[(id*7+k*3)%HANDLES.length]);return[...new Set(o)]};
 const attVis=h=>{const n=h.length*3+h.charCodeAt(0);return n%10<4?'public':n%10<7?'mutuals':'count'};
 const iFollow=h=>(h.charCodeAt(1)+h.length)%3===0;
 function visibleTo(id){
@@ -418,7 +430,20 @@ function visibleTo(id){
   if(S.vis==='mutuals')return c.filter(h=>iFollow(h)&&attVis(h)!=='count');
   return c.filter(h=>attVis(h)==='public'||(attVis(h)==='mutuals'&&iFollow(h)));
 }
-const goCount=id=>crowdOf(id).length+(S.going.has(id)?1:0);
+/* The feed is edge-cached for five minutes, so its going_count can predate my own row. Compare the row's
+   created_at with the feed's generated_at instead of guessing: newer than the feed means it is not counted
+   yet (+1); a row I removed that the feed HAD counted is the -1 case (S.goOff). */
+function goDelta(u){
+  const at=S.mineAt.get(u);
+  if(at&&at>S.feedAt)return 1;
+  if(S.goOff.has(u))return -1;
+  return 0;
+}
+const goCount=id=>{
+  const e=evById(id);if(!e)return 0;
+  if(!LIVE)return crowdOf(id).length+(S.going.has(e.uuid)?1:0);
+  return Math.max(0,(e.going_count||0)+goDelta(e.uuid));
+};
 
 function ok(e){
   if(e.d<S.from||e.d>S.to)return false;
@@ -453,7 +478,7 @@ function renderImage(){
     <div class="name">${e.head}</div>
     <div class="gen">${tagLine(e)}</div>
     <div class="meta sm">${e.venue}${vInfo(e.venue).hood?', '+vInfo(e.venue).hood:''}${e.door?' · '+e.door:''}</div>
-    <div class="go sm">${goCount(e.id)} going${S.going.has(e.id)?' · you':''}</div>
+    <div class="go sm">${goCount(e.id)} going${isGoing(e.id)?' · you':''}</div>
     <button class="lnk" onclick="openDet(${e.id})">View event</button>`;
 }
 function step(n){const l=results();if(!l.length)return;S.i=(S.i+n+l.length)%l.length;renderImage()}
@@ -478,10 +503,10 @@ function renderList(){
 }
 
 function renderSaved(){
-  const go=EV.filter(e=>S.going.has(e.id));
+  const go=EV.filter(e=>S.going.has(e.uuid));
   $('#goingList').innerHTML=go.length?go.map(e=>`<button class="frow" onclick="openDet(${e.id})"><div><div class="fn">${e.head}</div><div class="fm">${dayFull(e.d)} · ${e.venue}</div></div><div class="tg">${priceLbl(e)}</div></button>`).join('')
     :`<div class="empty">Not going to anything yet.</div>`;
-  const sv=EV.filter(e=>S.saved.has(e.id));
+  const sv=EV.filter(e=>S.saved.has(e.uuid));
   $('#savedList').innerHTML=sv.length?sv.map(e=>`<button class="frow" onclick="openDet(${e.id})"><div><div class="fn">${e.head}</div><div class="fm">${dayFull(e.d)} · ${e.venue}</div></div><div class="tg">${priceLbl(e)}</div></button>`).join(''):`<div class="empty">Nothing saved yet.</div>`;
   $('#srcList').innerHTML=SOURCES.map(s=>`<div class="frow"><div><div class="fn">${s[0]}</div><div class="fm">${s[1]}</div></div><button class="tg" aria-pressed="${s[2]}">${s[2]?'On':'Off'}</button></div>`).join('');
 }
@@ -497,7 +522,7 @@ function renderVenues(){
 function openDet(eid){
   const e=EV.find(x=>x.id===eid);
   const p=prices(e),gap=p.length>1?Math.max(...p)-Math.min(...p):0;
-  const crowd=crowdOf(e.id),vis=visibleTo(e.id),hidden=crowd.length-vis.length,me=S.going.has(e.id);
+  const crowd=crowdOf(e.id),vis=visibleTo(e.id),hidden=crowd.length-vis.length,me=isGoing(e.id);
   let guest;
   if(!S.signedIn){
     guest=`<div class="prose">${goCount(e.id)} people on NOCT are going. <button class="lnk" onclick="openSign()">Sign in to see who</button></div>`;
@@ -541,7 +566,7 @@ function openDet(eid){
       <div class="mini">${e.gsrc||'NOCT tags'}. Per-tag evidence (source label, rule, venue prior or model) is stored with each tag and is not in the feed yet.</div>
     </div>`:''}
     <div class="dacts">
-      <button class="lnk" onclick="toggleSave(${e.id});openDet(${e.id})">${S.saved.has(e.id)?'Saved':'Save'}</button>
+      <button class="lnk" onclick="toggleSave(${e.id});openDet(${e.id})">${isSaved(e.id)?'Saved':'Save'}</button>
       <a class="lnk" href="${e.ra||e.dice||e.url||'#'}" target="_blank" rel="noopener">Open on ${e.ra?'RA':e.dice?'Dice':'listing'}</a>
       <button class="lnk">Add to calendar</button>
       <button class="lnk">Share</button>
@@ -618,9 +643,23 @@ function renderSign(){
 function signStep2(){const el=$('#igInput');S.ig=(el?el.value:'').trim().replace(/^@/,'');S.signStep=2;renderSign()}
 function finishSign(){S.signedIn=true;closeAll();setView('profile')}
 function saveHandle(){const el=$('#igEdit');S.ig=(el?el.value:'').trim().replace(/^@/,'');renderProfile()}
-function signOut(){S.signedIn=false;S.ig='';S.going.clear();S.vis='count';renderProfile()}
-function toggleGoing(id){if(!S.signedIn){openSign();return}S.going.has(id)?S.going.delete(id):S.going.add(id);openDet(id);render()}
-function toggleSave(id){S.saved.has(id)?S.saved.delete(id):S.saved.add(id);render()}
+function signOut(){S.signedIn=false;S.ig='';S.vis='count';renderProfile()}   /* going/saved stay: they belong to the anonymous account, not the handle */
+function toggleGoing(id){const u=uuidOf(id);if(!u)return;
+  const on=!S.going.has(u),was=S.mineAt.get(u);
+  if(on){S.going.add(u);S.mineAt.set(u,new Date().toISOString());S.goOff.delete(u)}
+  else{S.going.delete(u);S.mineAt.delete(u);if(!(was&&was>S.feedAt))S.goOff.add(u)}
+  openDet(id);render();
+  persist('going',u,on).then(ok=>{if(ok)return;                       /* server said no: put the UI back */
+    if(on){S.going.delete(u);S.mineAt.delete(u)}else{S.going.add(u);if(was)S.mineAt.set(u,was);S.goOff.delete(u)}
+    liveNote('Could not save that — check your connection');openDet(id);render()});
+}
+function toggleSave(id){const u=uuidOf(id);if(!u)return;
+  const on=!S.saved.has(u);
+  on?S.saved.add(u):S.saved.delete(u);
+  render();
+  persist('saved',u,on).then(ok=>{if(ok)return;on?S.saved.delete(u):S.saved.add(u);
+    liveNote('Could not save that — check your connection');render()});
+}
 
 function renderProfile(){
   const b=$('#profileBody');
@@ -750,6 +789,73 @@ const hashOf=s=>{let h=7;for(const c of String(s))h=(h*31+c.charCodeAt(0))>>>0;r
 const tonesOf=name=>{const h=hashOf(name);return [0,1,2,3].map(k=>TEX[(h+k*2)%TEX.length])};
 const nyDate=off=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(Date.now()+off*864e5));
 
+/* ---------- identity: an anonymous Supabase session ----------
+   Every visitor gets a durable user_id with no login screen, so "going" and "saved" survive a reload and a
+   taste history starts accumulating from day one; the same account is upgraded in place later (linkIdentity /
+   updateUser) without losing those rows. The publishable key below is meant to sit in client code — Row Level
+   Security is what protects the data: a session may read and write only its own rows (0005), and `going_count`
+   is the one public aggregate. Written against the REST endpoints directly so the page keeps its property of
+   having no third-party runtime dependency; if any of it fails the app simply falls back to memory-only marks. */
+const SB_URL='https://cwjxhddnddvntxpikqbz.supabase.co';
+const SB_KEY='sb_publishable_bHn9dc0u9Mfuhuy5INKVUA_U6tTAuMB';
+const SB_STORE='noct.session';
+let SB=null;
+const sbHeaders=t=>Object.assign({apikey:SB_KEY,'content-type':'application/json'},t?{authorization:'Bearer '+t}:{});
+function sbRemember(j){
+  if(!j||!j.access_token)return null;
+  SB={access_token:j.access_token,refresh_token:j.refresh_token,user_id:(j.user||{}).id||'',
+      expires_at:Date.now()+((j.expires_in||3600)-60)*1000};
+  try{localStorage.setItem(SB_STORE,JSON.stringify(SB))}catch(e){}
+  return SB;
+}
+function sbRestore(){try{const s=JSON.parse(localStorage.getItem(SB_STORE)||'null');if(s&&s.access_token)SB=s}catch(e){}return SB}
+async function sbAuth(path,body){
+  const r=await fetch(SB_URL+'/auth/v1/'+path,{method:'POST',headers:sbHeaders(),body:JSON.stringify(body)});
+  return r.ok?sbRemember(await r.json()):null;
+}
+/** A live token, refreshing or re-registering as needed. Null when Supabase is unreachable. */
+async function sbSession(){
+  if(SB&&SB.expires_at>Date.now())return SB;
+  try{
+    if(SB&&SB.refresh_token){const s=await sbAuth('token?grant_type=refresh_token',{refresh_token:SB.refresh_token});if(s)return s}
+    SB=null;try{localStorage.removeItem(SB_STORE)}catch(e){}
+    return await sbAuth('signup',{});                      /* anonymous sign-in */
+  }catch(e){return null}
+}
+async function sbRest(method,path,body){
+  const s=await sbSession();if(!s)return null;
+  const opts={method,headers:Object.assign(sbHeaders(s.access_token),{prefer:'resolution=merge-duplicates'})};
+  if(body)opts.body=JSON.stringify(body);
+  let r=await fetch(SB_URL+'/rest/v1'+path,opts);
+  if(r.status===401){                                      /* token rejected: start a new session once */
+    SB=null;const s2=await sbSession();if(!s2)return null;
+    opts.headers=Object.assign(sbHeaders(s2.access_token),{prefer:'resolution=merge-duplicates'});
+    r=await fetch(SB_URL+'/rest/v1'+path,opts);
+  }
+  return r;
+}
+/** Mirror one toggle into Postgres. user_id is defaulted to auth.uid() server-side (0014). */
+async function persist(table,uuid,on){
+  if(!LIVE)return true;                                    /* the sample weekend has no rows to write */
+  try{
+    const r=on?await sbRest('POST','/'+table,{event_id:uuid}):await sbRest('DELETE','/'+table+'?event_id=eq.'+encodeURIComponent(uuid));
+    return !!r&&r.ok;
+  }catch(e){return false}
+}
+/** Load this account's going/saved so a reload (or another device, once the account is upgraded) restores them. */
+async function syncMine(){
+  if(!LIVE)return;
+  try{
+    const [g,sv]=await Promise.all([sbRest('GET','/going?select=event_id,created_at'),sbRest('GET','/saved?select=event_id')]);
+    if(g&&g.ok){const rows=await g.json();
+      S.going=new Set(rows.map(r=>r.event_id));
+      S.mineAt=new Map(rows.map(r=>[r.event_id,r.created_at]));}
+    if(sv&&sv.ok){const rows=await sv.json();S.saved=new Set(rows.map(r=>r.event_id))}
+    S.goOff.clear();
+    render();
+  }catch(e){}
+}
+
 /* ---------- When: range presets + month calendar ----------
    Plain YYYY-MM-DD strings all the way through (UTC parsing only, so no local-midnight drift). A preset asks
    the API for that window; the calendar asks for counts only (~1 KB a month instead of ~320 KB of records)
@@ -877,6 +983,7 @@ function applyFeed(f){
   /* the loaded window IS the selection now — the When tab decides what gets loaded */
   S.from=0;S.to=DAYS.length-1;S.i=0;
   if(!S.calMonth)S.calMonth=dMonth(DAYS[0][3]);
+  LIVE=true;S.feedAt=f.generated_at||new Date().toISOString();S.goOff.clear();
   if(AREAS.indexOf(S.area)<0)S.area='All';
   buildAll();setView(S.view);
 }
@@ -908,11 +1015,12 @@ async function loadFeed(range){
     if(!r.ok)throw new Error(`HTTP ${r.status}`);
     applyFeed(await r.json());
     liveNote('');
+    syncMine();                      /* restore this account's going/saved; renders again when it lands */
   }catch(err){
     liveNote('Live data unavailable — showing sample weekend');
   }
 }
-buildAll();setView('image');loadFeed();
+sbRestore();buildAll();setView('image');loadFeed();
 </script>
 </body>
 </html>

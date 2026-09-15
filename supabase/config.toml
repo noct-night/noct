@@ -3,3 +3,18 @@ project_id = "cwjxhddnddvntxpikqbz"
 
 [db]
 major_version = 17
+
+# Auth. Anonymous sign-ins give every visitor a durable user_id so "going" and "saved" persist without a
+# login screen; the same account is later upgraded in place with linkIdentity()/updateUser(). Supabase
+# rate-limits anonymous sign-ups to 30/hour per IP; old anonymous users must be pruned by hand (docs/FRONTEND.md).
+[auth]
+site_url = "https://noct-navy.vercel.app"
+additional_redirect_urls = ["https://noct.pro", "https://www.noct.pro", "http://localhost:3000"]
+enable_anonymous_sign_ins = true
+
+# Email auth is not used yet, but `config push` applies CLI defaults to every key it manages, so pin the
+# stronger values the project shipped with rather than letting a future push weaken them.
+[auth.email]
+enable_confirmations = true
+max_frequency = "1m0s"
+otp_length = 8
