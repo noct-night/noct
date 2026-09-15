@@ -147,3 +147,24 @@ DICE_API_KEY=... npm run fetch -- dice --limit 5             # CLI dry run, no d
 - Whether the authenticated call succeeds from Vercel / GitHub Actions egress (only an unauthenticated 401,
   not a block, was confirmed from a datacenter IP).
 - Other NYC-area DICE cities (Queens, Jersey City) — none found; the bounding box is the safety net.
+
+## More than one city
+
+DICE targeting lives on the city row in `src/lib/cities.ts`, not in the adapter:
+
+```ts
+dice: { names: ['New York', 'Brooklyn'], state: 'New York', bbox: {...} }
+```
+
+`names` are DICE's own city filters (a metro can be several), and `state` + `bbox` are the sanity check that
+was always there — DICE's city filter leaks, and a Giza festival once arrived under New York. The adapter now
+runs one pass per enabled city that has a `dice` block; a city without one (San Francisco today) is skipped
+rather than fetched blind, and warnings name their city.
+
+**`nightWindow()` takes the city's clock.** Generalising this is where the bug was: `localMidnight()` defaults
+to New York, and passing a different tz to `localDatePlus()` on top of a New-York-anchored instant produced a
+window a full day short for Chicago. Both calls have to carry the tz. A test compares Chicago's window end
+against New York's and would have caught it in the other direction too.
+
+Measured on 2026-09-15, first run: LA 64 listings, Chicago 35 (against New York's 354 — DICE is simply much
+bigger in New York). Image coverage moved LA 41.4% -> 47.1% and Chicago 48.1% -> 54.4%.

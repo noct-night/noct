@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Env } from '../../src/lib/env.js';
 import type { Logger } from '../../src/lib/log.js';
+import { CITIES } from '../../src/lib/cities.js';
 import {
   DICE_EVENTS_URL,
   KEY_MISSING,
@@ -20,6 +21,8 @@ import {
   parseEventsPayload,
   parseStatus,
   selectEvents,
+  diceTargets,
+  isInTarget,
   type DiceEvent,
 } from '../../src/sources/dice.js';
 import type { FetchContext } from '../../src/sources/types.js';
@@ -345,7 +348,7 @@ describe('dice: adapter', () => {
     expect(res.listings).toHaveLength(100); // 98 + 2 new on page 2; the duplicate hash counted once
     expect(new Set(res.listings.map((l) => l.sourceId)).size).toBe(100);
     expect(res.window).toEqual({ start: '2026-09-13', end: '2026-10-13' });
-    expect(res.warnings).toEqual(['dropped 2 non-club events (gigs, culture)']);
+    expect(res.warnings).toEqual(['nyc: dropped 2 non-club events (gigs, culture)'   /* warnings name their city once the run covers several */]);
   });
 
   it('fetch() keeps paging on a full page even when one entry is malformed', async () => {
@@ -391,5 +394,41 @@ describe('dice: adapter', () => {
     // the frontend key rotates with dice.fm deploys, so the message tells the operator to refresh either one
     await expect(dice.fetch(ctx({ DICE_API_KEY: 'stale' }))).rejects.toThrow(/DICE rejected the key \(HTTP 401\).*refresh/);
     expect(calls).toHaveLength(1);
+  });
+});
+
+describe('dice: more than one city', () => {
+  it('targets only enabled cities that have DICE config, in NOCT_CITIES order', () => {
+    expect(diceTargets({ NOCT_CITIES: 'chi,nyc' }).map((t) => t.city)).toEqual(['chi', 'nyc']);
+    // sf has no DICE targeting yet, so it is skipped rather than fetched blind
+    expect(diceTargets({ NOCT_CITIES: 'nyc,sf,la' }).map((t) => t.city)).toEqual(['nyc', 'la']);
+    expect(diceTargets({ NOCT_CITIES: 'sf' })).toEqual([]);
+  });
+
+  it('asks DICE for each city by its own name', () => {
+    expect(buildEventsUrl(1)).toContain('filter%5Bcities%5D%5B%5D=New+York');
+    expect(buildEventsUrl(1, ['Chicago'])).toContain('filter%5Bcities%5D%5B%5D=Chicago');
+    expect(buildEventsUrl(1, ['Chicago'])).not.toContain('New+York');
+  });
+
+  it('keeps the geo check per city, so a leaked event lands nowhere', () => {
+    const chi = CITIES.find((c) => c.key === 'chi')!.dice!;
+    const smartbar = { id: 'x', location: { state: 'Illinois', lat: 41.95, lng: -87.66 } } as never;
+    const brooklyn = { id: 'y', location: { state: 'New York', lat: 40.71, lng: -73.95 } } as never;
+    expect(isInTarget(smartbar, chi)).toBe(true);
+    expect(isInTarget(brooklyn, chi)).toBe(false);   // would have passed a bbox-free city filter
+    expect(isInNewYork(brooklyn)).toBe(true);
+  });
+
+  it('takes the night window from the city clock, not always New York', () => {
+    const ny = nightWindow('2026-09-13', '2026-09-13', 'America/New_York');
+    const chi = nightWindow('2026-09-13', '2026-09-13', 'America/Chicago');
+    expect(chi.endUtc.getTime()).toBeGreaterThan(ny.endUtc.getTime());   // Chicago's night ends an hour later
+  });
+
+  it('stamps the listing with the city it was fetched for', () => {
+    const e = byHash('dkm38e');
+    expect(normalizeEvent(e).city).toBe('nyc');
+    expect(normalizeEvent(e, 'chi').city).toBe('chi');
   });
 });

@@ -30,6 +30,7 @@ import { env } from '../lib/env.js';
 import { fetchJson, HttpError } from '../lib/http.js';
 import { cents, cleanText, parseAge, uniq } from '../lib/normalize.js';
 import { NY_TZ, iso, localDatePlus, localMidnight, nightDate, parseWhen } from '../lib/time.js';
+import { CITIES, enabledCityKeys, getCity, type DiceTarget } from '../lib/cities.js';
 import type { FetchContext, FetchResult, ListingStatus, NormalizedListing, PriceTier, SourceAdapter } from './types.js';
 import { baseListing } from './types.js';
 
@@ -50,9 +51,10 @@ export function resolveKey(e: Env): { key: string; kind: 'issued' | 'frontend' }
 }
 /** DICE lists a few hundred upcoming NYC events; 30 pages (3,000) is a runaway guard, not a target. */
 const MAX_PAGES = 30;
-const CITIES = ['New York', 'Brooklyn'];
+/** NYC's own target, kept as the default so every existing call site and test keeps its meaning. */
+const NYC = CITIES.find((c) => c.key === 'nyc')!.dice as DiceTarget;
 /** Rough NYC metro box: Staten Island to the north Bronx, Newark to Nassau. Catches events whose `state` is not literally 'New York'. */
-export const NYC_BBOX = { latMin: 40.49, latMax: 40.92, lngMin: -74.27, lngMax: -73.68 } as const;
+export const NYC_BBOX = NYC.bbox;
 const CLUB_TYPE_TAGS = new Set(['music:dj', 'music:party']);
 const CLUB_GENRE_PREFIXES = ['dj:', 'party:'];
 /** The event-type words DICE also uses as a genre placeholder ('dj:dj' = "a DJ set") — not genres. */
@@ -123,10 +125,10 @@ export interface DiceEventsPage {
 // ---- pure helpers (exported so the unit tests run offline on the fixture) ------------------------------
 
 /** Page URL against the partner host. URLSearchParams encodes the bracketed keys exactly as the widget does. */
-export function buildEventsUrl(page: number): string {
+export function buildEventsUrl(page: number, names: readonly string[] = NYC.names): string {
   const q = new URLSearchParams();
   q.set('page[size]', String(PAGE_SIZE));
-  for (const city of CITIES) q.append('filter[cities][]', city);
+  for (const city of names) q.append('filter[cities][]', city);
   q.append('filter[flags][]', 'going_ahead');
   q.set('page[number]', String(page));
   return `${DICE_EVENTS_URL}?${q}`;
@@ -140,14 +142,15 @@ export function parseEventsPayload(payload: unknown): DiceEvent[] {
   return data.filter((e): e is DiceEvent => !!e && typeof e === 'object' && typeof (e as DiceEvent).id === 'string');
 }
 
-/** Rule (a): `location.state` says New York, or the coordinates fall inside the metro box. */
-export function isInNewYork(e: DiceEvent): boolean {
+/** Rule (a): `location.state` matches the target, or the coordinates fall inside its metro box. */
+export function isInTarget(e: DiceEvent, t: DiceTarget = NYC): boolean {
   const loc = e.location;
-  if (loc?.state === 'New York') return true;
+  if (loc?.state === t.state) return true;
   const { lat, lng } = loc ?? {};
   return typeof lat === 'number' && typeof lng === 'number'
-    && lat >= NYC_BBOX.latMin && lat <= NYC_BBOX.latMax && lng >= NYC_BBOX.lngMin && lng <= NYC_BBOX.lngMax;
+    && lat >= t.bbox.latMin && lat <= t.bbox.latMax && lng >= t.bbox.lngMin && lng <= t.bbox.lngMax;
 }
+export const isInNewYork = (e: DiceEvent): boolean => isInTarget(e, NYC);
 
 /** Rule (c): DJ / party by event type, or any dj:* / party:* genre tag (promoters sometimes leave type_tags empty). */
 export function isClubEvent(e: DiceEvent): boolean {
@@ -155,12 +158,12 @@ export function isClubEvent(e: DiceEvent): boolean {
     || (e.genre_tags ?? []).some((g) => CLUB_GENRE_PREFIXES.some((p) => g.startsWith(p)));
 }
 
-/** [fromDate 00:00, toDate 24:00) in New York, as UTC instants. */
+/** [fromDate 00:00, toDate 24:00) in the city's own clock, as UTC instants. */
 export interface NightWindow { startUtc: Date; endUtc: Date }
-export function nightWindow(fromDate: string, toDate: string): NightWindow {
+export function nightWindow(fromDate: string, toDate: string, tz: string = NY_TZ): NightWindow {
   return {
-    startUtc: localMidnight(fromDate),
-    endUtc: localMidnight(localDatePlus(1, NY_TZ, localMidnight(toDate))),
+    startUtc: localMidnight(fromDate, tz),
+    endUtc: localMidnight(localDatePlus(1, tz, localMidnight(toDate, tz)), tz),
   };
 }
 
@@ -180,11 +183,11 @@ export interface DropCounts { outsideNy: number; undated: number; outsideWindow:
 export interface Selection { kept: DiceEvent[]; dropped: DropCounts }
 
 /** Apply rules (a) → (b) → (c) in that order so "non-club" counts only NYC events inside the window. */
-export function selectEvents(events: DiceEvent[], w: NightWindow): Selection {
+export function selectEvents(events: DiceEvent[], w: NightWindow, t: DiceTarget = NYC): Selection {
   const kept: DiceEvent[] = [];
   const dropped: DropCounts = { outsideNy: 0, undated: 0, outsideWindow: 0, nonClub: 0 };
   for (const e of events) {
-    if (!isInNewYork(e)) { dropped.outsideNy++; continue; }
+    if (!isInTarget(e, t)) { dropped.outsideNy++; continue; }
     const overlap = overlapsWindow(e, w);
     if (overlap === null) { dropped.undated++; continue; }
     if (!overlap) { dropped.outsideWindow++; continue; }
@@ -254,7 +257,7 @@ export function dicePrices(e: DiceEvent): { prices: PriceTier[]; priceMin: numbe
   };
 }
 
-export function normalizeEvent(e: DiceEvent): NormalizedListing {
+export function normalizeEvent(e: DiceEvent, city = 'nyc'): NormalizedListing {
   const { spotify_tracks: _spotify, apple_music_tracks: _apple, images: _images, ...raw } = e;
   const hash = e.hash?.trim() || null;
   const sourceId = hash ?? e.id;
@@ -266,6 +269,7 @@ export function normalizeEvent(e: DiceEvent): NormalizedListing {
   const { prices, priceMin, priceMax } = dicePrices(e);
   return baseListing({
     source: 'dice',
+    city,
     sourceId,
     sourceUrl,
     raw,
@@ -324,9 +328,9 @@ interface Page {
   full: boolean;
 }
 
-async function fetchPage(page: number, key: string, ctx: FetchContext): Promise<Page> {
+async function fetchPage(page: number, key: string, ctx: FetchContext, names: readonly string[] = NYC.names): Promise<Page> {
   try {
-    const body = await fetchJson<DiceEventsPage>(buildEventsUrl(page), {
+    const body = await fetchJson<DiceEventsPage>(buildEventsUrl(page, names), {
       headers: { 'x-api-key': key },
       minIntervalMs: 1_000,
       signal: ctx.signal,
@@ -343,12 +347,42 @@ async function fetchPage(page: number, key: string, ctx: FetchContext): Promise<
   }
 }
 
+/** Enabled cities DICE is configured for, in NOCT_CITIES order. */
+export function diceTargets(e: FetchContext['env']): { city: string; tz: string; target: DiceTarget }[] {
+  return enabledCityKeys(e)
+    .map((k) => getCity(k))
+    .filter((c) => c.dice)
+    .map((c) => ({ city: c.key, tz: c.tz, target: c.dice as DiceTarget }));
+}
+
 async function fetch(ctx: FetchContext): Promise<FetchResult> {
   const resolved = resolveKey(ctx.env);
   if (!resolved) throw new Error(KEY_MISSING);
   const key = resolved.key;
   ctx.log.info('dice key in use', { kind: resolved.kind });
-  const w = nightWindow(ctx.fromDate, ctx.toDate);
+  const targets = diceTargets(ctx.env);
+  if (!targets.length) return { listings: [], window: null, warnings: ['no enabled city has DICE targeting'] };
+  const all: NormalizedListing[] = [];
+  const warnings: string[] = [];
+  let complete = true;
+  for (const t of targets) {
+    const remaining = ctx.limit === undefined ? undefined : ctx.limit - all.length;
+    if (remaining !== undefined && remaining <= 0) { complete = false; break; }
+    const r = await fetchCity(t, key, ctx, remaining);
+    all.push(...r.listings);
+    warnings.push(...r.warnings.map((w) => `${t.city}: ${w}`));
+    if (!r.complete) complete = false;
+  }
+  return { listings: all, window: complete ? { start: ctx.fromDate, end: ctx.toDate } : null, warnings };
+}
+
+async function fetchCity(
+  t: { city: string; tz: string; target: DiceTarget },
+  key: string,
+  ctx: FetchContext,
+  limit: number | undefined,
+): Promise<{ listings: NormalizedListing[]; warnings: string[]; complete: boolean }> {
+  const w = nightWindow(ctx.fromDate, ctx.toDate, t.tz);
   const listings = new Map<string, NormalizedListing>();
   const dropped: DropCounts = { outsideNy: 0, undated: 0, outsideWindow: 0, nonClub: 0 };
   const warnings: string[] = [];
@@ -360,7 +394,7 @@ async function fetch(ctx: FetchContext): Promise<FetchResult> {
   let prevIds = '';
 
   for (let page = 1; ; page++) {
-    const { events, full } = await fetchPage(page, key, ctx);
+    const { events, full } = await fetchPage(page, key, ctx, t.target.names);
     // An identical page means page[number] was ignored: stop rather than loop to the cap. (A single repeated
     // event is normal — new events shift the boundary between pages while we walk them.)
     const ids = events.map((e) => e.id).join(',');
@@ -371,23 +405,23 @@ async function fetch(ctx: FetchContext): Promise<FetchResult> {
     }
     prevIds = ids;
 
-    const sel = selectEvents(events, w);
+    const sel = selectEvents(events, w, t.target);
     for (const k of Object.keys(dropped) as (keyof DropCounts)[]) dropped[k] += sel.dropped[k];
     // New events can shift pages while we walk them; keep the first copy of each hash.
     for (const e of sel.kept) {
-      const l = normalizeEvent(e);
+      const l = normalizeEvent(e, t.city);
       if (!listings.has(l.sourceId)) listings.set(l.sourceId, l);
     }
     for (const e of events) {
-      const t = parseWhen(e.date)?.getTime();
-      if (t === undefined) continue;
-      if (t < lastStart) ordered = false;
-      lastStart = t;
+      const at = parseWhen(e.date)?.getTime();
+      if (at === undefined) continue;
+      if (at < lastStart) ordered = false;
+      lastStart = at;
     }
     ctx.log.info('page', { page, events: events.length, kept: listings.size, ...sel.dropped });
 
     if (!full) break;
-    if (ctx.limit !== undefined && listings.size >= ctx.limit) { complete = false; break; }
+    if (limit !== undefined && listings.size >= limit) { complete = false; break; }
     if (ordered && lastStart >= w.endUtc.getTime()) break;
     if (page >= MAX_PAGES) {
       warnings.push(`stopped after ${MAX_PAGES} pages with more available`);
@@ -397,15 +431,15 @@ async function fetch(ctx: FetchContext): Promise<FetchResult> {
   }
 
   let out = [...listings.values()];
-  if (ctx.limit !== undefined && out.length > ctx.limit) {
-    out = out.slice(0, ctx.limit);
+  if (limit !== undefined && out.length > limit) {
+    out = out.slice(0, limit);
     complete = false;
   }
   if (dropped.nonClub) warnings.push(`dropped ${dropped.nonClub} non-club events (gigs, culture)`);
-  if (dropped.outsideNy) warnings.push(`dropped ${dropped.outsideNy} events outside New York (city filter leak)`);
+  if (dropped.outsideNy) warnings.push(`dropped ${dropped.outsideNy} events outside ${t.target.state} (city filter leak)`);
   if (dropped.undated) warnings.push(`dropped ${dropped.undated} events without a parsable date`);
-  ctx.log.info('done', { listings: out.length, ...dropped, complete });
-  return { listings: out, window: complete ? { start: ctx.fromDate, end: ctx.toDate } : null, warnings };
+  ctx.log.info('done', { city: t.city, listings: out.length, ...dropped, complete });
+  return { listings: out, warnings, complete };
 }
 
 export const dice: SourceAdapter = {

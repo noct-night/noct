@@ -488,8 +488,8 @@ function openDet(eid){
     <div class="dsup">${dayFull(e.d)}${e.door?` · ${e.door}${e.close?' to '+e.close:''}`:''} · ${e.venue}${e.room?' · '+e.room:''}</div>
     <div class="specs">
       <div class="k">Genre</div><div>${e.genre.length
-        ?`${genOf(e)} <span style="color:var(--d2)">· ${e.gsrc}</span>`
-        :`<span style="color:var(--d2)">No genre on any source.</span> <button class="go" onclick="suggestGenre(${e.id})">Suggest one</button>`}</div>
+        ?genOf(e)
+        :`<span style="color:var(--d2)">No genre yet.</span> <button class="go" onclick="suggestGenre(${e.id})">Suggest one</button>`}</div>
       ${e.sound?`<div class="k">Sound</div><div>${e.sound}</div>`:''}
       ${(e.vibes||[]).length?`<div class="k">Vibe</div><div>${e.vibes.map(v=>(v.glyph?v.glyph+' ':'')+v.label).join(' · ')}</div>`:''}
       <div class="k">Venue</div><div><button class="go" onclick="openVenue('${esc(e.venue)}')">${e.venue} →</button></div>
@@ -508,21 +508,54 @@ function openDet(eid){
     ${e.set?`<div class="grp"><h3>Set times</h3>${e.set.map(t=>`<div class="ro"><div class="t">${t[0]}</div><div class="who">${t[1]}</div></div>`).join('')}</div>`
       :e.lineup.length?`<div class="grp"><h3>Line-up</h3>${e.lineup.map(a=>`<div class="ro"><div class="t"></div><div class="who">${a}</div></div>`).join('')}</div>`:''}
     ${e.note?`<div class="grp"><h3>About</h3><p class="prose">${e.note}</p></div>`:''}
-    ${(e.tags||[]).length||(e.vibes||[]).length?`<div class="grp"><h3>Why these tags?</h3>
-      ${(e.tags||[]).map((t,i)=>`<div class="ro"><div class="t">${t.code}</div><div class="who">${t.label}${i===0&&e.genre_confidence!=null?` <span style="color:var(--d2)">· ${Math.round(e.genre_confidence*100)}% sure</span>`:''}</div></div>`).join('')}
-      ${(e.vibes||[]).map(v=>`<div class="ro"><div class="t">${v.code}</div><div class="who">${v.glyph?v.glyph+' ':''}${v.label}</div></div>`).join('')}
-      <div class="mini">${e.gsrc||'NOCT tags'}. Per-tag evidence (source label, rule, venue prior or model) is stored with each tag and is not in the feed yet.</div>
-    </div>`:''}
     <div class="dacts">
       <button class="lnk" onclick="toggleSave(${e.id});openDet(${e.id})">${isSaved(e.id)?'Saved':'Save'}</button>
       <a class="lnk" href="${e.ra||e.dice||e.url||'#'}" target="_blank" rel="noopener">Open listing</a>
       <button class="lnk">Add to calendar</button>
-      <button class="lnk">Share</button>
+      <button class="lnk" onclick="shareEvent(${e.id})">Share</button>
     </div>
   </div>`;
   $('#det').classList.add('open');$('#det').scrollTop=0;
 }
 
+/**
+ * Share a night. NOCT has no per-event route, so the link carries the event's uuid AND its date: the recipient
+ * lands on that night's feed with the sheet already open, instead of on whatever is on tonight.
+ */
+function shareEvent(id){
+  const e=evById(id);if(!e)return;
+  const date=(DAYS[e.d]||[])[3]||'';
+  const q=new URLSearchParams({e:e.uuid||'',city:S.city||'nyc'});
+  if(date){q.set('from',date);q.set('to',date)}
+  const url=`${location.origin}${location.pathname}?${q}`;
+  copyText(url).then(ok=>toast(ok?'Link copied':'Could not copy — '+url));
+}
+/** Clipboard API needs https and a gesture; the textarea path covers the browsers that refuse it. */
+function copyText(t){
+  if(navigator.clipboard&&navigator.clipboard.writeText)
+    return navigator.clipboard.writeText(t).then(()=>true).catch(()=>fallbackCopy(t));
+  return Promise.resolve(fallbackCopy(t));
+}
+function fallbackCopy(t){
+  try{
+    const a=document.createElement('textarea');
+    a.value=t;a.setAttribute('readonly','');a.style.position='fixed';a.style.opacity='0';
+    document.body.appendChild(a);a.select();
+    const ok=document.execCommand('copy');
+    document.body.removeChild(a);return ok;
+  }catch(err){return false}
+}
+/** A shared link opens its event once the feed carrying it has landed. Consumed once, so a re-render or a
+    later city switch does not keep re-opening the sheet. */
+function openShared(){
+  if(openShared.done)return;
+  const want=new URLSearchParams(location.search).get('e');
+  if(!want)return;
+  const hit=EV.find(x=>x.uuid===want);
+  if(!hit)return;                                  /* not in this range yet; a later load may still carry it */
+  openShared.done=true;
+  openDet(hit.id);
+}
 function openVenue(v){
   const i=vInfo(v),ev=EV.filter(e=>e.venue===v);
   const q=i.addr?`${v} ${i.addr}`:`${v} ${i.hood} New York`;
@@ -565,7 +598,7 @@ function closePage(id){$('#'+id).classList.remove('open')}
 function suggestGenre(id){
   const e=EV.find(x=>x.id===id);
   const g=prompt(`No source tagged a genre for "${e.head}". What would you call it?`);
-  if(g&&g.trim()){e.genre=g.split(',').map(x=>x.trim()).filter(Boolean);e.gsrc='suggested by you';openDet(id);render()}
+  if(g&&g.trim()){e.genre=g.split(',').map(x=>x.trim()).filter(Boolean);openDet(id);render()}
 }
 
 /* sign in, two steps */
@@ -929,13 +962,19 @@ async function loadCounts(){
   renderCal();
 }
 const liveNote=msg=>{const el=$('#liveNote');el.textContent=msg;el.hidden=!msg};
+/** liveNote is for states that end when the state does; a confirmation has to clear itself. */
+function toast(msg,ms){
+  liveNote(msg);
+  clearTimeout(toast.t);
+  toast.t=setTimeout(()=>{if($('#liveNote').textContent===msg)liveNote('')},ms||2600);
+}
 function applyFeed(f){
   if(!f||!Array.isArray(f.days)||!f.days.length||!Array.isArray(f.events))throw new Error('unexpected feed shape');
   DAYS=f.days.map(d=>[clean(d.label),clean(d.sub),clean(d.hint),d.date]);
   /* id stays the numeric index the onclick handlers expect; the event uuid rides along as uuid */
   EV=f.events.map(e=>({
     id:e.n,uuid:e.id,d:e.d,head:clean(e.head),lineup:(e.lineup||[]).map(clean),venue:clean(e.venue),room:e.room?clean(e.room):'',
-    door:clean(e.door),close:clean(e.close),genre:(e.genre||[]).map(clean),gsrc:clean(e.gsrc),primary:e.primary?clean(e.primary):'',
+    door:clean(e.door),close:clean(e.close),genre:(e.genre||[]).map(clean),primary:e.primary?clean(e.primary):'',
     genre_codes:(e.genre_codes||[]).map(clean),tags:(e.tags||[]).map(t=>({code:clean(t.code),label:clean(t.label)})),
     genre_confidence:typeof e.genre_confidence==='number'?e.genre_confidence:null,
     vibes:(e.vibes||[]).map(v=>({code:clean(v.code),label:clean(v.label),glyph:clean(v.glyph)})),
@@ -990,6 +1029,7 @@ async function loadFeed(range){
     syncMine();                      /* restore this account's going/saved; renders again when it lands */
     loadRecs();                      /* the rail is pinned to every view, so recommendations load with the feed */
     if(tasteRestore()){S.sortTaste=TASTE.length>0;render()}else{maybeOnboard()}
+    openShared();
   }catch(err){
     liveNote('Live data unavailable — showing sample weekend');
   }
