@@ -41,11 +41,20 @@ control would be a lie.
 
 ## Where "For you" shows
 
-A rail of cards above **list** and **calendar**, where a strip over a list is an ordinary thing. **Image view
-gets no rail**: it is a full-bleed stack, and cards floating over the artwork fought the one thing that view
-is for. It says "for you" by order instead, with a quiet dot and two words over the title. The reason a night
-was picked stays in the Saved list, which is the view you open to see recommendations; in the feed the mark
-is just a mark.
+Nowhere as a rail. Cards floating over a list or over artwork both read as an ad for a feature; the feed
+carries it instead, three ways at once:
+
+- **Order** — a recommendation leads its night, then taste, then door time.
+- **A mark** — a dot and two words, on the list row and over the image-view title.
+- **A switch** — `All` / `For you` in the top row beside city and date, which *filters* both views. The
+  caption's "1 of 50" against "1 of 197" is what makes the change legible.
+
+`forMe()` is a real genre overlap (code or family), deliberately **not** `tasteScore(e) > 0`: that score
+carries a popularity tiebreak, so nearly every event with an interested count passed it and the switch barely
+narrowed anything — 197 to 142 on a weekend, against 197 to 50 once it tested overlap properly.
+
+The reason a night was picked stays in the Saved list, which is the view you open to see recommendations; in
+the feed the mark is just a mark.
 
 ## The profile
 

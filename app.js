@@ -101,7 +101,7 @@ const S={mode:'image',view:'image',from:0,to:0,i:0,city:'nyc',area:'All',geo:fal
  /* going rows by uuid -> created_at, the feed's generated_at, and rows removed that the feed had counted:
     together these correct a cached going_count without guessing */
  mineAt:new Map(),feedAt:'',goOff:new Set(),
- sortTaste:false,
+ sortTaste:false,only:false,
  recs:{loading:false,loaded:false,error:false,list:[],history:0}};
 /* true once a real feed replaces the sample weekend: only then are there rows to read and write */
 let LIVE=false;
@@ -167,9 +167,36 @@ function ok(e){
 /* A recommendation outranks any taste score (tasteScore is bounded far below 1000), and both only apply
    under "For you" -- "By time" has to mean by time, or the sort control is a lie. */
 const rank=e=>(recFor(e)?1000:0)+tasteScore(e);
-const results=()=>EV.filter(ok).sort((a,b)=>a.d-b.d
+/**
+ * Does NOCT have a reason to show this one? A recommendation, or a real genre overlap with the declared taste.
+ * Deliberately NOT `tasteScore(e) > 0`: that score carries a popularity tiebreak, so almost every event with
+ * an interested count passed it and "For you" barely narrowed anything (197 -> 142 on a weekend).
+ */
+const forMe=e=>{
+  if(recFor(e))return true;
+  if(!TASTE.length)return false;
+  const codes=e.genre_codes||[];
+  return TASTE.some(t=>codes.includes(t)||codes.some(c=>c.split('.')[0]===t.split('.')[0]));
+};
+/** Nothing to filter by until there is a taste or a recommendation, so the control stays hidden until then. */
+const canFilterForMe=()=>TASTE.length>0||S.recs.list.some(r=>!r.gone);
+const results=()=>EV.filter(ok).filter(e=>!S.only||forMe(e)).sort((a,b)=>a.d-b.d
   ||(S.sortTaste?rank(b)-rank(a):0)
   ||(a.door||'99').localeCompare(b.door||'99'));
+/** One switch for both views. In image view the caption's "1 of N" is what makes the change legible. */
+function toggleOnly(){
+  S.only=!S.only;
+  if(S.only)S.sortTaste=true;            /* filtering by taste while ignoring it in the order is incoherent */
+  S.i=0;buildAll();render();renderOnlyBtn();
+}
+function renderOnlyBtn(){
+  const b=$('#btnFor'),sep=$('#forSep'),lbl=$('#forLbl');
+  if(!b||!sep||!lbl)return;
+  const show=canFilterForMe()&&(S.view==='image'||S.view==='list');
+  b.hidden=!show;sep.hidden=!show;
+  lbl.textContent=S.only?'For you':'All';
+  b.setAttribute('aria-pressed',String(S.only));
+}
 const nF=()=>S.gen.size+S.door.size+S.avail.size;
 /* the preset's own words when one is active ("This weekend"), otherwise the nights themselves */
 const dateLabel=()=>{
@@ -235,7 +262,6 @@ function renderList(){
 /* "For you": events scored against this account's own going/saved history (0015). Recommendations are not
    part of the loaded feed — they span other nights — so each carries its own date and opens on its platform. */
 function renderRecs(){
-  renderForYou();
   const el=$('#recList');if(!el)return;
   if(!LIVE){el.innerHTML=`<div class="empty">Live data only.</div>`;return}
   const r=S.recs;
@@ -305,14 +331,17 @@ function renderOnb(){
       +`<span class="pkt">✓</span>`
       +`<span class="pkl"><b>${e.head}</b><span>${[e.night_label,e.venue].filter(Boolean).join(' · ')}</span></span></button>`).join('')+`</div>`
       :`<div class="empty" style="padding:24px 0">Nothing to show right now — you are all set.</div>`)
-    +`<div class="onbfoot"><button class="lnk" style="color:var(--d2)" onclick="onbDone()">Skip</button>`
+    +`<div class="onbfoot"><button class="lnk" style="color:var(--d2)" onclick="onbBack()">← Genres</button>`
     +`<button class="lnk" onclick="onbDone()">${ONB.picks.size?`Done · ${ONB.picks.size} saved`:'Done'}</button></div>`;
 }
+/* Back to step 1 with the same chips still selected. Nights already tapped stay saved -- they were saved the
+   moment they were tapped, and changing a genre is no reason to un-save one. */
+function onbBack(){ONB.step=1;renderOnb();const sh=$('#onb');if(sh)sh.scrollTop=0}
 function onbGenre(i){const g=ONB.opts[i];if(!g)return;
   ONB.genres.has(g.code)?ONB.genres.delete(g.code):ONB.genres.add(g.code);renderOnb()}
 async function onbNext(){
   TASTE=[...ONB.genres];tasteRemember();applyTaste();          /* the feed re-sorts behind the sheet */
-  ONB.step=2;ONB.cards=[];renderOnb();
+  ONB.step=2;ONB.cards=[];renderOnb();const sh=$('#onb');if(sh)sh.scrollTop=0;
   try{
     const q=TASTE.length?`&genres=${encodeURIComponent(TASTE.join(','))}`:'';
     const r=await fetch(`${API_BASE}/api/taste?picks=1&limit=8&city=${encodeURIComponent(S.city||'nyc')}${q}`,{headers:{accept:'application/json'}});
@@ -361,22 +390,6 @@ function editTaste(){
   closeAll();
   if(!ONB.opts.length){maybeOnboard();return}
   ONB.step=1;ONB.genres=new Set(TASTE);renderOnb();$('#onb').classList.add('open');
-}
-/* Image view is a full-bleed stack, so a rail of cards over the artwork fought the one thing that view is
-   for. It says "for you" by ORDER instead -- recommendations first within each night -- and marks the card.
-   The rail stays in list and calendar, where a strip above a list is an ordinary thing to put there. */
-const FY_MOUNTS=['fyList','fyCal'];
-const FY_MAX=8;
-function renderForYou(){
-  const r=S.recs;
-  const live=LIVE&&!r.error&&r.list.some(e=>!e.gone);
-  const cards=live?r.list.map((e,i)=>[e,i]).filter(([e])=>!e.gone).slice(0,FY_MAX):[];
-  const html=cards.length?`<div class="fyhd"><span class="fylab">For you</span>`
-      +`<button class="fymore" onclick="setView('saved')">All →</button></div>`
-    +`<div class="fyrail">`+cards.map(([e,i])=>`<button class="fyc" onclick="openRec(${i})">`
-      +`<div class="fyn">${e.head}</div>`
-      +`<div class="fym">${e.night_label}${e.venue?' · '+e.venue:''}</div></button>`).join('')+`</div>`:'';
-  FY_MOUNTS.forEach(id=>{const el=$('#'+id);if(!el)return;el.innerHTML=html;el.hidden=!cards.length});
 }
 /* A recommendation that also falls inside the loaded nights, by uuid: the rail and the feed are two views of
    one answer, so a card can carry the reason the recommender already worked out. */
@@ -428,7 +441,7 @@ async function loadRecs(){
         night_label:nightLabel(e.night),price:clean(priceOf(e)),why:whyLine(e.why),
         url:cleanUrl(e.url),ra:cleanUrl(e.ra),dice:cleanUrl(e.dice)}))};
   }catch(err){S.recs={loading:false,loaded:true,error:true,list:[],history:S.recs.history}}
-  renderRecs();
+  renderRecs();renderOnlyBtn();
 }
 /* the recommendation JSON is the feed's event shape, so reuse its price wording */
 const priceOf=e=>{const p=(e.srcs||[]).map(s=>s[1]).filter(v=>typeof v==='number');
@@ -704,6 +717,7 @@ function setView(v){
   const listy=(v==='list');
   const bar=$('#fbar');
   if(bar){bar.hidden=!listy; if(listy)renderFbar();}
+  renderOnlyBtn();
   $('#listView').classList.toggle('withbar',listy);
   $('#topscrim').classList.toggle('tall',listy);
   $('#topscrim').classList.remove('on');

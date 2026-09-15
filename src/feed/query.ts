@@ -37,7 +37,7 @@ export interface FeedParams {
   /** borough name or 'All' */
   area?: string | null;
   city?: string | null;
-  /** include events the classifier marked is_electronic = false (concerts, comedy); default false */
+  /** include what the feed normally hides: is_electronic = false (concerts, comedy) and classes/karaoke; default false */
   includeAll?: boolean;
   /** counts-only request (the month calendar): allows a wider range, returns no event records */
   countsOnly?: boolean;
@@ -129,7 +129,7 @@ const EVENTS_SQL = `${EVENTS_COLUMNS_SQL}
   where f.night between $1::date and $2::date
     and f.city = $5::text
     and ($3::text is null or f.borough = $3)
-    and ($4::boolean or f.is_electronic is distinct from false)
+    and ($4::boolean or (f.is_electronic is distinct from false and not event_is_class(f.title)))
   order by f.night, f.has_time desc, f.starts_at nulls last, lower(f.title)`;
 
 /** Cities that have something to show (upcoming events), for the UI's city picker. */
@@ -144,7 +144,7 @@ const COUNTS_SQL = `
   from event_feed f
   where f.night between $1::date and $2::date
     and f.city = $4::text
-    and ($3::boolean or f.is_electronic is distinct from false)
+    and ($3::boolean or (f.is_electronic is distinct from false and not event_is_class(f.title)))
   group by f.night`;
 
 const VENUES_SQL = `

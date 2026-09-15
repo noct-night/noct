@@ -20,6 +20,8 @@
       <button id="btnLoc"><b id="locLbl">New York</b><i>▼</i></button>
       <div class="sep"></div>
       <button id="btnDate"><b id="dateLbl">Tonight</b><i>▼</i></button>
+      <div class="sep" id="forSep" hidden></div>
+      <button id="btnFor" hidden onclick="toggleOnly()" aria-pressed="false"><b id="forLbl">All</b></button>
     </div>
     <div class="ctrl" id="backRow" hidden>
       <button onclick="goBack()"><i style="font-size:14px;opacity:1">←</i><b id="backLbl">Events</b></button>
@@ -39,7 +41,6 @@
   </section>
 
   <section class="view" id="listView" hidden>
-    <div class="fy" id="fyList" hidden></div>
     <div id="rows"></div>
   </section>
 
@@ -83,7 +84,6 @@
     <button class="sx" onclick="closeAll()" aria-label="Close">✕</button>
     <div class="sh2">When</div>
     <div class="opts" id="oPreset"></div>
-    <div class="fy" id="fyCal" hidden></div>
     <div class="cal" id="rcal"></div>
     <div id="calList"></div>
   </div>
