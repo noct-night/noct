@@ -174,6 +174,24 @@ a{color:inherit}
 #fyImage .fyc{background:rgba(11,11,11,.55);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px)}
 #fyList{padding-top:4px;margin-bottom:26px}
 #fyCal{margin:22px 0 6px}
+/* Onboarding. Two skippable questions using the chips and sheet the app already has, so it reads as the same
+   product rather than a form bolted to the front of it. */
+.onbsub{font-size:15px;color:var(--d1);line-height:1.55;margin:-4px 0 26px}
+.pk{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+.pkc{position:relative;aspect-ratio:1/1;border:.7px solid var(--hair);border-radius:3px;overflow:hidden;
+  background:#141414;padding:0;display:block}
+.pkc img{width:100%;height:100%;object-fit:cover;opacity:.66;transition:opacity .18s ease}
+.pkc[aria-pressed="true"]{border-color:var(--chalk)}
+.pkc[aria-pressed="true"] img{opacity:1}
+.pkl{position:absolute;left:0;right:0;bottom:0;padding:30px 11px 10px;font-size:12.5px;line-height:1.32;
+  background:linear-gradient(180deg,rgba(11,11,11,0),rgba(11,11,11,.92) 62%)}
+.pkl b{font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pkl span{color:var(--d1)}
+.pkt{position:absolute;top:9px;right:9px;width:23px;height:23px;border-radius:50%;
+  border:.7px solid rgba(255,255,255,.55);display:flex;align-items:center;justify-content:center;
+  font-size:12px;line-height:1;background:rgba(11,11,11,.45);color:transparent}
+.pkc[aria-pressed="true"] .pkt{background:var(--chalk);color:var(--ink);border-color:var(--chalk)}
+.onbfoot{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-top:30px}
 /* the night's cards inside the When sheet: the sheet already pads the sides, so the rows only need a rule */
 #calList .row{padding-left:0;padding-right:0;border-top:.7px solid var(--hair)}
 .field{display:flex;align-items:baseline;gap:8px;border-bottom:.7px solid var(--hair);padding:12px 0}
@@ -317,6 +335,8 @@ a{color:inherit}
 
   <div class="sheet" id="signSheet"><div id="signBody"></div></div>
 
+  <div class="sheet" id="onb"><div id="onbBody"></div></div>
+
   <div class="page" id="det"></div>
   <div class="page" id="ven"></div>
 </div>
@@ -427,6 +447,7 @@ const S={mode:'image',view:'image',from:0,to:0,i:0,city:'nyc',area:'All',geo:fal
  /* going rows by uuid -> created_at, the feed's generated_at, and rows removed that the feed had counted:
     together these correct a cached going_count without guessing */
  mineAt:new Map(),feedAt:'',goOff:new Set(),
+ sortTaste:false,
  recs:{loading:false,loaded:false,error:false,list:[],history:0}};
 /* true once a real feed replaces the sample weekend: only then are there rows to read and write */
 let LIVE=false;
@@ -493,7 +514,9 @@ function ok(e){
   if(S.plat.size&&!e.srcs.some(x=>S.plat.has(platformOf(x[0]))))return false;
   return true;
 }
-const results=()=>EV.filter(ok).sort((a,b)=>a.d-b.d||(a.door||'99').localeCompare(b.door||'99'));
+const results=()=>EV.filter(ok).sort((a,b)=>a.d-b.d
+  ||(S.sortTaste?tasteScore(b)-tasteScore(a):0)
+  ||(a.door||'99').localeCompare(b.door||'99'));
 const nF=()=>S.gen.size+S.door.size+S.avail.size+S.plat.size;
 /* the preset's own words when one is active ("This weekend"), otherwise the nights themselves */
 const dateLabel=()=>{
@@ -523,7 +546,10 @@ function step(n){const l=results();if(!l.length)return;S.i=(S.i+n+l.length)%l.le
 
 function renderList(){
   const list=results();
-  $('#srcLine').innerHTML=list.length?`${list.length} events, ${dateLabel().toLowerCase()}. Pulled from ${joinNames(srcNames())}. Times and prices fill in as each listing is opened.`:'';
+  const sorted=S.sortTaste&&TASTE.length
+    ? ` Sorted for you — <button class="lnk" onclick="toggleTasteSort()">by time instead</button>.`
+    : (TASTE.length?` <button class="lnk" onclick="toggleTasteSort()">Sort for you</button>.`:'');
+  $('#srcLine').innerHTML=list.length?`${list.length} events, ${dateLabel().toLowerCase()}.${sorted} Pulled from ${joinNames(srcNames())}.`:'';
   let out='',cur=-1;
   list.forEach(e=>{
     if(e.d!==cur){cur=e.d;out+=`<div class="dayhead">${dayName(e.d)} · ${dayFull(e.d)}</div>`}
@@ -567,6 +593,105 @@ function renderRecs(){
 /* The same recommendations, pinned to the top of image / list / calendar. The rail is a shortcut, not a
    second feature: it reads S.recs, indexes into the same array, and stays hidden until there is something
    worth pinning — an empty "For you" over the artwork would be pure noise. */
+/* ---------- Onboarding ----------
+   Two questions, both skippable, neither of them typing. Genres first because they are the one axis where
+   every option has something on; then real flyers to tap, because a tap on a night carries its artists,
+   venue, vibes and price all at once — a far better first profile than a list of DJ names nobody in a new
+   city recognises (1,015 of NYC's 1,194 upcoming artists play exactly one date).
+   The picks are saved as ordinary `saved` rows, so nothing downstream needs a special case. */
+const ONB_KEY='noct.onb.v1';
+let ONB={step:0,genres:new Set(),picks:new Set(),opts:[],cards:[],busy:false};
+let TASTE=[];                                    /* genre codes, also used to sort the feed */
+
+function tasteRestore(){try{const v=JSON.parse(localStorage.getItem(ONB_KEY)||'null');
+  if(v&&Array.isArray(v.genres)){TASTE=v.genres;return true}}catch(e){}return false}
+function tasteRemember(){try{localStorage.setItem(ONB_KEY,JSON.stringify({genres:TASTE,at:Date.now()}))}catch(e){}}
+
+async function maybeOnboard(){
+  if(!LIVE||tasteRestore())return;               /* already answered (or skipped) on this device */
+  try{
+    const r=await fetch(`${API_BASE}/api/taste?city=${encodeURIComponent(S.city||'nyc')}`,{headers:{accept:'application/json'}});
+    if(!r.ok)return;                              /* no options, no onboarding: never block the app */
+    ONB.opts=(await r.json()).genres||[];
+    if(ONB.opts.length<4)return;
+    ONB.step=1;renderOnb();$('#onb').classList.add('open');
+  }catch(e){}
+}
+function closeOnb(){$('#onb').classList.remove('open')}
+function renderOnb(){
+  const b=$('#onbBody');if(!b)return;
+  if(ONB.step===1){
+    b.innerHTML=`<div class="sh2">What do you play loud?</div>`
+      +`<div class="onbsub">Pick whatever fits. It only sorts your feed — you can change it any time.</div>`
+      +`<div class="opts">`+ONB.opts.map((g,i)=>`<button aria-pressed="${ONB.genres.has(g.code)}" onclick="onbGenre(${i})">${clean(g.label)}</button>`).join('')+`</div>`
+      +`<div class="onbfoot"><button class="lnk" style="color:var(--d2)" onclick="onbSkip()">Skip</button>`
+      +`<button class="lnk" onclick="onbNext()">${ONB.genres.size?'Next →':'Not sure yet →'}</button></div>`;
+    return;
+  }
+  b.innerHTML=`<div class="sh2">Would you go?</div>`
+    +`<div class="onbsub">Tap the ones you like the look of. That is all NOCT needs to start.</div>`
+    +(ONB.cards.length?`<div class="pk">`+ONB.cards.map((e,i)=>`<button class="pkc" aria-pressed="${ONB.picks.has(e.uuid)}" onclick="onbPick(${i})">`
+      +`<img src="${e.image}" alt="" loading="lazy">`
+      +`<span class="pkt">✓</span>`
+      +`<span class="pkl"><b>${e.head}</b><span>${[e.night_label,e.venue].filter(Boolean).join(' · ')}</span></span></button>`).join('')+`</div>`
+      :`<div class="empty" style="padding:24px 0">Nothing to show right now — you are all set.</div>`)
+    +`<div class="onbfoot"><button class="lnk" style="color:var(--d2)" onclick="onbDone()">Skip</button>`
+    +`<button class="lnk" onclick="onbDone()">${ONB.picks.size?`Done · ${ONB.picks.size} saved`:'Done'}</button></div>`;
+}
+function onbGenre(i){const g=ONB.opts[i];if(!g)return;
+  ONB.genres.has(g.code)?ONB.genres.delete(g.code):ONB.genres.add(g.code);renderOnb()}
+async function onbNext(){
+  TASTE=[...ONB.genres];tasteRemember();applyTaste();          /* the feed re-sorts behind the sheet */
+  ONB.step=2;ONB.cards=[];renderOnb();
+  try{
+    const q=TASTE.length?`&genres=${encodeURIComponent(TASTE.join(','))}`:'';
+    const r=await fetch(`${API_BASE}/api/taste?picks=1&limit=8&city=${encodeURIComponent(S.city||'nyc')}${q}`,{headers:{accept:'application/json'}});
+    if(r.ok)ONB.cards=((await r.json()).events||[]).filter(e=>e.image).map(e=>({uuid:e.id,head:clean(e.head),
+      venue:clean(e.venue),night_label:nightLabel(e.night),image:cleanUrl(e.image)}));
+  }catch(e){}
+  renderOnb();
+}
+/* Each tap writes immediately, so "Done" is never a save button that can fail with the sheet already closing. */
+function onbPick(i){const e=ONB.cards[i];if(!e)return;
+  const on=!ONB.picks.has(e.uuid);
+  on?ONB.picks.add(e.uuid):ONB.picks.delete(e.uuid);
+  on?S.saved.add(e.uuid):S.saved.delete(e.uuid);
+  renderOnb();persist('saved',e.uuid,on);
+}
+function onbSkip(){TASTE=[];tasteRemember();closeOnb();persistTaste()}
+function onbDone(){
+  tasteRemember();closeOnb();applyTaste();
+  persistTaste();invalidateRecs();loadRecs();render();
+}
+function persistTaste(){
+  if(!LIVE)return;
+  try{sbRest('POST','/profile',{taste_genres:TASTE,onboarded_at:new Date().toISOString()}).catch(()=>{})}catch(e){}
+}
+/* Taste sorts *within* a night, never across one: people read the calendar chronologically and a Saturday
+   headliner must not jump above Friday. Nothing is hidden — only reordered. */
+function tasteScore(e){
+  if(!TASTE.length)return 0;
+  const codes=e.genre_codes||[];
+  let hit=0,fam=0;
+  TASTE.forEach(t=>{
+    if(codes.includes(t))hit++;
+    else if(codes.some(c=>c.split('.')[0]===t.split('.')[0]))fam++;
+  });
+  return hit*3+fam+Math.min((e.interested||0)/4000,.5);
+}
+function applyTaste(){S.sortTaste=TASTE.length>0;render()}
+function toggleTasteSort(){S.sortTaste=!S.sortTaste;S.i=0;render()}
+function genreLabel(code){
+  const o=ONB.opts.find(g=>g.code===code);if(o)return o.label;
+  for(const e of EV){const t=(e.tags||[]).find(t=>t.code===code);if(t&&t.label)return t.label}
+  return code.split('.').pop().replace(/_/g,' ');
+}
+/* "change it any time": the same first question, reopened from the menu with the current answer filled in. */
+function editTaste(){
+  closeAll();
+  if(!ONB.opts.length){maybeOnboard();return}
+  ONB.step=1;ONB.genres=new Set(TASTE);renderOnb();$('#onb').classList.add('open');
+}
 const FY_MOUNTS=['fyImage','fyList','fyCal'];
 const FY_MAX=8;
 function renderForYou(){
@@ -858,7 +983,8 @@ function useGeo(){S.geo=!S.geo;$('#geoState').textContent=S.geo?'On':'Off';rende
 function resetLoc(){const was=S.city;S.city='nyc';S.area='All';S.geo=false;if(was!=='nyc'){closeAll();loadFeed();return}buildAll();render()}
 
 function renderMenu(){
-  $('#mNav').innerHTML=[['Events','Back to the feed'],['Venues',''],['Saved',''],['Profile',S.signedIn?(S.ig?'@'+S.ig:'Signed in'):'Sign in'],['Filter',nF()?`${nF()} on`:''],['Where we pull from',`${SOURCES.length} sources`]]
+  const tasteLbl=TASTE.length?TASTE.map(c=>genreLabel(c)).slice(0,2).join(', ')+(TASTE.length>2?` +${TASTE.length-2}`:''):'Not set';
+  $('#mNav').innerHTML=[['Events','Back to the feed'],['Venues',''],['Saved',''],['Your taste',tasteLbl],['Profile',S.signedIn?(S.ig?'@'+S.ig:'Signed in'):'Sign in'],['Filter',nF()?`${nF()} on`:''],['Where we pull from',`${SOURCES.length} sources`]]
     .map(n=>`<button onclick="menuGo('${n[0]}')">${n[0]}<span>${n[1]}</span></button>`).join('');
 }
 function menuGo(n){closeAll();
@@ -867,6 +993,7 @@ function menuGo(n){closeAll();
   if(n==='Saved'||n==='Where we pull from')setView('saved');
   if(n==='Profile')setView('profile');
   if(n==='Filter')$('#filt').classList.add('open');
+  if(n==='Your taste')editTaste();
 }
 function closeAll(){document.querySelectorAll('.sheet').forEach(el=>el.classList.remove('open'))}
 function goBack(){setView(S.mode)}
@@ -1163,6 +1290,7 @@ async function loadFeed(range){
     liveNote('');
     syncMine();                      /* restore this account's going/saved; renders again when it lands */
     loadRecs();                      /* the rail is pinned to every view, so recommendations load with the feed */
+    if(tasteRestore()){S.sortTaste=TASTE.length>0;render()}else{maybeOnboard()}
   }catch(err){
     liveNote('Live data unavailable — showing sample weekend');
   }

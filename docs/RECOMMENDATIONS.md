@@ -14,6 +14,29 @@ went to…") has nothing to work with. A taste profile built from the events som
 the **first mark**, needs nobody else, and explains itself. Collaborative signals can be blended into the same
 score later without changing the interface.
 
+## Onboarding: the profile before there is a profile
+
+Recommendations used to need a history, so a new account saw nothing until it had marked something. Onboarding
+asks two questions instead, both skippable, neither of them typing:
+
+1. **Genres** — chips drawn from `/api/taste`, which only offers codes with **8 or more** upcoming nights in
+   that city, capped at 24. Every option therefore leads somewhere, and the whole set fits one screen.
+2. **Nights** — eight real flyers from `/api/taste?picks=1`, narrowed to the genres just picked, one per venue.
+   A tap writes an ordinary `saved` row, so nothing downstream needs a special case.
+
+Step 2 is the stronger half: a tap on a night carries its artists, venue, vibes, price and timing all at once.
+An artist picker was considered and rejected on the data — **1,015 of NYC's 1,194 upcoming artists play exactly
+one date**, and only 40 play three or more, so the list would be long, unrecognisable, and worth almost nothing.
+
+The genres are stored on `profile.taste_genres` and weighted **0.7** in the scorer, against a going's 1.0 and a
+saved's 0.4: a stated preference is real signal, but weaker than turning up, and it must never outrank what
+somebody actually did. `history_size` counts a declared taste as one mark, so the cold-start copy does not
+appear to someone who has just answered.
+
+The same codes sort the feed client-side — **within** each night, never across one, because people read the
+calendar chronologically and Saturday's headliner must not jump above Friday. Nothing is hidden, only
+reordered, and the list view says so with a one-tap way back to time order.
+
 ## The profile
 
 Built per request from the caller's own marks — `going` weighted **1.0**, `saved` **0.4** (a bookmark is not a
@@ -38,7 +61,8 @@ scalars only *rank* what is already relevant — almost every club night starts 
 $20, so letting them admit an event on their own would recommend the entire calendar. (That was a real bug the
 tests caught.)
 
-Excluded: anything already marked or dismissed, past nights, other cities, `is_electronic = false`,
+Seeded from `profile.taste_genres` (0.7 per declared genre) when onboarding has been answered. Excluded:
+anything already marked or dismissed, past nights, other cities, `is_electronic = false`,
 non-`scheduled` status, and anything `event_is_class()` calls a class. The city defaults to the one the most
 recent mark was in.
 
@@ -126,7 +150,9 @@ Live check with three marks (Nils Hoffmann @ Elsewhere, a Lot Radio deep-house b
 - **`saved` and `going` are both "interest"** — neither means attendance. A post-night "did you go?" prompt
   would make the strongest signal much cleaner.
 - **No per-artist cap.** A resident playing three nights in one month can still appear three times; only
-  venues are capped.
+  venues and runs (`0017`, by normalised title) are capped.
+- **The feed still shows classes.** `event_is_class()` keeps them out of recommendations, not out of the feed,
+  so "Intro to Ableton Lab" can still rank in a taste-sorted night.
 - **Dismissals are permanent** apart from the inline Undo, and there is no way to review them later.
 - **`event_is_class()` reads titles only.** A class with a party-shaped name gets through until the
   enrichment pass gains a real event-kind field.

@@ -65,6 +65,7 @@ describe.skipIf(!process.env.DATABASE_URL)('recommend_events against Postgres', 
   });
 
   afterAll(async () => {
+    await query(`delete from profile where user_id in ($1, $2)`, [ME, OTHER]);
     await query(`delete from rec_feedback where user_id in ($1, $2)`, [ME, OTHER]);
     await query(`delete from going where user_id in ($1, $2)`, [ME, OTHER]);
     await query(`delete from saved where user_id in ($1, $2)`, [ME, OTHER]);
@@ -166,6 +167,28 @@ describe.skipIf(!process.env.DATABASE_URL)('recommend_events against Postgres', 
     expect(fromRun).toHaveLength(1);
     // and a generous venue cap must not bring the rest of the run back
     expect(ids_).toContain(ids.cap1);
+  });
+
+  it('recommends from a declared taste alone, before there is any history (0018)', async () => {
+    const FRESH = '00000000-0000-4000-8000-00000000fa03';
+    await query(`insert into profile (user_id, taste_genres) values ($1, $2::text[])
+                 on conflict (user_id) do update set taste_genres = excluded.taste_genres`, [FRESH, ['house.deep']]);
+    const rows = await asUser<{ event_id: string; score: number; history_size: number; reasons: { kind: string }[] }>(
+      FRESH, `select * from recommend_events(20, 'nyc', 60)`);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.map((r) => r.event_id)).toContain(ids.sameGenre);   // deep house, matched with zero marks
+    expect(Number(rows[0]!.history_size)).toBe(1);                  // so the UI does not show the cold-start copy
+    expect(rows.some((r) => r.reasons.some((x) => x.kind === 'genre'))).toBe(true);
+    await query(`delete from profile where user_id = $1`, [FRESH]);
+  });
+
+  it('a declared taste never outranks a night the user actually marked', async () => {
+    await query(`insert into profile (user_id, taste_genres) values ($1, $2::text[])
+                 on conflict (user_id) do update set taste_genres = excluded.taste_genres`, [ME, ['trance.psy']]);
+    const rows = await asUser<{ event_id: string }>(ME, `select * from recommend_events(20, 'nyc', 60)`);
+    // sameArtist comes from a real going; sameVenue is only the declared trance genre plus the venue
+    expect(rows.findIndex((r) => r.event_id === ids.sameArtist)).toBe(0);
+    await query(`update profile set taste_genres = '{}' where user_id = $1`, [ME]);
   });
 
   it('a dismissal removes that night and demotes the ones like it', async () => {
