@@ -507,8 +507,8 @@ function openDet(eid){
       ${gap>0?`<div class="gapnote">Two prices for the same night, $${gap} apart. The RSVP is cheaper but does not guarantee entry.</div>`:''}
       ${!e.full?`<div class="gapnote">Price and set times are not listed here yet. Open the listing for the full record.</div>`:''}
     </div>
-    ${e.set?`<div class="grp"><h3>Set times</h3>${e.set.map(t=>`<div class="ro"><div class="t">${t[0]}</div><div class="who">${t[1]}</div></div>`).join('')}</div>`
-      :e.lineup.length?`<div class="grp"><h3>Line-up</h3>${e.lineup.map(a=>`<div class="ro"><div class="t"></div><div class="who">${a}</div></div>`).join('')}</div>`:''}
+    ${e.set?`<div class="grp"><h3>Set times</h3>${e.set.map(t=>`<div class="ro"><div class="t">${t[0]}</div><div class="who"><button class="go" onclick="openArtistByName('${esc(t[1])}')">${t[1]} →</button></div></div>`).join('')}</div>`
+      :e.lineup.length?`<div class="grp"><h3>Line-up</h3>${e.lineup.map(a=>`<div class="ro"><div class="t"></div><div class="who"><button class="go" onclick="openArtistByName('${esc(a)}')">${a} →</button></div></div>`).join('')}</div>`:''}
     ${e.note?`<div class="grp"><h3>About</h3><p class="prose">${e.note}</p></div>`:''}
     <div class="dacts">
       <button class="lnk" onclick="toggleSave(${e.id});openDet(${e.id})">${isSaved(e.id)?'Saved':'Save'}</button>
@@ -558,9 +558,121 @@ function openShared(){
   openShared.done=true;
   openDet(hit.id);
 }
+/* ---------- Search ----------
+   Events, artists and venues in one box. The ranking is SQL's (search_noct, 0020); this debounces, groups and
+   routes. An artist opens its own sheet rather than a dead row -- that is the point of listing artists at all. */
+let SRCH={q:'',hits:[],busy:false,seq:0};
+function openSearch(){
+  closeAll();$('#srch').classList.add('open');
+  const i=$('#srchIn');if(i){i.value=SRCH.q;setTimeout(()=>i.focus(),120)}
+  renderSearch();
+}
+const SRCH_LABEL={event:'Nights',artist:'Artists',venue:'Venues'};
+function renderSearch(){
+  const el=$('#srchOut');if(!el)return;
+  if(!LIVE){el.innerHTML=`<div class="empty">Live data only.</div>`;return}
+  if(SRCH.q.trim().length<2){el.innerHTML=`<div class="empty">Type a name — a DJ, a room, a party.</div>`;return}
+  if(SRCH.busy&&!SRCH.hits.length){el.innerHTML=`<div class="empty">Looking…</div>`;return}
+  if(!SRCH.hits.length){el.innerHTML=`<div class="empty">Nothing on for “${clean(SRCH.q)}”.</div>`;return}
+  let out='';
+  for(const kind of ['artist','venue','event']){
+    const group=SRCH.hits.filter(h=>h.kind===kind);
+    if(!group.length)continue;
+    out+=`<div class="sgrp"><h3>${SRCH_LABEL[kind]}</h3>`+group.map(h=>
+      `<button class="shit" onclick="openHit('${h.kind}','${h.id}','${esc(h.label)}','${esc(h.city||'')}')"><span><b>${clean(h.label)}</b>`
+      +`${(h.sub||h.city)?`<span class="ssub">${[clean(h.sub||''),h.city&&h.city!==S.city?clean(CITY_NAME(h.city)):''].filter(Boolean).join(' · ')}</span>`:''}</span>`
+      +`<span>${h.kind==='event'?'':(h.n||'')}</span></button>`).join('')+`</div>`;
+  }
+  el.innerHTML=out;
+}
+async function runSearch(q){
+  SRCH.q=q;
+  if(q.trim().length<2){SRCH.hits=[];SRCH.busy=false;renderSearch();return}
+  const seq=++SRCH.seq;SRCH.busy=true;renderSearch();
+  const ask=async city=>{
+    const u=`${API_BASE}/api/search?q=${encodeURIComponent(q.trim())}`+(city?`&city=${encodeURIComponent(city)}`:'');
+    const r=await fetch(u,{headers:{accept:'application/json'}});
+    return r.ok?((await r.json()).results||[]):[];
+  };
+  try{
+    let hits=await ask(S.city||'nyc');
+    /* A DJ playing Chicago next week is the answer to "kobosil", not "nothing on". Widen only on a miss, and
+       the result carries its city so it never pretends to be tonight's town. */
+    if(!hits.length)hits=await ask(null);
+    if(seq!==SRCH.seq)return;                       /* a later keystroke already won */
+    SRCH.hits=hits;
+  }catch(e){if(seq===SRCH.seq)SRCH.hits=[]}
+  if(seq===SRCH.seq){SRCH.busy=false;renderSearch()}
+}
+const CITY_NAME=k=>(CITIES.find(c=>c[0]===k)||[,k||''])[1];
+function openHit(kind,id,label,city){
+  if(kind==='venue'){closeAll();openVenue(label);return}   /* openVenue keys on the name, not the id */
+  if(kind==='artist'){openArtist(id,label);return}
+  const ev=EV.find(e=>e.uuid===id);
+  if(ev){closeAll();openDet(ev.id);return}
+  /* outside the loaded range (or the loaded city): reopen on that night, the way a shared link does */
+  location.href=`${location.pathname}?e=${encodeURIComponent(id)}&city=${encodeURIComponent(city||S.city||'nyc')}`;
+}
+/* ---------- Artist ----------
+   A DJ's name is only useful if it leads somewhere. Their upcoming nights, and the search every listener
+   actually runs: "<name> dj set". */
+function listenLinks(name){
+  const q=encodeURIComponent(name), set=encodeURIComponent(name+' dj set');
+  return [
+    ['YouTube',    `https://www.youtube.com/results?search_query=${set}`],
+    ['SoundCloud', `https://soundcloud.com/search/sets?q=${set}`],
+    ['Spotify',    `https://open.spotify.com/search/${q}`],
+    ['RA',         `https://ra.co/search?searchTerm=${q}`],
+  ];
+}
+let ART={id:'',name:'',events:[],busy:false};
+async function openArtist(id,name){
+  ART={id,name:name||'',events:[],busy:true};
+  closeAll();$('#artist').classList.add('open');$('#artist').scrollTop=0;renderArtist();
+  try{
+    const r=await fetch(`${API_BASE}/api/search?artist=${encodeURIComponent(id)}`,{headers:{accept:'application/json'}});
+    if(r.ok){const j=await r.json();ART.name=(j.artist||{}).name||ART.name;ART.events=j.events||[]}
+  }catch(e){}
+  ART.busy=false;renderArtist();
+}
+/* A line-up entry is a string, not an id. Show the listen links immediately -- they only need the name -- and
+   look the artist up in the background so the dates arrive too, which is most of why the sheet is worth
+   opening. An exact name match only: a fuzzy one would put someone else's tour under this name. */
+async function openArtistByName(name){
+  ART={id:'',name:name,events:[],busy:true};
+  closeAll();$('#artist').classList.add('open');$('#artist').scrollTop=0;renderArtist();
+  try{
+    const r=await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(name)}&limit=8`,{headers:{accept:'application/json'}});
+    const hits=r.ok?((await r.json()).results||[]):[];
+    const norm=x=>String(x).toLowerCase().replace(/\s+/g,' ').trim();
+    const exact=hits.find(h=>h.kind==='artist'&&norm(h.label)===norm(name));
+    if(exact&&ART.name===name){openArtist(exact.id,exact.label);return}
+  }catch(e){}
+  if(ART.name===name){ART.busy=false;renderArtist()}
+}
+function renderArtist(){
+  const b=$('#artistBody');if(!b)return;
+  const name=ART.name||'Artist';
+  b.innerHTML=`<button class="sx" onclick="closeAll()" aria-label="Close">✕</button>`
+    +`<div class="sh2">${clean(name)}</div>`
+    +`<div class="alisten">`+listenLinks(name).map(([l,u])=>
+        `<a href="${u}" target="_blank" rel="noopener">${l}</a>`).join('')+`</div>`
+    +(ART.busy?`<div class="empty">Looking for dates…</div>`
+      :ART.events.length?`<div class="sgrp"><h3>Playing</h3>`+ART.events.map(e=>
+         `<button class="shit" onclick="openArtistNight('${e.id}')"><span><b>${clean(e.head)}</b>`
+         +`<span class="ssub">${nightLabel(e.night)}${e.venue?' · '+clean(e.venue):''}</span></span>`
+         +`<span>${clean(priceOf(e))}</span></button>`).join('')+`</div>`
+      :(ART.id?`<div class="empty">No upcoming dates in ${clean((CITIES.find(c=>c[0]===S.city)||[,'this city'])[1])}.</div>`:''));
+}
+function openArtistNight(uuid){
+  const ev=EV.find(e=>e.uuid===uuid);
+  if(ev){closeAll();openDet(ev.id);return}
+  location.href=`${location.pathname}?e=${encodeURIComponent(uuid)}&city=${encodeURIComponent(S.city||'nyc')}`;
+}
 function openVenue(v){
   const i=vInfo(v),ev=EV.filter(e=>e.venue===v);
-  const q=i.addr?`${v} ${i.addr}`:`${v} ${i.hood} New York`;
+  const cityName=(CITIES.find(c=>c[0]===S.city)||[,'New York'])[1];
+  const q=i.addr?`${v} ${i.addr}`:`${v} ${i.hood} ${cityName}`;
   const maps=`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
   const ig=i.ig?`https://www.instagram.com/${i.ig}/`:`https://www.instagram.com/explore/search/keyword/?q=${encodeURIComponent(v)}`;
   $('#ven').innerHTML=`
@@ -703,7 +815,7 @@ function resetLoc(){const was=S.city;S.city='nyc';S.area='All';S.geo=false;if(wa
 
 function renderMenu(){
   const tasteLbl=TASTE.length?TASTE.map(c=>genreLabel(c)).slice(0,2).join(', ')+(TASTE.length>2?` +${TASTE.length-2}`:''):'Not set';
-  $('#mNav').innerHTML=[['Events','Back to the feed'],['Venues',''],['Saved',''],['Your taste',tasteLbl],['Profile',S.signedIn?(S.ig?'@'+S.ig:'Signed in'):'Sign in']]
+  $('#mNav').innerHTML=[['Events','Back to the feed'],['Search','Artists, venues, nights'],['Venues',''],['Saved',''],['Your taste',tasteLbl],['Profile',S.signedIn?(S.ig?'@'+S.ig:'Signed in'):'Sign in']]
     .map(n=>`<button onclick="menuGo('${n[0]}')">${n[0]}<span>${n[1]}</span></button>`).join('');
 }
 function menuGo(n){closeAll();
@@ -712,6 +824,7 @@ function menuGo(n){closeAll();
   if(n==='Saved')setView('saved');
   if(n==='Profile')setView('profile');
   if(n==='Your taste')editTaste();
+  if(n==='Search')openSearch();
 }
 function closeAll(){document.querySelectorAll('.sheet').forEach(el=>el.classList.remove('open'))}
 function goProfile(){closeAll();closePage('det');closePage('ven');setView('profile')}
@@ -1037,4 +1150,10 @@ async function loadFeed(range){
     liveNote('Live data unavailable — showing sample weekend');
   }
 }
+(function(){
+  const i=document.getElementById('srchIn');if(!i)return;
+  let t=null;
+  i.addEventListener('input',()=>{clearTimeout(t);const v=i.value;t=setTimeout(()=>runSearch(v),180)});
+  i.addEventListener('keydown',e=>{if(e.key==='Enter'){clearTimeout(t);runSearch(i.value)}});
+})();
 sbRestore();buildAll();setView('image');loadFeed();

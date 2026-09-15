@@ -210,3 +210,28 @@ serve the repo root with any static server and stub `/api/feed` with the JSON th
 - The date strip is whatever range was requested; the sheet's "Nights loaded" note reflects it, the calendar
   picker of the prototype is still the three presets.
 - Images are hot-linked from the source CDNs (RA `images.ra.co`, DICE `dice-media.imgix.net`).
+
+## Search
+
+Menu → Search. One box over events, artists and venues; the ranking is SQL's (`search_noct`, 0020) because
+that is where the trigram indexes already are — `event.title`, `artist.name`, `venue.name` and `venue_alias`.
+
+- **A prefix match scores 1.0**, so an exact start always beats a trigram guess: "nowaday" is Nowadays, not
+  something that merely shares letters with it.
+- **Only things with an upcoming night are returned**, and the count is part of the answer. An artist with no
+  dates is a dead end in a listings app.
+- **The current city first, then everywhere.** A DJ playing Chicago next week is the answer to "kobosil", not
+  "nothing on" — so a miss retries unscoped and each result carries its city. Opening an out-of-city night
+  reopens the app on it, the same route a shared link takes.
+
+## Artist sheet
+
+A DJ's name is only useful if it leads somewhere, so every line-up entry and set time is a button now.
+
+- **Listen** — YouTube and SoundCloud are searched for `"<name> dj set"`, which is the search a listener
+  actually runs; Spotify and RA are searched for the name alone, since neither indexes sets.
+- **Playing** — their upcoming nights, shaped as feed cards.
+
+A line-up entry is a string, not an id, so the sheet opens immediately on the name (the links need nothing
+else) and resolves the artist in the background for the dates. The match must be **exact**: a fuzzy one would
+file someone else's tour under this name.
