@@ -221,8 +221,17 @@ that is where the trigram indexes already are — `event.title`, `artist.name`, 
 - **Only things with an upcoming night are returned**, and the count is part of the answer. An artist with no
   dates is a dead end in a listings app.
 - **The current city first, then everywhere.** A DJ playing Chicago next week is the answer to "kobosil", not
-  "nothing on" — so a miss retries unscoped and each result carries its city. Opening an out-of-city night
-  reopens the app on it, the same route a shared link takes.
+  "nothing on" — so a miss retries unscoped and each result carries its city. Opening a night outside the
+  loaded range reopens the app on it, the same route a shared link takes.
+
+**Every such link must carry the date.** The first version did not: it passed only `?e=<uuid>&city=`, so the
+app loaded its default range, the event was not in it, `openShared()` returned silently, and the reader was
+left looking at a different night's first card — "tap a search result, get another event". Results now carry
+`night`, `openNightAt()` sets `from`/`to` from it, and when the event still cannot be found the app says
+"That night is no longer listed" rather than showing something else without comment.
+
+Search also applies `event_is_class()`, like the feed and recommendations: offering a karaoke night that the
+feed will then refuse to show is a link to nowhere.
 
 ## Artist sheet
 

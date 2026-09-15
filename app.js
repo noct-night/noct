@@ -554,7 +554,12 @@ function openShared(){
   const want=new URLSearchParams(location.search).get('e');
   if(!want)return;
   const hit=EV.find(x=>x.uuid===want);
-  if(!hit)return;                                  /* not in this range yet; a later load may still carry it */
+  if(!hit){
+    // Silence here was the bug's second half: the reader saw an unrelated card and no explanation.
+    openShared.done=true;
+    toast('That night is no longer listed', 4000);
+    return;
+  }
   openShared.done=true;
   openDet(hit.id);
 }
@@ -579,7 +584,7 @@ function renderSearch(){
     const group=SRCH.hits.filter(h=>h.kind===kind);
     if(!group.length)continue;
     out+=`<div class="sgrp"><h3>${SRCH_LABEL[kind]}</h3>`+group.map(h=>
-      `<button class="shit" onclick="openHit('${h.kind}','${h.id}','${esc(h.label)}','${esc(h.city||'')}')"><span><b>${clean(h.label)}</b>`
+      `<button class="shit" onclick="openHit('${h.kind}','${h.id}','${esc(h.label)}','${esc(h.city||'')}','${esc(h.night||'')}')"><span><b>${clean(h.label)}</b>`
       +`${(h.sub||h.city)?`<span class="ssub">${[clean(h.sub||''),h.city&&h.city!==S.city?clean(CITY_NAME(h.city)):''].filter(Boolean).join(' · ')}</span>`:''}</span>`
       +`<span>${h.kind==='event'?'':(h.n||'')}</span></button>`).join('')+`</div>`;
   }
@@ -605,13 +610,20 @@ async function runSearch(q){
   if(seq===SRCH.seq){SRCH.busy=false;renderSearch()}
 }
 const CITY_NAME=k=>(CITIES.find(c=>c[0]===k)||[,k||''])[1];
-function openHit(kind,id,label,city){
+function openHit(kind,id,label,city,night){
   if(kind==='venue'){closeAll();openVenue(label);return}   /* openVenue keys on the name, not the id */
   if(kind==='artist'){openArtist(id,label);return}
   const ev=EV.find(e=>e.uuid===id);
   if(ev){closeAll();openDet(ev.id);return}
-  /* outside the loaded range (or the loaded city): reopen on that night, the way a shared link does */
-  location.href=`${location.pathname}?e=${encodeURIComponent(id)}&city=${encodeURIComponent(city||S.city||'nyc')}`;
+  openNightAt(id,city,night);
+}
+/* Reopen the app on one night with that event's sheet up. The DATE is the part that matters: without it the
+   app loads its default range, the event is not in it, and the reader lands on a different night's first card
+   -- which is exactly what tapping a search result used to do. */
+function openNightAt(uuid,city,night){
+  const q=new URLSearchParams({e:uuid,city:city||S.city||'nyc'});
+  if(night){q.set('from',night);q.set('to',night)}
+  location.href=`${location.pathname}?${q}`;
 }
 /* ---------- Artist ----------
    A DJ's name is only useful if it leads somewhere. Their upcoming nights, and the search every listener
@@ -659,15 +671,15 @@ function renderArtist(){
         `<a href="${u}" target="_blank" rel="noopener">${l}</a>`).join('')+`</div>`
     +(ART.busy?`<div class="empty">Looking for dates…</div>`
       :ART.events.length?`<div class="sgrp"><h3>Playing</h3>`+ART.events.map(e=>
-         `<button class="shit" onclick="openArtistNight('${e.id}')"><span><b>${clean(e.head)}</b>`
+         `<button class="shit" onclick="openArtistNight('${e.id}','${esc(e.night||'')}')"><span><b>${clean(e.head)}</b>`
          +`<span class="ssub">${nightLabel(e.night)}${e.venue?' · '+clean(e.venue):''}</span></span>`
          +`<span>${clean(priceOf(e))}</span></button>`).join('')+`</div>`
       :(ART.id?`<div class="empty">No upcoming dates in ${clean((CITIES.find(c=>c[0]===S.city)||[,'this city'])[1])}.</div>`:''));
 }
-function openArtistNight(uuid){
+function openArtistNight(uuid,night){
   const ev=EV.find(e=>e.uuid===uuid);
   if(ev){closeAll();openDet(ev.id);return}
-  location.href=`${location.pathname}?e=${encodeURIComponent(uuid)}&city=${encodeURIComponent(S.city||'nyc')}`;
+  openNightAt(uuid,S.city,night);
 }
 function openVenue(v){
   const i=vInfo(v),ev=EV.filter(e=>e.venue===v);

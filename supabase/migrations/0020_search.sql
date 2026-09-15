@@ -14,7 +14,7 @@ create or replace function search_noct(
   p_city  text default null,
   p_limit int  default 8,
   p_days  int  default 120
-) returns table (kind text, id uuid, label text, sub text, n int, city text, score real)
+) returns table (kind text, id uuid, label text, sub text, n int, city text, night date, score real)
 language sql stable parallel safe
 as $$
   with q as (
@@ -24,7 +24,7 @@ as $$
   ev as (
     select 'event'::text as kind, e.event_id as id, e.title as label,
            to_char(e.night, 'Dy Mon DD') || coalesce(' · ' || v.name, '') as sub,
-           0 as n, e.city as city,
+           0 as n, e.city as city, e.night as night,
            -- a prefix match is an intent, a trigram match is a guess; never let the guess outrank it
            greatest(similarity(e.title_norm, q.nq), case when e.title_norm like q.nq || '%' then 1.0 else 0 end)::real as score
     from event e
@@ -33,6 +33,7 @@ as $$
     where e.merged_into is null and e.status <> 'removed'
       and e.night between current_date and q.horizon
       and (p_city is null or e.city = p_city)
+      and not event_is_class(e.title)          -- the feed hides these (0016); offering them leads nowhere
       and (e.title_norm like q.nq || '%' or e.title_norm % q.nq)
   ),
   ar as (
@@ -47,6 +48,7 @@ as $$
                and e2.night between current_date and q.horizon
                and (p_city is null or e2.city = p_city)
              order by e2.night limit 1) as city,
+           null::date as night,
            greatest(similarity(a.name_norm, q.nq), case when a.name_norm like q.nq || '%' then 1.0 else 0 end)::real as score
     from artist a, q
     where (a.name_norm like q.nq || '%' or a.name_norm % q.nq)
@@ -57,6 +59,7 @@ as $$
            (select count(*) from event e3 where e3.venue_id = v.venue_id and e3.merged_into is null
               and e3.night between current_date and q.horizon)::int as upcoming,
            v.city as city,
+           null::date as night,
            greatest(
              similarity(v.name_norm, q.nq),
              case when v.name_norm like q.nq || '%' then 1.0 else 0 end,
@@ -67,13 +70,13 @@ as $$
       and (v.name_norm like q.nq || '%' or v.name_norm % q.nq
            or exists (select 1 from venue_alias al where al.venue_id = v.venue_id and norm_text(al.alias) % q.nq))
   )
-  select kind, id, label, sub, n, city, score from (
-    select kind, id, label, sub, n, city, score from ev
+  select kind, id, label, sub, n, city, night, score from (
+    select kind, id, label, sub, n, city, night, score from ev
     union all
-    select kind, id, label, case when upcoming = 1 then '1 night' else upcoming || ' nights' end, upcoming, city, score
+    select kind, id, label, case when upcoming = 1 then '1 night' else upcoming || ' nights' end, upcoming, city, night, score
       from ar where upcoming > 0
     union all
-    select kind, id, label, nullif(area, ''), upcoming, city, score
+    select kind, id, label, nullif(area, ''), upcoming, city, night, score
       from ve where upcoming > 0
   ) hits, q
   where score > 0.22

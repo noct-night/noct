@@ -16,7 +16,7 @@ const DEFAULT_LIMIT = 8;
 const MAX_LIMIT = 20;
 const ARTIST_DAYS = 120;
 
-export interface SearchHit { kind: 'event' | 'artist' | 'venue'; id: string; label: string; sub: string | null; n: number; city: string | null }
+export interface SearchHit { kind: 'event' | 'artist' | 'venue'; id: string; label: string; sub: string | null; n: number; city: string | null; night: string | null }
 export interface SearchResponse { q: string; results: SearchHit[] }
 export interface ArtistEvents { artist: { id: string; name: string }; events: (FeedEvent & { night: string })[] }
 
@@ -39,7 +39,7 @@ export async function search(qRaw: string | undefined, cityRaw?: string, limitRa
   const n = Number(limitRaw);
   const limit = Number.isFinite(n) && n > 0 ? Math.min(n, MAX_LIMIT) : DEFAULT_LIMIT;
   const res = await query<SearchHit>(
-    `select kind, id::text as id, label, sub, n, city from search_noct($1, $2, $3)`,
+    `select kind, id::text as id, label, sub, n, city, night::text as night from search_noct($1, $2, $3)`,
     [q, cityKey(cityRaw), limit],
   );
   return { q, results: res.rows.map((r) => ({ ...r, n: Number(r.n) })) };
