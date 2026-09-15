@@ -186,3 +186,26 @@ grows 4×.
   bins. The SDK's client-side zod parse plus `classifyEvent`'s `safeParse` reject anything off-taxonomy (the event
   falls back to rules-only with `needs_review`). If a stray code ever shows up in `classification_run.error`, the
   fix is to hand `output_config.format` a hand-built JSON schema with real `enum` arrays instead of `zodOutputFormat`.
+
+## When the primary runs out
+
+Free tiers have a daily wall, and NOCT hit Gemini's. `createClientChain()` builds the primary followed by any
+fallback whose key is configured, and the runner walks that list **per event**: a backend that answers "out of
+quota" is skipped for the rest of the run, and the next one is asked instead. Only when every backend is spent
+does the run stop — and even then the event is left *pending*, never written with a rules-only result under a
+fresh `input_hash`, which would park it until its inputs changed.
+
+```
+NOCT_LLM_*            primary (currently Gemini 3.6 Flash)
+GROQ_API_KEY          -> groq / openai-gpt-oss-120b
+NOCT_LLM_FALLBACK_*   -> any other OpenAI-compatible endpoint (BASE_URL / API_KEY / MODEL)
+```
+
+**A per-minute ceiling is not a daily wall.** Groq answers `tokens per minute (TPM): Limit 8000 ... try again
+in 13.14s`; the first version of this treated that as exhaustion and threw the backend away for the whole run.
+`isPerMinuteLimit()` now separates the two, and a per-minute limit is handled as a transient hiccup.
+
+**Groq's free tier is 1,000 requests/day but only 8,000 tokens/minute**, and a 429 counts the *reservation* —
+prompt plus `max_tokens`. The 6000 default (headroom for Gemini's thinking) reserved ~7.7k of the 8k by
+itself, capping throughput at one call a minute. Groq therefore defaults to `max_tokens: 2500` and a 32s
+spacing. Measured: 5 events classified in 3m45s, all on Groq, with Gemini exhausted.

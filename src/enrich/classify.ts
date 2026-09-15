@@ -250,6 +250,75 @@ export function createClient(e: Record<string, string | undefined> = process.env
   });
 }
 
+/**
+ * Free tiers that speak the same OpenAI-compatible dialect, for when the primary runs out of quota. Each is
+ * off unless its key is present, so a deployment with no fallback key behaves exactly as before.
+ *
+ * Only `groq` ships with a model name because it is the only one verified against a live key here; anything
+ * else goes through NOCT_LLM_FALLBACK_* rather than guessing a model that may have been retired.
+ */
+export interface FallbackSpec { name: string; baseUrl: string; apiKey: string; model: string; minIntervalMs: number; maxTokens?: number; jsonMode?: 'json_schema' | 'json_object' }
+
+export function resolveFallbacks(e: Record<string, string | undefined> = process.env): FallbackSpec[] {
+  const out: FallbackSpec[] = [];
+  const groqKey = env('GROQ_API_KEY', undefined, e);
+  if (groqKey) {
+    // Groq's free tier is 1,000 requests/day but only 8,000 tokens/minute, and a 429 counts the RESERVATION:
+    // prompt + max_tokens. The 6000 default (headroom for Gemini's thinking) reserved ~7.7k of the 8k on its
+    // own, so one call per minute was the ceiling. gpt-oss needs far less to emit this JSON.
+    out.push({
+      name: 'groq',
+      baseUrl: env('GROQ_BASE_URL', 'https://api.groq.com/openai/v1', e) as string,
+      apiKey: groqKey,
+      model: env('GROQ_MODEL', 'openai/gpt-oss-120b', e) as string,
+      minIntervalMs: Number(env('GROQ_MIN_INTERVAL_MS', '32000', e)),
+      maxTokens: Number(env('GROQ_MAX_TOKENS', '2500', e)),
+    });
+  }
+  // generic escape hatch: any other OpenAI-compatible endpoint, named by whoever configures it
+  const fbUrl = env('NOCT_LLM_FALLBACK_BASE_URL', undefined, e);
+  const fbKey = env('NOCT_LLM_FALLBACK_API_KEY', undefined, e);
+  const fbModel = env('NOCT_LLM_FALLBACK_MODEL', undefined, e);
+  if (fbUrl && fbKey && fbModel) {
+    out.push({
+      name: env('NOCT_LLM_FALLBACK_NAME', 'fallback', e) as string,
+      baseUrl: fbUrl, apiKey: fbKey, model: fbModel,
+      minIntervalMs: Number(env('NOCT_LLM_FALLBACK_MIN_INTERVAL_MS', '3000', e)),
+      maxTokens: Number(env('NOCT_LLM_FALLBACK_MAX_TOKENS', env('NOCT_LLM_MAX_TOKENS', '6000', e), e)),
+      jsonMode: env('NOCT_LLM_FALLBACK_JSON_MODE', undefined, e) === 'json_object' ? 'json_object' : 'json_schema',
+    });
+  }
+  return out;
+}
+
+/** A named client: the runner reports which backend answered, and skips one that has run out for the day. */
+export interface NamedClient { name: string; model: string; client: ClassifierClient }
+
+/**
+ * The primary followed by every configured fallback. The runner walks this list per event, so a quota wall on
+ * one free tier costs a retry rather than the rest of the run.
+ */
+export function createClientChain(e: Record<string, string | undefined> = process.env, log?: Logger): NamedClient[] {
+  const chain: NamedClient[] = [];
+  const primary = createClient(e, log);
+  if (primary) chain.push({ name: resolveProvider(e), model: resolveModel(e), client: primary });
+  for (const f of resolveFallbacks(e)) {
+    chain.push({
+      name: f.name,
+      model: f.model,
+      client: createOpenAICompatibleClient({
+        baseUrl: f.baseUrl, apiKey: f.apiKey, model: f.model,
+        jsonSchema: OUTPUT_JSON_SCHEMA,
+        minIntervalMs: f.minIntervalMs,
+        jsonMode: f.jsonMode ?? 'json_schema',
+        maxTokens: f.maxTokens ?? Number(env('NOCT_LLM_MAX_TOKENS', '6000', e)),
+        log,
+      }),
+    });
+  }
+  return chain;
+}
+
 export type ClassifyResult =
   | { ok: true; output: ClassifierOutput; usage: TokenUsage; model: string; costUsd: number }
   | { ok: false; error: string; refusal: boolean; usage: TokenUsage | null; model: string; costUsd: number };

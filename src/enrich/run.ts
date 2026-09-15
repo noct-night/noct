@@ -11,7 +11,7 @@ import type pg from 'pg';
 import { query, withTx } from '../lib/db.js';
 import { env, type Env } from '../lib/env.js';
 import { createLogger, type Logger } from '../lib/log.js';
-import { classifyEvent, createClient, PROMPT_VERSION, resolveModel, type ClassifierClient, type ClassifierOutput, type ClassifyResult, type TokenUsage } from './classify.js';
+import { classifyEvent, createClient, createClientChain, PROMPT_VERSION, resolveModel, type ClassifierClient, type ClassifierOutput, type ClassifyResult, type NamedClient, type TokenUsage } from './classify.js';
 import { buildEvidenceBundle, CANDIDATE_SQL, computeInputHash, normalizeCandidate, toRuleInput, type CandidateRow } from './evidence.js';
 import { applyRules, RULES_VERSION, type RuleOutput } from './rules.js';
 import { isGenreCode, isVibeCode, type GenreCode, type VibeCode } from './taxonomy.js';
@@ -46,10 +46,33 @@ export interface EnrichSummary {
   budgetStopped?: boolean;
   /** events left pending after a transient provider error (5xx / network); retried on the next run */
   deferred?: number;
+  /** how many events each backend classified, when a fallback chain is configured */
+  byBackend?: Record<string, number>;
 }
 
 /** 429 / quota errors from either backend (Anthropic RateLimitError, OpenAI-compatible "RateLimitError 429: ..."). */
+/**
+ * A 429 that clears on its own. Groq answers "Rate limit reached ... on tokens per minute (TPM): Limit 8000
+ * ... Please try again in 13.14s" -- a per-minute ceiling, not the day's allowance. Treating that as a wall
+ * threw the whole backend away for the rest of the run, which is exactly what it did the first time.
+ */
+export function isPerMinuteLimit(message: string): boolean {
+  if (!/\b429\b|RateLimitError|rate limit/i.test(message)) return false;
+  if (/\bper[- ]day\b|\bdaily\b|\bper[- ]?d\b|RPD|TPD/i.test(message)) return false;
+  if (/\bper[- ]minute\b|\bTPM\b|\bRPM\b|\bper[- ]second\b/i.test(message)) return true;
+  // "try again in 42s" without a stated window: short enough to wait out, long enough to be the day's cap
+  const m = /try again in ([\d.]+)\s*(ms|s|m)\b/i.exec(message);
+  if (m) {
+    const n = Number(m[1]);
+    const secs = m[2]?.toLowerCase() === 'ms' ? n / 1000 : m[2]?.toLowerCase() === 'm' ? n * 60 : n;
+    return Number.isFinite(secs) && secs <= 120;
+  }
+  return false;
+}
+
+/** The day's allowance is gone: this backend has nothing left to give until it resets. */
 export function isQuotaError(message: string): boolean {
+  if (isPerMinuteLimit(message)) return false;
   return /\bRateLimitError\b|\b429\b|quota|rate limit/i.test(message);
 }
 
@@ -207,10 +230,18 @@ export async function runEnrichment(opts: EnrichOptions = {}): Promise<EnrichSum
   const log = opts.log ?? createLogger('enrich');
   const limit = opts.limit && opts.limit > 0 ? opts.limit : 50;
   const model = opts.model ?? resolveModel(e);
-  const client = opts.client === undefined ? createClient(e, log) : opts.client;
+  // An explicitly injected client (tests) stays a chain of one; otherwise the primary plus any free-tier
+  // fallback whose key is configured.
+  const chain: NamedClient[] = opts.client === undefined
+    ? createClientChain(e, log)
+    : (opts.client ? [{ name: 'injected', model, client: opts.client }] : []);
+  const client = chain[0]?.client ?? null;
+  /** Backends that answered "out of quota" this run; skipped for every remaining event. */
+  const exhausted = new Set<string>();
   const versionPrefix = `${RULES_VERSION}/${PROMPT_VERSION}/`;
   const summary: EnrichSummary = { model: client ? model : 'rules-only', considered: 0, rulesApplied: 0, classified: 0, skipped: 0, costUsd: 0, errors: [] };
   if (!client) log.info('no classifier client (no ANTHROPIC_API_KEY / NOCT_LLM_API_KEY): rules-only pass');
+  if (chain.length > 1) log.info('classifier chain', { order: chain.map((c) => `${c.name}:${c.model}`).join(' -> ') });
 
   const eventIds = opts.eventIds?.length ? opts.eventIds : null;
   // over-fetch: some rows will be skipped as unchanged; the SQL ordering keeps never-classified events first
@@ -245,34 +276,56 @@ export async function runEnrichment(opts: EnrichOptions = {}): Promise<EnrichSum
       let llm: ClassifierOutput | null = null;
       let record: RunRecord = { model: null, input: { bundle, rules: { vibes: rules.vibes, scalars: rules.scalars, flags: rules.flags } }, output: null, usage: null, costUsd: 0, error: null };
       let usedModel = 'rules';
-      if (client) {
-        const result: ClassifyResult = await classifyEvent({ bundle, client, model, log });
+      // Walk the chain: a backend that has hit its daily wall is skipped, and quota on one is a reason to ask
+      // the next one, not to end the run.
+      let outcome: 'ok' | 'defer' | 'quota' | 'failed' | 'none' = 'none';
+      for (const backend of chain) {
+        if (exhausted.has(backend.name)) continue;
+        const result: ClassifyResult = await classifyEvent({ bundle, client: backend.client, model: backend.model, log });
         summary.costUsd = r2Money(summary.costUsd + result.costUsd);
         if (result.ok) {
           llm = result.output;
           usedModel = result.model;
           record = { ...record, model: result.model, output: result.output, usage: result.usage, costUsd: result.costUsd };
           summary.classified++;
-        } else if (isTransientError(result.error)) {
-          // Provider hiccup (5xx / network / timeout): leave the event pending and move on; it is retried next run.
-          summary.errors.push(`${c.event_id}: ${result.error}`);
-          summary.deferred = (summary.deferred ?? 0) + 1;
-          log.warn('transient provider error; event left pending', { event: c.event_id, error: result.error.slice(0, 160) });
-          continue;
-        } else if (isQuotaError(result.error)) {
-          // Rate limit / daily quota (free tiers): do NOT persist a rules-only result with the new input_hash —
-          // that would park the event until its inputs change. Leave it pending and end this run; the next
-          // scheduled run picks up where we stopped.
-          summary.errors.push(`${c.event_id}: ${result.error}`);
-          summary.quotaStopped = true;
-          log.warn('LLM quota exhausted; stopping this run, remaining events stay pending', { event: c.event_id, error: result.error });
+          summary.byBackend = { ...summary.byBackend, [backend.name]: (summary.byBackend?.[backend.name] ?? 0) + 1 };
+          outcome = 'ok';
           break;
-        } else {
-          usedModel = result.model;
-          record = { ...record, model: result.model, output: null, usage: result.usage, costUsd: result.costUsd, error: result.error };
-          summary.errors.push(`${c.event_id}: ${result.error}`);
-          log.warn('classifier failed; persisting rules-only', { event: c.event_id, error: result.error, refusal: result.refusal });
         }
+        if (isTransientError(result.error) || isPerMinuteLimit(result.error)) {
+          // Provider hiccup (5xx / network / timeout): try the next backend, and if there is none, leave the
+          // event pending for the next run rather than writing a rules-only result over it.
+          summary.errors.push(`${c.event_id} [${backend.name}]: ${result.error}`);
+          log.warn('transient provider error', { event: c.event_id, backend: backend.name, error: result.error.slice(0, 160) });
+          outcome = 'defer';
+          continue;
+        }
+        if (isQuotaError(result.error)) {
+          // Daily quota on a free tier: this backend is done for the run, but the others are not.
+          exhausted.add(backend.name);
+          summary.errors.push(`${c.event_id} [${backend.name}]: ${result.error}`);
+          log.warn('backend out of quota; falling through', { event: c.event_id, backend: backend.name });
+          outcome = 'quota';
+          continue;
+        }
+        // A real refusal or a bad request is about this event, not this backend: rules-only, flagged.
+        usedModel = result.model;
+        record = { ...record, model: result.model, output: null, usage: result.usage, costUsd: result.costUsd, error: result.error };
+        summary.errors.push(`${c.event_id} [${backend.name}]: ${result.error}`);
+        log.warn('classifier failed; persisting rules-only', { event: c.event_id, backend: backend.name, error: result.error, refusal: result.refusal });
+        outcome = 'failed';
+        break;
+      }
+      if (outcome === 'defer' || outcome === 'quota') {
+        // Nothing answered. Do NOT persist rules-only with the new input_hash — that would park the event
+        // until its inputs change. Leave it pending; the next run picks it up.
+        summary.deferred = (summary.deferred ?? 0) + 1;
+        if (outcome === 'quota' && chain.every((b) => exhausted.has(b.name))) {
+          summary.quotaStopped = true;
+          log.warn('every backend is out of quota; stopping this run', { event: c.event_id });
+          break;
+        }
+        continue;
       }
       const merged = mergeOutputs(c, rules, llm);
       // a refusal or API error still gets rules-only labels but stays flagged for a human look

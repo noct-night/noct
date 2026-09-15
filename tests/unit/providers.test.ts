@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createClient, OUTPUT_JSON_SCHEMA, buildRequest, resolveModel, resolveProvider, supportsEffort } from '../../src/enrich/classify.js';
 import { createOpenAICompatibleClient, extractJson } from '../../src/enrich/providers.js';
+import { isPerMinuteLimit, isQuotaError } from '../../src/enrich/run.js';
 
 const GOOD = {
   genres: [{ code: 'house.deep', confidence: '0.8', why: 'RA tag Deep House' }],
@@ -173,5 +174,35 @@ describe('provider selection', () => {
     expect(supportsEffort('gemini-2.5-flash')).toBe(false);
     expect((buildRequest('x', 'claude-haiku-4-5').output_config as any).effort).toBeUndefined();
     expect((buildRequest('x', 'claude-opus-5').output_config as any).effort).toBe('medium');
+  });
+});
+
+describe('quota vs per-minute rate limits (fallback chain)', () => {
+  const GROQ_TPM = 'RateLimitError 429: {"error":{"message":"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_x` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 2022, Requested 7730. Please try again in 13.14s."}}';
+  const GEMINI_DAY = 'RateLimitError 429: [{"error":{"code":429,"message":"You exceeded your current quota, please check your plan and billing details.","status":"RESOURCE_EXHAUSTED"}}]';
+
+  it('treats a per-minute ceiling as a hiccup, not a wall', () => {
+    // this exact message threw Groq away for a whole run before it was separated out
+    expect(isPerMinuteLimit(GROQ_TPM)).toBe(true);
+    expect(isQuotaError(GROQ_TPM)).toBe(false);
+  });
+
+  it('still treats a spent daily allowance as exhausted', () => {
+    expect(isPerMinuteLimit(GEMINI_DAY)).toBe(false);
+    expect(isQuotaError(GEMINI_DAY)).toBe(true);
+  });
+
+  it('reads "try again in N" as per-minute only when N is short', () => {
+    expect(isPerMinuteLimit('429 rate limit, please try again in 42s')).toBe(true);
+    expect(isPerMinuteLimit('429 rate limit, please try again in 30m')).toBe(false);
+  });
+
+  it('a stated per-day window beats a short retry hint', () => {
+    expect(isPerMinuteLimit('429 requests per day exceeded, try again in 5s')).toBe(false);
+  });
+
+  it('leaves non-429 errors alone', () => {
+    expect(isPerMinuteLimit('HTTP 503 high demand')).toBe(false);
+    expect(isQuotaError('HTTP 503 high demand')).toBe(false);
   });
 });
