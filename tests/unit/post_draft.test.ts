@@ -1,0 +1,191 @@
+import { describe, expect, it } from 'vitest';
+import { draftWeekend, headlineOf, pickHeroes, spanLabel, supportingCast } from '../../src/post/draft.js';
+import { daysToFriday, weekendRange } from '../../src/post/weekend.js';
+import { slideSchema, CAROUSEL_MAX, TABLE_ROWS_MAX } from '../../src/post/types.js';
+import type { FeedDay, FeedEvent, FeedResponse } from '../../src/feed/shape.js';
+
+/** Enough of a FeedEvent for the drafting code; the rest of the shape is not read here. */
+function ev(over: Partial<FeedEvent> & { id: string }): FeedEvent {
+  return {
+    n: 1, d: 0, head: 'A night', lineup: [], venue: 'Nowadays', room: null, door: '22:00', close: '',
+    genre: ['Techno'], gsrc: 'NOCT tags', primary: 'Techno', genre_codes: [], tags: [], genre_confidence: null,
+    vibes: [], scalars: {
+      energy: null, darkness: null, crowd_size: null, start_lateness: null, end_lateness: null,
+      price_tier: null, underground_index: null,
+    },
+    sound: '', age: '', interested: 0, srcs: [], platforms: [], ra: '', dice: '', eb: '', url: '',
+    tex: 'x1', full: false, soldout: false, note: '', status: 'scheduled', image: '', going_count: 0,
+    needs_review: false, is_electronic: true,
+    ...over,
+  } as FeedEvent;
+}
+
+const DAYS: FeedDay[] = [
+  { date: '2026-09-18', dow: 5, label: 'Fri', sub: 'Sep 18', hint: 'Friday' },
+  { date: '2026-09-19', dow: 6, label: 'Sat', sub: 'Sep 19', hint: 'Saturday' },
+  { date: '2026-09-20', dow: 0, label: 'Sun', sub: 'Sep 20', hint: 'Sunday' },
+];
+
+function feed(events: FeedEvent[], days = DAYS): FeedResponse {
+  return {
+    generated_at: '2026-09-15T12:00:00.000Z',
+    range: { from: days[0]!.date, to: days[days.length - 1]!.date },
+    city: { key: 'nyc', name: 'New York', tz: 'America/New_York' },
+    cities: [], days, venues: {}, events, genres: [], sources: [],
+  } as FeedResponse;
+}
+
+describe('headlineOf', () => {
+  it('leads an RA bill with its headliner and folds the rest away', () => {
+    const e = ev({
+      id: '1',
+      head: 'Magnetic ft Artwork, Alex McCracken, Victor Florescu, UMA DJ, Boat Neck, Lee Cash, whydan',
+      lineup: ['Artwork', 'Alex McCracken', 'Victor Florescu', 'UMA DJ'],
+    });
+    expect(headlineOf(e)).toBe('Magnetic ft Artwork');
+    expect(supportingCast(e)).toEqual(['Alex McCracken', 'Victor Florescu', 'UMA DJ']);
+  });
+
+  it('keeps the promoter’s own word when it says presents', () => {
+    expect(headlineOf(ev({ id: '1', head: 'Teksupport presents Four Tet, Ben UFO', lineup: ['Four Tet', 'Ben UFO'] })))
+      .toBe('Teksupport presents Four Tet');
+  });
+
+  it('leaves a title that is already just a name alone', () => {
+    expect(headlineOf(ev({ id: '1', head: 'Mister Sunday', lineup: [] }))).toBe('Mister Sunday');
+    expect(headlineOf(ev({ id: '1', head: 'SACRO by MESTIZA', lineup: ['MESTIZA'] }))).toBe('SACRO by MESTIZA');
+  });
+
+  it('does not re-glue a bill of one', () => {
+    // No comma and no separate lineup: the title was already the whole story.
+    expect(headlineOf(ev({ id: '1', head: 'Nowadays with Eris Drew', lineup: [] }))).toBe('Nowadays with Eris Drew');
+  });
+});
+
+describe('pickHeroes', () => {
+  it('ranks by interested, descending', () => {
+    const picked = pickHeroes([
+      ev({ id: 'a', venue: 'A', interested: 10 }),
+      ev({ id: 'b', venue: 'B', interested: 400 }),
+      ev({ id: 'c', venue: 'C', interested: 90 }),
+    ], 2);
+    expect(picked.map((p) => p.id)).toEqual(['b', 'c']);
+  });
+
+  it('takes at most one event per venue so one big room cannot own the deck', () => {
+    const picked = pickHeroes([
+      ev({ id: 'a', venue: 'Avant Gardner', interested: 500 }),
+      ev({ id: 'b', venue: 'Avant Gardner', interested: 400 }),
+      ev({ id: 'c', venue: 'Nowadays', interested: 300 }),
+      ev({ id: 'd', venue: 'BASEMENT', interested: 200 }),
+    ], 3);
+    expect(picked.map((p) => p.venue)).toEqual(['Avant Gardner', 'Nowadays', 'BASEMENT']);
+  });
+
+  it('fills the deck rather than shipping short when every event shares a venue', () => {
+    const picked = pickHeroes([
+      ev({ id: 'a', venue: 'Nowadays', interested: 3 }),
+      ev({ id: 'b', venue: 'Nowadays', interested: 2 }),
+    ], 4);
+    expect(picked).toHaveLength(2);
+    expect(new Set(picked.map((p) => p.id)).size).toBe(2);
+  });
+});
+
+describe('spanLabel', () => {
+  it('shortens a span inside one month', () => {
+    expect(spanLabel(DAYS)).toBe('Sep 18 to 20');
+  });
+
+  it('keeps both months when the weekend straddles one', () => {
+    expect(spanLabel([
+      { date: '2026-09-30', dow: 3, label: 'Wed', sub: 'Sep 30', hint: '' },
+      { date: '2026-10-02', dow: 5, label: 'Fri', sub: 'Oct 2', hint: '' },
+    ])).toBe('Sep 30 to Oct 2');
+  });
+});
+
+describe('draftWeekend', () => {
+  const events = [
+    ev({ id: 'a', d: 0, venue: 'Brooklyn Storehouse', head: 'SACRO by MESTIZA', interested: 900, image: 'https://images.ra.co/x.png' }),
+    ev({ id: 'b', d: 0, venue: 'Knockdown Center', head: 'Teksupport presents Four Tet', lineup: ['Four Tet'], interested: 800 }),
+    ev({ id: 'c', d: 1, venue: 'BASEMENT', head: 'DAY+NIGHT', interested: 700 }),
+    ev({ id: 'd', d: 2, venue: 'Nowadays', head: 'Mister Sunday', interested: 600 }),
+    ...Array.from({ length: 12 }, (_, i) =>
+      ev({ id: `x${i}`, d: i % 3, venue: `Venue ${i}`, head: `Night ${i}`, interested: 10 - i })),
+  ];
+  const deck = draftWeekend(feed(events))!;
+
+  it('builds a cover, event slides and table slides, in that order', () => {
+    expect(deck).not.toBeNull();
+    expect(deck.slides[0]!.template).toBe('cover');
+    const kinds = deck.slides.map((s) => s.template);
+    expect(kinds.filter((k) => k === 'event')).toHaveLength(4);
+    expect(kinds.lastIndexOf('event')).toBeLessThan(kinds.indexOf('table'));
+  });
+
+  it('never exceeds a carousel', () => {
+    expect(deck.slides.length).toBeLessThanOrEqual(CAROUSEL_MAX);
+  });
+
+  it('keeps every table slide within the legible row count', () => {
+    for (const slide of deck.slides) {
+      if (slide.template === 'table') expect(slide.data.rows.length).toBeLessThanOrEqual(TABLE_ROWS_MAX);
+    }
+  });
+
+  it('does not repeat a hero event in the tables', () => {
+    const heroes = deck.slides.flatMap((s) => (s.template === 'event' ? [s.data.name] : []));
+    const rows = deck.slides.flatMap((s) => (s.template === 'table' ? s.data.rows.map((r) => r.event) : []));
+    for (const hero of heroes) expect(rows).not.toContain(hero);
+  });
+
+  it('carries the flyer through when the event has one, and the tone when it does not', () => {
+    const withFlyer = deck.slides.find((s) => s.template === 'event' && s.data.name === 'SACRO by MESTIZA');
+    expect(withFlyer).toMatchObject({ data: { image: { src: 'https://images.ra.co/x.png', fit: 'cover' } } });
+    const without = deck.slides.find((s) => s.template === 'event' && s.data.name.startsWith('Teksupport'));
+    expect(without).toMatchObject({ data: { image: null } });
+  });
+
+  it('keeps volatile numbers off the post face', () => {
+    // Interested counts rank the deck but must never be printed: they go stale between drafting and posting.
+    const text = JSON.stringify(deck.slides);
+    expect(text).not.toContain('900');
+    expect(text).not.toContain('interested');
+  });
+
+  it('produces slides that validate against the render schema', () => {
+    for (const slide of deck.slides) expect(() => slideSchema.parse(slide)).not.toThrow();
+  });
+
+  it('slots the post on the Friday', () => {
+    expect(deck.slot).toBe('2026-09-18');
+  });
+
+  it('returns null rather than an empty deck when the feed has nothing', () => {
+    expect(draftWeekend(feed([]))).toBeNull();
+  });
+});
+
+describe('weekendRange', () => {
+  it('counts forward to Friday from Monday through Thursday', () => {
+    expect(daysToFriday(1)).toBe(4);
+    expect(daysToFriday(4)).toBe(1);
+  });
+
+  it('means the weekend already happening on a Friday or Saturday', () => {
+    expect(daysToFriday(5)).toBe(0);
+    expect(daysToFriday(6)).toBe(-1);
+  });
+
+  it('looks to the next weekend on a Sunday, because this one is ending', () => {
+    expect(daysToFriday(0)).toBe(5);
+  });
+
+  it('returns a Friday-to-Sunday window', () => {
+    // A Tuesday in New York.
+    const { from, to } = weekendRange(new Date('2026-09-15T16:00:00Z'));
+    expect(from).toBe('2026-09-18');
+    expect(to).toBe('2026-09-20');
+  });
+});
