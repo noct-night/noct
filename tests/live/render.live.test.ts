@@ -24,7 +24,7 @@ const fetchBytes = async (): Promise<Buffer> =>
 const s = (o: unknown): Slide => slideSchema.parse(o);
 
 const SLIDES: [string, Slide][] = [
-  ['cover', s({ template: 'cover', data: { lede: 'Where to rave and dance in New York', date: 'Sep 18 to 20 weekend', foot: 'noct.nyc' } })],
+  ['cover', s({ template: 'cover', data: { lede: 'Where to rave and dance in New York', date: 'Sep 18 to 20 weekend', foot: 'noct.pro' } })],
   ['event', s({ template: 'event', data: { position: 'Friday', name: 'SACRO by MESTIZA', venue: 'Brooklyn Storehouse', time: '22:00', genre: 'Techno', tex: 'x3', image: FAKE_FLYER } })],
   ['event without a flyer', s({ template: 'event', data: { position: 'Saturday', name: 'Mister Sunday', venue: 'Nowadays', time: '15:00', genre: 'Disco', tex: 'x5', image: null } })],
   ['table', s({ template: 'table', data: { kicker: 'Friday', when: 'Sep 18', rows: [
@@ -35,8 +35,8 @@ const SLIDES: [string, Slide][] = [
     { time: '22:00', name: 'DAY+NIGHT', venue: 'BASEMENT', genre: 'Hard techno' },
   ] } })],
   ['venue', s({ template: 'venue', data: { index: '01 / 04', name: 'Nowadays', hood: 'Ridgewood, Queens', note: 'Dancefloor plus a backyard.', foot: '56-06 Cooper Ave', image: null } })],
-  ['venuecover', s({ template: 'venuecover', data: { lede: 'Where to go', sub: 'Four New York venues', foot: 'noct.nyc' } })],
-  ['note', s({ template: 'note', data: { text: 'One feed for New York nightlife', after: 'Every listing, every night.', foot: 'noct.nyc' } })],
+  ['venuecover', s({ template: 'venuecover', data: { lede: 'Where to go', sub: 'Four New York venues', foot: 'noct.pro' } })],
+  ['note', s({ template: 'note', data: { text: 'One feed for New York nightlife', after: 'Every listing, every night.', foot: 'noct.pro' } })],
 ];
 
 /** Fraction of sampled pixels that are not the near-black ground: a cheap "did anything get drawn". */

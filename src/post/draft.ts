@@ -11,7 +11,7 @@
  * they stay off the post face entirely.
  */
 import type { FeedDay, FeedEvent, FeedResponse } from '../feed/shape.js';
-import { draftWeekendCaption } from './caption.js';
+import { draftWeekendCaption, SITE } from './caption.js';
 import { CAROUSEL_MAX, TABLE_ROWS_MAX, type Slide, type Tone } from './types.js';
 
 /** How many events get a slide of their own. Four plus a cover plus two tables is the seven-slide deck. */
@@ -202,7 +202,7 @@ export function draftWeekend(feed: FeedResponse): WeekendDraft | null {
     data: {
       lede: 'Where to rave and dance in New York',
       date: `${when} weekend`,
-      foot: 'noct.nyc',
+      foot: SITE,
     },
   };
 

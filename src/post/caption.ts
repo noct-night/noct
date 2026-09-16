@@ -17,6 +17,14 @@
  */
 import { CAPTION_MAX, HASHTAG_MAX } from './types.js';
 
+/**
+ * Where a post sends people. One constant, because it printed on every cover and in every caption, and it
+ * used to be a literal in each: `noct.nyc`, a domain that does not resolve. Scattered, nobody checked it; the
+ * live site is noct.pro. If the domain changes, this is the only line to edit, and post_draft.test.ts fails
+ * if a slide or caption stops using it.
+ */
+export const SITE = 'noct.pro';
+
 const HASHTAG = /#[^\s#]+/g;
 
 export function hashtagsIn(caption: string): string[] {
@@ -121,7 +129,7 @@ export function draftWeekendCaption(seed: CaptionSeed): string {
       '',
       list,
       '',
-      'Full listings and tickets at noct.nyc',
+      `Full listings and tickets at ${SITE}`,
       '',
       tags,
     ].join('\n'),
