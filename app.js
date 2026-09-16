@@ -937,9 +937,13 @@ function planNight(){
   renderGroupIntro();$('#group').classList.add('open');$('#group').scrollTop=0;
   ensureNightCounts(nextNights()).then(renderGroupIntro);   /* the chips grey out nights with too little on */
 }
-/* the week ahead, in the city's own calendar: what the intro offers to swipe */
-const nextNights=()=>Array.from({length:7},(_,i)=>cityDate(i));
-const nightChip=(date,i)=>i===0?'Tonight':i===1?'Tomorrow':nightLabel(date);
+/* Tonight, tomorrow, and the coming weekend -- one line of chips, in the city's own calendar */
+function nextNights(){
+  const out=[cityDate(0),cityDate(1)];
+  for(let i=2;i<7;i++){const d=cityDate(i);if([5,6,0].includes(dDow(d)))out.push(d)}   /* Fri, Sat, Sun ahead */
+  return out;
+}
+const nightChip=(date,i)=>i===0?'Tonight':i===1?'Tomorrow':['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dDow(date)];
 /* per-night counts for the chips, from the same counts endpoint the calendar uses; cached in S.counts */
 async function ensureNightCounts(dates){
   const months=[...new Set(dates.filter(d=>S.counts[d]===undefined).map(dMonth))];
@@ -1431,7 +1435,7 @@ function resetLoc(){const was=S.city;S.city='nyc';S.area='All';S.geo=false;if(wa
 function renderMenu(){
   const tasteLbl=TASTE.length?TASTE.map(c=>genreLabel(c)).slice(0,2).join(', ')+(TASTE.length>2?` +${TASTE.length-2}`:''):'Not set';
   const j=GRP.result,m=j?Number(j.members)||0:0;
-  const swipeLbl=!LIVE?'':GRP.id?(m?`${m} voted · ${nightLabel(GRP.night)}`:`Waiting for votes · ${nightLabel(GRP.night)}`):(DAYS.length?dayFull(S.from||0):'');
+  const swipeLbl=GRP.id?(m?`${m} voted · ${nightLabel(GRP.night)}`:`Waiting for votes · ${nightLabel(GRP.night)}`):'Decide a night together';
   $('#mNav').innerHTML=[['Events','Back to the feed'],['Search','Artists, venues, nights'],['Swipe with friends',swipeLbl],['Saved',''],['Your taste',tasteLbl],['Profile',S.signedIn?(S.ig?'@'+S.ig:'Signed in'):'Sign in']]
     .map(n=>`<button onclick="menuGo('${n[0]}')">${n[0]}<span>${n[1]}</span></button>`).join('');
 }

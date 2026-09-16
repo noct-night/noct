@@ -380,11 +380,29 @@ const STATUS_TOKENS = new Map<string, string | null>([
 ]);
 
 /** Note text for one offer row: tier (unless the generic GA), the source's note, then availability. */
+/**
+ * A note worth a reader's eye. Sources put bookkeeping in the note field -- DICE's "face $25 + $8.33 fees"
+ * (the row already shows the total), Elsewhere's "representative face value; fees not included", RA's bare
+ * "20" or "0.00", 19hz's "21+" / "free" in the price column -- none of which says anything about the ticket.
+ * What survives is prose: "Does not guarantee entry", "Free before midnight".
+ */
+export function noteWorthShowing(note: string | null | undefined): boolean {
+  if (!note) return false;
+  const n = note.trim();
+  if (!n) return false;
+  if (/^\$?\d+(\.\d+)?$/.test(n)) return false;                       // a bare price
+  if (/^\d{2}\+$/.test(n)) return false;                               // an age, not a ticket
+  if (/^free$/i.test(n)) return false;                                 // the $0 says it
+  if (/^face\s+\$/i.test(n)) return false;                            // DICE's fee breakdown
+  if (/representative face value/i.test(n)) return false;             // Elsewhere's boilerplate
+  return true;
+}
+
 function offerNote(o: OfferRow): string {
   const parts: string[] = [];
   if (o.tier && o.tier !== 'GA') parts.push(o.tier);
   const isToken = o.note !== null && STATUS_TOKENS.has(o.note);
-  if (o.note && !isToken) parts.push(o.note);
+  if (o.note && !isToken && noteWorthShowing(o.note)) parts.push(o.note);
   const human = isToken ? STATUS_TOKENS.get(o.note as string) : null;
   if (human) parts.push(human);
   else if (o.available === false) parts.push('Sold out');

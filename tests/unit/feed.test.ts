@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildFeed, FeedParamError, resolveParams } from '../../src/feed/query.js';
 import {
-  ageLabel, buildDays, collapseOffersByHost, feedCacheHeaders, genreDisplay, genreFilterList, moodVibes, offerHost, shapeEvent, shapeSource, shapeTrack,
+  ageLabel, buildDays, collapseOffersByHost, feedCacheHeaders, genreDisplay, genreFilterList, moodVibes, noteWorthShowing, offerHost, shapeEvent, shapeSource, shapeTrack,
   sortOffers, texOf,
   type FeedRow, type OfferRow,
 } from '../../src/feed/shape.js';
@@ -133,6 +133,14 @@ describe('shapeEvent (offline)', () => {
     expect(odd?.url).not.toMatch(/["'<>\\\s]/);
     expect(shapeEvent(cannedRow()).track).toBeNull();
     expect(shapeEvent(cannedRow({ track: sp })).track?.title).toBe('Rich Medina - Can\'t Hold Back');
+  });
+  it('bookkeeping in the note field stays out of the ticket row', () => {
+    for (const junk of ['face $25 + $8.33 fees', 'face $0', 'representative face value; fees not included', '20', '0.00', '$10', '21+', '18+', 'free', 'Free', ' ', null])
+      expect(noteWorthShowing(junk), String(junk)).toBe(false);
+    for (const prose of ['Does not guarantee entry', 'Free before midnight', '$10 off before 16:00', 'Members only'])
+      expect(noteWorthShowing(prose), prose).toBe(true);
+    const row = cannedRow({ offers: [{ platform: 'dice', platform_name: 'DICE', platform_priority: 80, source_url: 'https://dice.fm/event/x', tier: 'GA (ENTRY ANYTIME)', price: 33.33, fees_included: true, available: true, note: 'face $25 + $8.33 fees', sold_out: false }] });
+    expect(shapeEvent(row).srcs[0]![2]).toBe('GA (ENTRY ANYTIME) · On sale');
   });
   it('"ways in" counts places to buy, not adapters: offers collapse by ticketing host (0028)', () => {
     const dice = (tier: string, price: number): OfferRow => ({ platform: 'dice', platform_name: 'DICE', platform_priority: 80, source_url: 'https://dice.fm/event/abc', tier, price, fees_included: true, available: true, note: null, sold_out: false });
