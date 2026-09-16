@@ -94,4 +94,21 @@ describe('the page script', () => {
     const js = await asset('page.js');
     expect(js).toContain('never the enforcement');
   });
+
+  it('previews a reel as the encoded video, not as a rendered frame', async () => {
+    const js = await asset('page.js');
+    // The thing being approved is a moving image with burned-in type; a still cannot be reviewed.
+    expect(js).toContain('<video src="');
+    expect(js).toContain('preload="metadata"');
+    // Opening the studio must not pull every reel in the list, and a tap on a phone must play in place.
+    expect(js).toContain('playsinline');
+  });
+
+  it('treats a 202 from publish as resumable rather than as a failure', async () => {
+    const js = await asset('page.js');
+    // A reel container that is still transcoding leaves the post approved and the button pressable; the
+    // next press resumes the poll. Rendering it as an error would send someone to re-encode the video.
+    expect(js).toContain('if (res.pending)');
+    expect(js).toContain('Press Publish again');
+  });
 });

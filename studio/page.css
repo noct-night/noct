@@ -70,6 +70,11 @@ img{max-width:100%}
   flex:none;background:var(--post);scroll-snap-align:start;
   box-shadow:0 0 0 1px rgba(255,255,255,.10),0 26px 54px -22px rgba(0,0,0,.95)}
 .shot img{width:100%;height:100%;object-fit:cover;display:block}
+/* A reel is 9:16, not the carousel's 4:5, so its frame is taller at the same width. `contain` rather than
+   `cover`: the type is burned into the edges of the video and a crop here would hide the thing being
+   reviewed. */
+.shot-reel{height:calc(var(--pw) * 1.7778 * 1px)}
+.shot-reel video{width:100%;height:100%;object-fit:contain;display:block;background:#0B0B0B}
 .shot .pending{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   color:var(--g3);font-size:13px;letter-spacing:.06em}
 .shot .failed{color:var(--g1);padding:0 24px;text-align:center;line-height:1.5}

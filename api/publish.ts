@@ -11,13 +11,25 @@
  *
  * There is no auto-publish and no cron that calls this. A weekly job may prepare a draft and send a nudge;
  * a person presses the button.
+ *
+ * Two kinds of post go out through here. A carousel is a straight run of Graph API calls. A reel is not:
+ * its container is transcoded asynchronously and `media_publish` refuses it until that finishes, which for
+ * a long clip can outlast this function. So a reel publish can end in a third way -- 202, container
+ * recorded as 'pending', resumable by pressing Publish again -- and that is a normal outcome rather than a
+ * failure. See `ReelNotReady` in src/post/publish.ts and supabase/migrations/0031_ig_reel_pending.sql.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { checkCaption } from '../src/post/caption.js';
-import { igUserId, publishCarousel, PublishError, remainingQuota, verifyCredentials } from '../src/post/publish.js';
+import {
+  igUserId, publishCarousel, publishReel, PublishError, ReelNotReady, remainingQuota, resumeReel,
+  verifyCredentials,
+} from '../src/post/publish.js';
 import { currentToken, daysUntilExpiry, TokenError } from '../src/post/token.js';
 import { signedRenderPath } from '../src/post/sign.js';
-import { claimForPublish, failPublish, finishPublish, PostConflict, recordContainers } from '../src/post/store.js';
+import {
+  claimForPublish, clearPending, failPublish, finishPublish, pausePublish, PostConflict, recordContainers,
+  resumableContainer,
+} from '../src/post/store.js';
 import { createLogger } from '../src/lib/log.js';
 import { env } from '../src/lib/env.js';
 import { firstParam, sendJson } from './_lib/respond.js';
@@ -64,6 +76,31 @@ async function preflight(req: VercelRequest, res: VercelResponse): Promise<void>
     log.warn('preflight failed', { error: message });
     sendJson(res, 200, { ok: false, error: message }, NO_STORE);
   }
+}
+
+/**
+ * Publish a reel, resuming a container from an earlier attempt when there is one.
+ *
+ * Resuming is not an optimisation. Submitting the same video again would start a second transcode at Meta
+ * and leave the first container to expire unused, and the 24-hour window on it is exactly what makes a
+ * timed-out publish recoverable in the first place.
+ */
+async function publishTheReel(
+  post: { id: string; caption: string; video_url: string | null; cover_url: string | null },
+  runId: string,
+  creds: { userId: string; token: string },
+  log: ReturnType<typeof createLogger>,
+) {
+  const pending = await resumableContainer(post.id);
+  if (pending) {
+    log.info('found a container to resume', { post: post.id, container: pending.containerId });
+    return await resumeReel(pending.containerId, creds, log);
+  }
+  return await publishReel(
+    { videoUrl: post.video_url!, coverUrl: post.cover_url, caption: post.caption },
+    creds, log,
+    { onContainer: (id) => recordContainers(runId, [], id) },
+  );
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -116,16 +153,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     sendJson(res, 422, { error: 'the caption needs fixing first', problems }, NO_STORE);
     return;
   }
-  if (post.slides.length === 0) {
+  // Each kind is checked for its own media before anything reaches the Graph API. The database enforces
+  // this too (ig_post_kind_has_media), but a 422 naming the problem beats a 23514 from Postgres.
+  if (post.kind === 'reel') {
+    if (!post.video_url || post.video_url.startsWith('pending:')) {
+      await failPublish(runId, 'no video');
+      sendJson(res, 422, { error: 'this reel has no uploaded video; run npm run clip again' }, NO_STORE);
+      return;
+    }
+  } else if (post.slides.length === 0) {
     await failPublish(runId, 'no slides');
     sendJson(res, 422, { error: 'this post has no slides' }, NO_STORE);
     return;
   }
-
-  const origin = publicOrigin(req);
-  const urls = post.slides.map(
-    (slide) => `${origin}${signedRenderPath({ slide, treatment: post.treatment, grain: post.grain })}`,
-  );
 
   try {
     const left = await remainingQuota(creds);
@@ -135,14 +175,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
-    const result = await publishCarousel(urls, post.caption, creds, log, {
-      onChildren: (ids) => recordContainers(runId, ids),
-      onCarousel: (containerId) => recordContainers(runId, [], containerId),
-    });
+    const result = post.kind === 'reel'
+      ? await publishTheReel(post, runId, creds, log)
+      : await publishCarousel(
+          post.slides.map(
+            (slide) => `${publicOrigin(req)}${signedRenderPath({ slide, treatment: post.treatment, grain: post.grain })}`,
+          ),
+          post.caption, creds, log,
+          {
+            onChildren: (ids) => recordContainers(runId, ids),
+            onCarousel: (containerId) => recordContainers(runId, [], containerId),
+          },
+        );
+
+    // A resumed reel may have been published from a run other than this one's original container, so any
+    // other pending run for this post is closed out before the post is marked posted.
+    if (post.kind === 'reel') await clearPending(post.id, runId);
     const updated = await finishPublish(runId, post.id, result.mediaId, result.permalink);
-    log.info('published', { post: post.id, media: result.mediaId, slides: post.slides.length });
+    log.info('published', {
+      post: post.id, kind: post.kind, media: result.mediaId,
+      ...(post.kind === 'reel' ? {} : { slides: post.slides.length }),
+    });
     sendJson(res, 200, { post: updated, permalink: result.permalink }, NO_STORE);
   } catch (err) {
+    // Not a failure: the container is alive and the work is resumable, so the run is parked rather than
+    // failed and the studio is told to press Publish again. Failing here would strand the container.
+    if (err instanceof ReelNotReady) {
+      await pausePublish(runId, err.containerId, err.message);
+      log.info('reel still processing; parked as pending', { post: post.id, container: err.containerId });
+      sendJson(res, 202, { pending: true, error: err.message, container: err.containerId }, NO_STORE);
+      return;
+    }
     const message = err instanceof Error ? err.message : String(err);
     await failPublish(runId, message);
     if (err instanceof PublishError) {

@@ -8,6 +8,7 @@
  *   npm run ingest -- all
  *   npm run enrich -- --limit 50            # genre/vibe pass over events needing it
  *   npm run noct -- tracks --limit 400      # representative tracks for artists on upcoming nights (iTunes Search)
+ *   npm run clip -- night.mov --len 30 --title "SACRO"   # cut a reel, queue it in the studio
  */
 import { parseArgs } from 'node:util';
 import { getAdapter } from './sources/registry.js';
@@ -18,6 +19,13 @@ import type { FetchContext } from './sources/types.js';
 const log = createLogger('cli');
 
 async function main(argv: string[]): Promise<number> {
+  // `clip` is delegated before the shared parser runs, because it has a dozen flags of its own (--framing,
+  // --title, --cover-at) and folding them in here would make `fetch --help` describe options it ignores.
+  if (argv[0] === 'clip') {
+    const { runClip } = await import('./video/command.js');
+    return runClip(argv.slice(1), log.child('clip'));
+  }
+
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,
@@ -34,7 +42,7 @@ async function main(argv: string[]): Promise<number> {
   });
   const [cmd, ...rest] = positionals;
   if (!cmd || values.help) {
-    console.log('usage: noct <fetch|ingest|enrich|tracks> [sources...] [--limit N] [--days N] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--json] [--raw] [--force]');
+    console.log('usage: noct <fetch|ingest|enrich|tracks|clip> [sources...] [--limit N] [--days N] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--json] [--raw] [--force]');
     return cmd ? 0 : 1;
   }
   const limit = values.limit ? Number(values.limit) : undefined;

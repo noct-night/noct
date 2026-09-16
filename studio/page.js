@@ -128,7 +128,22 @@
 
   function slidesOf(p) { return p.slides || []; }
 
+  function isReel(p) { return p.kind === 'reel'; }
+
+  /** Seconds and dimensions, from what ffprobe measured at encode time. */
+  function reelSub(p) {
+    var m = p.video_meta || {};
+    var bits = [];
+    if (m.seconds) bits.push(Math.round(m.seconds) + 's');
+    if (m.width && m.height) bits.push(m.width + 'x' + m.height);
+    if (m.bytes) bits.push((m.bytes / 1e6).toFixed(1) + ' MB');
+    return bits.length ? 'Reel / ' + bits.join('  /  ') : 'Reel';
+  }
+
   function headline(p) {
+    // A reel carries no slides, so its title comes from the caption's first line -- which is the only
+    // text the post has that a person wrote.
+    if (isReel(p)) return (p.caption || '').split('\n')[0].slice(0, 80) || 'Untitled reel';
     var s = slidesOf(p)[0];
     if (!s) return 'Empty post';
     var d = s.data || {};
@@ -142,6 +157,7 @@
   }
 
   function subline(p) {
+    if (isReel(p)) return reelSub(p);
     var sl = slidesOf(p);
     if (sl.length > 1) return sl.length + ' slides';
     return sl.length === 1 ? (TPL_LABEL[sl[0].template] || sl[0].template) : 'no slides';
@@ -183,6 +199,28 @@
       + '<div class="pending">Rendering</div>' + ui + '</div>';
   }
 
+  /**
+   * A reel's preview: the actual encoded MP4, played from the public bucket.
+   *
+   * Not a rendered frame and not the cover -- the thing being approved is a moving image with burned-in
+   * type, and the only honest review of that is watching it. `preload="metadata"` so opening the studio
+   * does not pull every reel in the list, and `playsinline` so a tap on a phone plays it in place instead
+   * of taking over the screen.
+   */
+  function reelMarkup(p) {
+    if (!p.video_url || p.video_url.indexOf('pending:') === 0) {
+      return '<div class="shot shot-reel"><div class="failed">The upload did not finish.'
+        + ' Run <strong>npm run clip</strong> again.</div></div>';
+    }
+    return '<div class="shot shot-reel">'
+      + '<video src="' + esc(p.video_url) + '"' + (p.cover_url ? ' poster="' + esc(p.cover_url) + '"' : '')
+      + ' controls preload="metadata" playsinline></video>'
+      + '<div class="shot-ui">'
+      +   '<a href="' + esc(p.video_url) + '" target="_blank" rel="noopener noreferrer">Open the file</a>'
+      + '</div>'
+      + '</div>';
+  }
+
   function renderStream() {
     var host = byId('stream');
     var list = visible();
@@ -202,8 +240,8 @@
       var sl = slidesOf(p);
       var warnings = captionWarnings(cap);
 
-      var strip = sl.map(function (s, n) { return slideMarkup(p, s, n); }).join('');
-      var dots = sl.length > 1
+      var strip = isReel(p) ? reelMarkup(p) : sl.map(function (s, n) { return slideMarkup(p, s, n); }).join('');
+      var dots = !isReel(p) && sl.length > 1
         ? '<div class="dots" data-dots>' + sl.map(function (s, n) {
             return '<button type="button" data-go="' + n + '" aria-current="' + (n === 0)
               + '" aria-label="Slide ' + (n + 1) + '"></button>';
@@ -335,6 +373,14 @@
     say(id, 'Handing the deck to Instagram…');
     api('/api/publish?id=' + encodeURIComponent(id), { method: 'POST' })
       .then(function (res) {
+        // 202: a reel container exists and Instagram is still transcoding it. Not a failure -- the post is
+        // still approved and the container is valid for 24 hours, so the button goes back to being
+        // pressable and the next press resumes the poll instead of re-uploading the video.
+        if (res.pending) {
+          say(id, res.error || 'Instagram is still processing the video. Press Publish again in a moment.');
+          if (btn) { btn.disabled = false; btn.textContent = 'Publish to Instagram'; }
+          return;
+        }
         var i = posts.findIndex(function (p) { return p.id === id; });
         if (i >= 0) posts[i] = res.post;
         render();

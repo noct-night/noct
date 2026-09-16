@@ -149,6 +149,35 @@ export const TEMPLATE_LABEL: Record<Template, string> = {
 /** Templates that draw a photo. The rest are type on the ground and ignore the treatment entirely. */
 export const TAKES_IMAGE: ReadonlySet<Template> = new Set<Template>(['event', 'venue']);
 
+/**
+ * What Meta is handed at the end. A carousel is N `image_url` children with is_carousel_item; a reel is
+ * one `video_url` with media_type=REELS. Everything before that -- drafting, the caption rules, the review
+ * states, the publish claim -- is shared, which is why this is a discriminator on ig_post and not a second
+ * table. See supabase/migrations/0030_ig_reels.sql.
+ */
+export const KINDS = ['carousel', 'reel'] as const;
+export type PostKind = (typeof KINDS)[number];
+export const kindSchema = z.enum(KINDS).default('carousel');
+
+/**
+ * What ffprobe said about the encoded reel. Stored because nearly every Graph API rejection of a reel is a
+ * spec violation, and these are the specs -- without them a failure can only be diagnosed by finding the
+ * file again. Loose on purpose: it is a record of what was measured, never an input to a decision.
+ */
+export const videoMetaSchema = z.object({
+  seconds: z.number().nonnegative(),
+  width: z.number().int().nonnegative(),
+  height: z.number().int().nonnegative(),
+  fps: z.number().nonnegative(),
+  bytes: z.number().int().nonnegative(),
+  vcodec: z.string().max(40),
+  acodec: z.string().max(40).nullable(),
+// Every field optional so an older row, or one written before a field existed, still reads. Not
+// passthrough: an index signature here would stop the concrete VideoMeta in src/video/spec.ts from being
+// assignable, and this type exists to receive exactly that.
+}).partial();
+export type StoredVideoMeta = z.infer<typeof videoMetaSchema>;
+
 export const SERIES = ['weekend', 'venues', 'single'] as const;
 export type Series = (typeof SERIES)[number];
 
@@ -165,11 +194,17 @@ export const STATUS_LABEL: Record<PostStatus, string> = {
 export interface Post {
   id: string;
   series: Series;
+  kind: PostKind;
   /** YYYY-MM-DD, or null for the evergreen series. */
   slot: string | null;
   status: PostStatus;
   caption: string;
+  /** Empty for a reel. */
   slides: Slide[];
+  /** Set for a reel only: the public MP4 Meta fetches, and an optional cover frame beside it. */
+  video_url: string | null;
+  cover_url: string | null;
+  video_meta: StoredVideoMeta;
   treatment: Treatment;
   grain: boolean;
   ig_permalink: string | null;

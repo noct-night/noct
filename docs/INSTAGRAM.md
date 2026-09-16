@@ -32,6 +32,9 @@ is opened, the deck is reviewed, a button is pressed. That is the whole product.
 | `studio/gate.js` | The sign-in door's script, and the only one a stranger receives. |
 | `supabase/migrations/0026_ig_posts.sql` | `ig_post` and `ig_publish_run`. |
 | `supabase/migrations/0027_ig_token.sql` | `ig_token`, the one row holding the live credential. |
+| `src/video/` | The reel pipeline: spec, ffmpeg, the title layer, storage, the `clip` command. |
+| `supabase/migrations/0030_ig_reels.sql` | `kind`, `video_url`, `cover_url`, `video_meta` on `ig_post`. |
+| `supabase/migrations/0031_ig_reel_pending.sql` | `ig_publish_run.status = 'pending'`, the resumable state. |
 
 ## Why the studio lives here
 
@@ -134,6 +137,93 @@ headliner. Worse, the flyer's own type then competes with NOCT's type over it.
 studio (`Fill` / `Fit whole flyer`) that switches it to `contain`, letterboxed onto the ground. Only a person
 looking at the result can tell which is right for a given flyer, and a person is already looking.
 
+## Reels: the other kind of post
+
+A reel is a **post, not a slide**. It shares the review state machine, the caption rules, the publish claim
+and the audit trail in `ig_publish_run`, and differs only in what Meta is handed at the end: one
+`video_url` with `media_type=REELS` instead of ten `image_url` children. So `0030` adds a `kind`
+discriminator to `ig_post` rather than a second table — the duplicated half would have been the publish
+transaction, which is the part that is actually hard to get right.
+
+```
+  night.mov ──▶ npm run clip ──▶ Supabase Storage ──▶ ig_post (kind='reel', queued)
+                     │                    │                     │
+              ffmpeg, on a laptop         │                      │  /studio
+                                          │                      ▼
+                                          │              review, approve, publish
+                                          │                      │
+                                          │                      ▼  /api/publish
+                                          └──── Meta fetches ──── graph.instagram.com
+                                               the video_url
+```
+
+### Why the encode does not run on Vercel
+
+This is the one place the carousel's shape does not carry over. A slide is redrawn on demand by
+`/api/render` under an HMAC and never stored, which works because it is 200 KB of JPEG that takes
+milliseconds. A reel is tens of megabytes that took minutes, so:
+
+- **ffmpeg is not an npm dependency and nothing in `api/` imports `src/video/`.** A job whose duration
+  depends on how long the video is does not belong under a 300 s function ceiling; it fails on the longest
+  clip, which is the one someone cared about. `npm run clip` runs on a laptop, where there is no ceiling.
+- **The MP4 is uploaded once, to a public bucket.** Meta arrives with no cookie — the same constraint that
+  makes `/api/render` GET signed rather than session-gated. A signed URL would work and then expire,
+  possibly between approval and publish.
+
+### The title is drawn by satori, not by ffmpeg's `drawtext`
+
+`drawtext` can put white letters on a video. It cannot put *these* letters there: it has no access to the
+tracking table in `templates.ts`, it needs a font file on the machine where a slide needs none, and every
+value it took would be a second copy of a number the design system already owns. `src/video/title.ts`
+imports the same `FONT_FAMILY` and the same `linearGradient`, and renders one transparent 1080x1920 PNG
+that ffmpeg overlays. A reel that does not match the deck beside it is the failure worth designing against.
+
+The scrim is in that PNG rather than a separate filter, because white type over unknown club footage is
+illegible about half the time and the gradient that fixes it must never drift from the type it is under.
+
+### Framing, and the vertical canvas
+
+Reels are `1080x1920`, not the carousel's `1080x1350`. Type sizes are unchanged — 1080 wide is 1080 wide —
+and only the vertical placement differs. `--position low` is the default because the top of a reel belongs
+to Instagram's own chrome, and the type clears the bottom rail by 320 px for the same reason.
+
+```
+cover    scale so the short edge fills, centre-crop the long one     <- the default
+contain  scale to fit, pad with the ground
+blur     scale to fit over a blown-up, blurred copy of itself
+```
+
+`cover` is the default for the same reason it is for a flyer: it is the design. `blur` is the one the other
+two do not cover — it keeps the whole frame *and* fills the screen, and reads as deliberate where a hard
+letterbox reads as a mistake.
+
+### What is checked, and when
+
+The output is probed after encoding and checked before anything is uploaded, because nearly every Graph API
+rejection of a reel is a spec violation arriving as an opaque error. **Errors stop it** (under 3 s, over 15
+minutes, over 1 GB, over 60 fps, not H.264). **Warnings do not** — a letterboxed clip or one over the 90 s
+house limit is a choice someone may have made on purpose.
+
+Two smaller ones worth knowing:
+
+- **A muted clip still gets an audio track.** Silence is not the same as no track, and some Instagram
+  surfaces treat a trackless reel as broken. `anullsrc` supplies it.
+- **`+faststart` is not optional.** Without it Meta must fetch the whole file before it can read the
+  header, which surfaces as a container stuck `IN_PROGRESS` with no explanation.
+
+### `npm run clip`
+
+```bash
+# encode only: no upload, no database row, no keys needed
+npm run clip -- night.mov --start 1:12 --len 28 --title "SACRO" --sub "Basement / Friday" --local
+
+# the real thing: encode, upload, queue a draft for review
+npm run clip -- night.mov --len 30 --title "Four Tet" --caption "Teksupport at Knockdown Center."
+```
+
+It stops at a **queued** draft. There is no `--publish` flag, on purpose: publishing goes through
+`/api/publish` behind the studio session, so there is one gated door to the account and not two.
+
 ## Copy rules
 
 Encoded in `src/post/caption.ts`, checked as she types and again before publishing. `checkCaption()`
@@ -149,6 +239,49 @@ words would be worse than leaving a mistake.
 - **Keep volatile numbers off the post face.** Interested counts and prices go stale between drafting and
   posting. They rank the deck and are never printed on it. A caption is reviewed in the minute before
   publishing, so it is the only place they belong.
+
+### Publishing a reel, and the third outcome
+
+A carousel publish has two endings. A reel has three, and the extra one is not a failure.
+
+A reel container is **transcoded asynchronously**: `media_publish` refuses it until `status_code` reads
+FINISHED, and how long that takes is Meta's business. For a 90-second clip it can outlast the 120 s cap on
+`api/publish.ts`. That leaves two bad options and one good one:
+
+- hold the lambda until it is killed — and being killed between `media_publish` and the row update is the
+  single worst outcome available, because Instagram has the post and the database does not know;
+- record a `failed` run for something going perfectly well, whose container is still valid for 24 hours;
+- or stop early and say so. That is `'pending'` (`0031`), and it means exactly one thing: **the container
+  exists and the work can be resumed.**
+
+```
+POST /api/publish  ──▶  container created  ──▶  poll (75 s budget)  ──▶  FINISHED  ──▶  media_publish
+                             │                        │
+                    recorded immediately        budget spent
+                     (run.container_id)               │
+                                                      ▼
+                                          202, run status = 'pending'
+                                                      │
+                          next POST finds it and polls that container, uploading nothing
+```
+
+Three details carry the weight:
+
+- **The container id is recorded before the poll starts.** The poll is the step that can end without a
+  result, so persisting the id afterwards would lose the only thing that makes a timeout recoverable.
+- **The budget is checked before sleeping, not after.** Waiting out the last interval and *then* reporting
+  a timeout spends the wait for nothing.
+- **`'pending'` does not block a new claim.** `claimForPublish` only refuses on `'running'`. Being told "a
+  publish is already in flight" when nothing is in flight is the state this replaces.
+
+`PUBLISHED` is treated as ready rather than as an error. It means an earlier attempt got further than its
+row did, and refusing there would leave a reel on the account that the store can never record.
+
+On a rejection, Meta's `status` sentence is passed through verbatim. It is the only thing that says which
+spec was violated, and that is the whole of what makes the failure fixable.
+
+`share_to_feed=true`, so a reel lands in the grid as well as the Reels tab. A weekly clip that is invisible
+to anyone looking at the account is the wrong default; it is one parameter in `publishReel` to change.
 
 ## Security, and why each piece is shaped that way
 
@@ -172,13 +305,20 @@ words would be worse than leaving a mistake.
   reach the Graph API. Only an `approved` post can be claimed at all. A claim older than
   `PUBLISH_STALE_MS` (15 minutes, against a 120 s function cap) is abandoned rather than honoured, so a
   lambda killed mid-publish costs one row in the log instead of a post that can never go out.
+- **The reels bucket is public, and that is the whole of its access control.** Meta fetches `video_url`
+  with no credentials, so it has to be. The URLs are unguessable (a post uuid as the prefix), not secret —
+  nothing goes in that bucket that is not about to go on the account anyway.
+- **`SUPABASE_SERVICE_ROLE_KEY` is a local-shell variable, not a Vercel one.** Uploading is a write, so the
+  publishable key cannot do it; the key that can read and write every table in the project therefore lives
+  where the encoder runs and nowhere else. Same rule as `IG_ACCESS_TOKEN`.
 - **Nothing auto-posts.** There is no cron that calls `/api/publish`.
 - **The token is never in a URL.** `access_token` goes in the POST body, not the query string, so it stays
   out of access logs and error reports.
 
 ## Setting it up
 
-1. `supabase db push` (or `npm run db:local`) to apply `0026_ig_posts.sql` and `0027_ig_token.sql`.
+1. `supabase db push` (or `npm run db:local`) to apply `0026_ig_posts.sql`, `0027_ig_token.sql`,
+   `0030_ig_reels.sql` and `0031_ig_reel_pending.sql`.
 2. In the Meta app dashboard: **Use cases -> Customize -> Permissions and features**, add
    `instagram_business_basic` and `instagram_business_content_publish`. Both show *Ready for testing*,
    meaning they work in Development mode against an account holding the **Instagram Tester** role — so no
@@ -222,21 +362,34 @@ the post goes out and the problem is logged rather than blocking a deadline on a
 - 100 API-published posts per rolling 24 hours. A carousel counts as one. `/api/publish` checks the
   remaining quota before it starts rather than failing opaquely.
 - Up to 10 items per carousel. The weekend deck is seven.
-- JPEG only. No shopping tags, no branded content tags, no filters.
+- JPEG only on the image endpoints. No shopping tags, no branded content tags, no filters.
+- A reel container is processed **asynchronously**: it has to be polled for `status_code=FINISHED` before
+  `media_publish` will take it. A carousel's children are ready immediately, so this is new work in the
+  publish path and is listed under *Still open*.
 
 ## Tests
 
 ```bash
 npm test                                              # offline: layers, treatments, drafting, auth, signing
 NOCT_LIVE=1 npx vitest run tests/live/render.live.test.ts   # the renderer, which needs the real font files
+NOCT_LIVE=1 npx vitest run tests/live/clip.live.test.ts     # the encoder, which needs ffmpeg on PATH
 ```
 
 The renderer's tests are opt-in because satori needs the real Red Hat Display files, and the alternative was
 vendoring 440 KB of font binaries. Everything that does not need a font — tones, veil, grain, the treatment
 chains, framing — is offline in `tests/unit`. Set `NOCT_FONT_DIR` to run the render tests without network.
 
+The encoder's tests are opt-in for the same kind of reason, and vendoring ~78 MB of ffmpeg to assert a crop
+was not worth it. The filtergraph, the argument order and the spec envelope are checked offline in
+`tests/unit/video_clip.test.ts` — which is where the real failure lives, because a wrong filtergraph does
+not crash: ffmpeg accepts it and writes out something squashed.
+
 ## Still open
 
+- **Reels are unscheduled, so they sort last.** `listPosts` orders by `slot desc nulls last`, and a reel
+  has no slot, so a clip cut today appears below every weekend deck. The evergreen `venues` series has
+  always had this, which is why it is here rather than fixed in passing: changing the order changes where
+  the decks appear too, and that is a call about the studio and not about reels.
 - **A weekly cron that prepares the draft and sends a nudge**, so the loop becomes "get a nudge, open,
   approve". Deliberately not built yet: the draft step is already idempotent per weekend
   (`POST /api/posts?draft=weekend`), so this is a scheduler and a notification, nothing more.

@@ -7,17 +7,22 @@
  */
 import { query, withTx } from '../lib/db.js';
 import {
-  CAROUSEL_MAX, type Post, type PostPatch, type PostStatus, type Series, type Slide, type Treatment,
+  CAROUSEL_MAX, type Post, type PostKind, type PostPatch, type PostStatus, type Series, type Slide,
+  type StoredVideoMeta, type Treatment,
 } from './types.js';
 
 /** One row of ig_post as Postgres hands it back. */
 interface PostRow {
   post_id: string;
   series: Series;
+  kind: PostKind;
   slot: string | null;
   status: PostStatus;
   caption: string;
   slides: Slide[];
+  video_url: string | null;
+  cover_url: string | null;
+  video_meta: StoredVideoMeta | null;
   treatment: Treatment;
   grain: boolean;
   ig_permalink: string | null;
@@ -32,10 +37,14 @@ function toPost(row: PostRow): Post {
   return {
     id: row.post_id,
     series: row.series,
+    kind: row.kind,
     slot: row.slot ? String(row.slot).slice(0, 10) : null,
     status: row.status,
     caption: row.caption,
     slides: Array.isArray(row.slides) ? row.slides : [],
+    video_url: row.video_url,
+    cover_url: row.cover_url,
+    video_meta: row.video_meta ?? {},
     treatment: row.treatment,
     grain: row.grain,
     ig_permalink: row.ig_permalink,
@@ -46,7 +55,8 @@ function toPost(row: PostRow): Post {
 
 // `slot` is cast to text so node-postgres does not turn a date into a local-midnight Date, the same
 // reasoning as `night` in src/feed/query.ts.
-const COLUMNS = `post_id, series, slot::text as slot, status, caption, slides, treatment, grain,
+const COLUMNS = `post_id, series, kind, slot::text as slot, status, caption, slides,
+                 video_url, cover_url, video_meta, treatment, grain,
                  ig_permalink, posted_at, updated_at`;
 
 export async function listPosts(status?: PostStatus): Promise<Post[]> {
@@ -150,6 +160,41 @@ export async function upsertDraft(input: DraftInput): Promise<Post> {
   });
 }
 
+export interface ReelInput {
+  /** Null for a clip that is not about a particular night, which is most of them. */
+  slot: string | null;
+  caption: string;
+  /** The public MP4. Meta fetches this itself, so it cannot be signed or gated. */
+  videoUrl: string;
+  coverUrl: string | null;
+  videoMeta: StoredVideoMeta;
+}
+
+/**
+ * Store a reel as a queued draft.
+ *
+ * Always an insert, never an upsert on the slot. The weekend deck is upserted because re-drafting the same
+ * Friday from the same feed produces the same deck, so stacking near-identical ones only makes work for
+ * the person reviewing them. A reel is the opposite: two clips cut from the same night are two different
+ * clips, and the second one silently replacing the first would throw away an encode that took minutes.
+ * Passing one is how you say you do not want it.
+ *
+ * `series` is 'single' so 0026's one-weekend-per-slot index never sees these -- a clip of Friday night and
+ * the deck that announced it are both allowed to exist.
+ *
+ * Queued, never approved: `npm run clip` produces something to look at, and nothing more. Approval is a
+ * decision about what NOCT says in public and it happens in the studio, in front of a person.
+ */
+export async function upsertReel(input: ReelInput): Promise<Post> {
+  const { rows } = await query<PostRow>(
+    `insert into ig_post (series, kind, slot, caption, slides, video_url, cover_url, video_meta)
+     values ('single', 'reel', $1, $2, '[]'::jsonb, $3, $4, $5)
+     returning ${COLUMNS}`,
+    [input.slot, input.caption, input.videoUrl, input.coverUrl, JSON.stringify(input.videoMeta)],
+  );
+  return toPost(rows[0]!);
+}
+
 /**
  * How long a publish may be in flight before a later attempt is allowed to ignore it.
  *
@@ -222,6 +267,52 @@ export async function finishPublish(
     );
     return toPost(rows[0]!);
   });
+}
+
+/**
+ * Park a publish attempt that is waiting on Instagram rather than failing.
+ *
+ * A reel container is processed asynchronously and can outlast the function cap, so 'pending' records that
+ * the container exists, is valid for 24 hours, and the poll can be picked up by the next request. It is
+ * not a failure and it does not block a new claim -- see claimForPublish, which only stops on 'running'.
+ */
+export async function pausePublish(runId: string, containerId: string, note: string): Promise<void> {
+  await query(
+    `update ig_publish_run set status = 'pending', container_id = $2, error = $3 where run_id = $1`,
+    [runId, containerId, note.slice(0, 2000)],
+  );
+}
+
+/**
+ * The container a previous attempt left waiting, if there is one.
+ *
+ * This is what makes a resumed publish cheap: without it, a second press of Publish would submit the same
+ * video to Meta again and start a second transcode, and the first container would sit unused until it
+ * expired. Newest first, because a post could in principle have been through this twice.
+ */
+export async function resumableContainer(postId: string): Promise<{ runId: string; containerId: string } | null> {
+  const { rows } = await query<{ run_id: string; container_id: string }>(
+    `select run_id, container_id from ig_publish_run
+       where post_id = $1 and status = 'pending' and container_id is not null
+       order by started_at desc limit 1`,
+    [postId],
+  );
+  return rows[0] ? { runId: rows[0].run_id, containerId: rows[0].container_id } : null;
+}
+
+/**
+ * Close out the pending runs for a post once one of them has produced a published reel.
+ *
+ * Without this a resumed publish leaves its original run sitting at 'pending' forever, and the next read
+ * of resumableContainer would offer a container that has already been published.
+ */
+export async function clearPending(postId: string, exceptRunId: string): Promise<void> {
+  await query(
+    `update ig_publish_run set status = 'failed', error = coalesce(error, '') || ' (superseded)',
+            finished_at = now()
+       where post_id = $1 and status = 'pending' and run_id <> $2`,
+    [postId, exceptRunId],
+  );
 }
 
 export async function failPublish(runId: string, error: string): Promise<void> {
