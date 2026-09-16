@@ -323,9 +323,8 @@ a{color:inherit}
 .tkp{color:var(--d1);white-space:nowrap;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
 .tkp[aria-pressed="true"]{color:var(--chalk)}
 .tkp[disabled]{color:var(--d2);text-decoration:none;cursor:default}
-.tkc a{color:var(--d2);white-space:nowrap;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
+.tkc a{color:var(--d1);white-space:nowrap;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}   /* the same weight as Play 30 s: two equal ways to hear it */
 .nw{white-space:nowrap}
-.tkr a{flex:none;color:var(--d2);white-space:nowrap;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
 /* After this, nearby: one room per row, the way to it on the right */
 .nx{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:baseline;padding:12px 0;border-bottom:.7px solid var(--hair)}
 .nx:last-child{border-bottom:0}
