@@ -1,5 +1,5 @@
 /**
- * The review queue.
+ * The studio: reviewing and publishing NOCT's Instagram posts.
  *
  * Every slide preview on this page is the real renderer's output, fetched from /api/render as a JPEG. It is
  * not a CSS approximation of the post: what she approves is the file Instagram will be handed, which is the
@@ -7,7 +7,7 @@
  * when something that changes the pixels changes.
  *
  * State lives on the server. The page holds no truth of its own beyond what it last fetched, so a second
- * tab, a reload or a different laptop all show the same queue.
+ * tab, a reload or a different laptop all show the same studio.
  */
 (function () {
   'use strict';
@@ -61,8 +61,8 @@
   }
 
   function showGate() {
-    var queue = byId('queueView');
-    if (queue) queue.hidden = true;
+    var studio = byId('studioView');
+    if (studio) studio.hidden = true;
     byId('gateView').hidden = false;
     byId('gatePass').focus();
   }
@@ -191,7 +191,7 @@
       var name = FILTERS.filter(function (f) { return f.k === filter; })[0].t;
       host.innerHTML = '<p class="empty">' + (posts.length
         ? 'Nothing under <strong>' + esc(name) + '</strong> right now.'
-        : 'The queue is empty. <strong>Draft the coming weekend</strong> builds a deck from the live feed.')
+        : 'Nothing here yet. <strong>Draft the coming weekend</strong> builds a deck from the live feed.')
         + '</p>';
       return;
     }
@@ -367,10 +367,10 @@
   }
 
   /**
-   * Wire the queue half of the page. Only called when that half was actually served: signed out, none of
+   * Wire the studio half of the page. Only called when that half was actually served: signed out, none of
    * these elements exist, and reaching for them would throw before the sign-in form could be used.
    */
-  function wireQueue() {
+  function wireStudio() {
     var stream = byId('stream');
 
     byId('filters').addEventListener('click', function (e) {
@@ -450,12 +450,12 @@
 
   // ── boot ──────────────────────────────────────────────────────────────────
 
-  // This file is only served to a signed-in visitor (api/queue.ts); the door and its script stand alone in
-  // queue/gate.js. The guard is for the one case that still reaches here without a queue: nothing.
-  if (!byId('queueView')) return;
+  // This file is only served to a signed-in visitor (api/studio.ts); the door and its script stand alone
+  // in studio/gate.js. The guard is for the one case that still reaches here without a studio: nothing.
+  if (!byId('studioView')) return;
 
-  byId('queueView').hidden = false;
-  wireQueue();
+  byId('studioView').hidden = false;
+  wireStudio();
   // A caption sized against the fallback face is a caption sized wrong; a narrower window rewraps it.
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(sizeAllCaptions);
   window.addEventListener('resize', sizeAllCaptions);
@@ -469,6 +469,6 @@
     render();
   }).catch(function (err) {
     if (err.message === 'signed out') return;
-    byId('stream').innerHTML = '<p class="empty">Could not load the queue. <strong>' + esc(err.message) + '</strong></p>';
+    byId('stream').innerHTML = '<p class="empty">Could not load the studio. <strong>' + esc(err.message) + '</strong></p>';
   });
 })();

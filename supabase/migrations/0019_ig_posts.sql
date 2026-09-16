@@ -1,4 +1,4 @@
--- NOCT 0019: the Instagram post queue.
+-- NOCT 0019: the Instagram posts.
 --
 -- One row per post, not per slide: a carousel publishes as a single unit and is approved as a single unit,
 -- so the slides ride along as jsonb. They are display data (a headline, a venue, a flyer URL), never the
@@ -44,7 +44,7 @@ create table if not exists ig_post (
   constraint ig_post_posted_has_media check (status <> 'posted' or ig_media_id is not null)
 );
 
--- The queue page lists by slot, newest first, filtered by status. One index covers both.
+-- The studio lists by slot, newest first, filtered by status. One index covers both.
 create index if not exists ig_post_slot_idx on ig_post (slot desc nulls last, created_at desc);
 create index if not exists ig_post_status_idx on ig_post (status);
 
@@ -88,6 +88,6 @@ alter table ig_publish_run enable row level security;
 revoke all on ig_post, ig_publish_run from anon, authenticated;
 
 comment on table ig_post is
-  'Instagram post queue. Server-side only: reached through /api/posts behind a studio session, never PostgREST.';
+  'Instagram posts. Server-side only: reached through /api/posts behind a studio session, never PostgREST.';
 comment on table ig_publish_run is
   'One row per publish attempt. Holds the Graph API container ids so a half-finished carousel is explainable.';

@@ -90,7 +90,7 @@ async function renderOne(req: VercelRequest, res: VercelResponse): Promise<void>
   }
 }
 
-/** Sign a deck's worth of slides. The queue calls this whenever the slides or the look change. */
+/** Sign a deck's worth of slides. The studio calls this whenever the slides or the look change. */
 async function signDeck(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (!requireStudio(req, res)) return;
   const body = renderDeckSchema.safeParse(req.body);

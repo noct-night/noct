@@ -1,38 +1,38 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { stripQueue } from '../../api/queue.js';
+import { stripStudio } from '../../api/studio.js';
 
-const asset = (name: string): Promise<string> => readFile(join(process.cwd(), 'queue', name), 'utf8');
+const asset = (name: string): Promise<string> => readFile(join(process.cwd(), 'studio', name), 'utf8');
 
 const safe = (s: string): string => s.replace(/<\/(script|style)/gi, '<\\/$1');
 
-/** The same assembly api/queue.ts does, against the real files. */
+/** The same assembly api/studio.ts does, against the real files. */
 async function assemble(signedIn: boolean): Promise<string> {
   const [html, css, gate, js] = await Promise.all([
     asset('page.html'), asset('page.css'), asset('gate.js'), asset('page.js'),
   ]);
   const base = html.replace('/*noct:css*/', () => safe(css)).replace('/*noct:gate*/', () => safe(gate));
-  return signedIn ? base.replace('/*noct:js*/', () => safe(js)) : stripQueue(base).replace('/*noct:js*/', '');
+  return signedIn ? base.replace('/*noct:js*/', () => safe(js)) : stripStudio(base).replace('/*noct:js*/', '');
 }
 
-describe('the queue page source', () => {
-  it('has the placeholders api/queue.ts substitutes into', async () => {
+describe('the studio page source', () => {
+  it('has the placeholders api/studio.ts substitutes into', async () => {
     const html = await asset('page.html');
     for (const marker of ['/*noct:css*/', '/*noct:gate*/', '/*noct:js*/']) expect(html).toContain(marker);
   });
 
-  it('marks the boundary of the queue half explicitly', async () => {
+  it('marks the boundary of the studio half explicitly', async () => {
     const html = await asset('page.html');
-    expect(html.indexOf('<!--noct:queue-start-->')).toBeGreaterThan(-1);
-    expect(html.indexOf('<!--noct:queue-end-->')).toBeGreaterThan(html.indexOf('<!--noct:queue-start-->'));
+    expect(html.indexOf('<!--noct:studio-start-->')).toBeGreaterThan(-1);
+    expect(html.indexOf('<!--noct:studio-end-->')).toBeGreaterThan(html.indexOf('<!--noct:studio-start-->'));
   });
 
   it('inlines every asset, so the response needs no separately gated files', async () => {
     const page = await assemble(true);
     expect(page).toContain('--post:#0B0B0B');
     expect(page).toContain("byId('stream')");
-    expect(page).toContain('/api/studio');
+    expect(page).toContain('/api/session');
     for (const marker of ['/*noct:css*/', '/*noct:gate*/', '/*noct:js*/']) expect(page).not.toContain(marker);
   });
 
@@ -42,15 +42,15 @@ describe('the queue page source', () => {
 });
 
 describe('what a visitor with no session receives', () => {
-  it('has no queue markup', async () => {
+  it('has no studio markup', async () => {
     const out = await assemble(false);
-    expect(out).not.toContain('id="queueView"');
+    expect(out).not.toContain('id="studioView"');
     expect(out).not.toContain('id="stream"');
-    expect(out).not.toContain('Instagram post queue');
+    expect(out).not.toContain('Instagram posts');
     expect(out).not.toContain('Draft the coming weekend');
   });
 
-  it('has none of the queue script, so it enumerates no endpoints or actions', async () => {
+  it('has none of the studio script, so it enumerates no endpoints or actions', async () => {
     const out = await assemble(false);
     // The whole point of splitting gate.js out of page.js: stripping markup alone left this behind.
     for (const leak of ['/api/posts', '/api/publish', '/api/render', 'Publish to Instagram', 'captionWarnings']) {
@@ -62,7 +62,7 @@ describe('what a visitor with no session receives', () => {
     const out = await assemble(false);
     expect(out).toContain('id="gateForm"');
     expect(out).toContain('id="gatePass"');
-    expect(out).toContain('/api/studio');
+    expect(out).toContain('/api/session');
     // The hidden attribute is dropped, because the door is now the whole page.
     expect(out).toContain('<div class="wrap" id="gateView">');
     expect(out).not.toContain('<div class="wrap" id="gateView" hidden>');
@@ -70,15 +70,15 @@ describe('what a visitor with no session receives', () => {
   });
 });
 
-describe('stripQueue', () => {
+describe('stripStudio', () => {
   it('removes exactly the marked region', () => {
-    const html = `<a><!--noct:queue-start--><b>secret</b><!--noct:queue-end--><c>`;
-    expect(stripQueue(html)).toBe('<a><c>');
+    const html = `<a><!--noct:studio-start--><b>secret</b><!--noct:studio-end--><c>`;
+    expect(stripStudio(html)).toBe('<a><c>');
   });
 
   it('leaves a page with no markers alone', () => {
     const plain = '<!doctype html><html><body>nothing here</body></html>';
-    expect(stripQueue(plain)).toBe(plain);
+    expect(stripStudio(plain)).toBe(plain);
   });
 });
 
@@ -86,8 +86,8 @@ describe('the page script', () => {
   it('survives a session expiring mid-edit by showing the door rather than throwing', async () => {
     const js = await asset('page.js');
     expect(js).toContain("if (res.status === 401)");
-    // showGate() has to tolerate a page that was served without the queue half.
-    expect(js).toContain("var queue = byId('queueView');");
+    // showGate() has to tolerate a page that was served without the studio half.
+    expect(js).toContain("var studio = byId('studioView');");
   });
 
   it('treats the caption rules as a courtesy, with the server enforcing them', async () => {

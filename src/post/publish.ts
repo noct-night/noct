@@ -8,7 +8,7 @@
  *
  * The constraints that shape everything upstream of here:
  *   - Meta fetches image_url itself. A data URI or an upload is not an option, which is the whole reason
- *     /api/render exists and the whole reason the queue had to move off claude.ai.
+ *     /api/render exists and the whole reason the studio had to move off claude.ai.
  *   - JPEG only. PNG is rejected outright.
  *   - At most 10 items in a carousel, and 100 API-published posts per rolling 24 hours (a carousel is one).
  *   - No shopping tags, no branded content tags, no filters.

@@ -1,5 +1,5 @@
 /**
- * The gate in front of the review queue and everything it can do.
+ * The gate in front of the studio and everything it can do.
  *
  * api/_lib/auth.ts guards the scheduled endpoints with a bearer token, which is right for a cron job and
  * useless for a browser. This is the human equivalent: one password, exchanged once for a signed cookie.

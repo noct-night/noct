@@ -11,7 +11,7 @@ genre and a vibe.
 
 ```
 index.html                  the app (mobile-first, 440px). Loads /api/feed; falls back to the sample weekend
-queue/                      the Instagram review page, served gated by api/queue.ts (never as a static file)
+studio/                     the Instagram review page, served gated by api/studio.ts (never as a static file)
 api/                        Vercel Functions
   feed.ts                   GET /api/feed?from&to → events/venues/days in the shape the UI expects
                             (&counts=1 → per-night counts only, what the month calendar draws)
@@ -19,7 +19,8 @@ api/                        Vercel Functions
   ingest/[source].ts        GET|POST /api/ingest/ra|dice|elsewhere|…|all  (Bearer CRON_SECRET)
   enrich.ts                 POST /api/enrich  — genre/vibe pass over new/changed events
   health.ts                 GET /api/health — last run per source
-  queue.ts                  GET /queue — the Instagram review page, behind a studio session
+  studio.ts                 GET /studio — the Instagram review page, behind a studio session
+  session.ts                POST|DELETE /api/session — sign in to the studio, or out
   posts.ts                  the queue's data API: draft a weekend, edit a caption, approve or pass
   img.ts                    GET /api/img — one promoter flyer, treated, as JPEG (host allowlist)
   render.ts                 GET composes one 1080x1350 slide from a signed URL; POST signs a deck
@@ -106,7 +107,7 @@ Ticketmaster / EDMTrain with real keys.
 - Artist-level genre evidence (Discogs/MusicBrainz) is designed (`docs/GENRE_VIBE.md`) but not implemented.
 - Provisional venues created from unknown labels need a periodic human pass (`venue.needs_review`).
 - Instagram: the weekly cron that prepares a draft and sends a nudge is not built; drafting is manual from
-  `/queue`. Venue slides still need photographs. Using promoter flyers in NOCT's own marketing posts (rather
+  `/studio`. Venue slides still need photographs. Using promoter flyers in NOCT's own marketing posts (rather
   than to display listings) is a rights question both RA and DICE restrict — see `docs/INSTAGRAM.md`.
 - Cities: New York and Los Angeles ingested by default from RA (`NOCT_CITIES`); San Francisco, Chicago, Miami, DC, Detroit, Toronto, London, Berlin are registered (`src/lib/cities.ts`) and switch on by adding them to `NOCT_CITIES`. Venue-direct feeds and the venue seed are New York only, so other cities rely on RA (+ 19hz where it has a list).
 
