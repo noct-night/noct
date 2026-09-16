@@ -89,6 +89,8 @@ export interface FeedRow {
   offers: OfferRow[] | null;
   /** 0024: {platform, title, url, preview} from the live DICE listing, else null */
   track?: FeedTrackRow | null;
+  /** 0029: one representative track per artist on the bill, keyed by the artist's name */
+  artist_tracks?: (FeedTrackRow & { artist?: string | null })[] | null;
 }
 
 export interface FeedTrackRow { platform?: string | null; title?: string | null; url?: string | null; preview?: string | null }
@@ -218,6 +220,8 @@ export interface FeedEvent {
   on_sale: boolean;
   /** the promoter's track on the platform's own clip, or null (DICE-backed nights only; 0024) */
   track: FeedTrack | null;
+  /** a representative track per artist on the bill, from the iTunes Search API (0029); `artist` matches a lineup entry */
+  artist_tracks: (FeedTrack & { artist: string })[];
   note: string;
   status: string;
   image: string;
@@ -546,6 +550,11 @@ export function shapeEvent(row: FeedRow, opts: { n?: number; d?: number; tz?: st
     soldout: row.sold_out === true,
     on_sale: row.sold_out !== true && (row.offers ?? []).some((o) => o.available === true),
     track: shapeTrack(row.track),
+    artist_tracks: (row.artist_tracks ?? []).flatMap((t) => {
+      const shaped = shapeTrack(t);
+      const artist = typeof t?.artist === 'string' ? t.artist.trim() : '';
+      return shaped && artist ? [{ ...shaped, artist }] : [];
+    }),
     note: row.description ?? '',
     status: row.status,
     image: row.image_url ?? '',

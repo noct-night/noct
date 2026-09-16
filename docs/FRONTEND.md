@@ -87,15 +87,22 @@ through verbatim) and do not by themselves make the event "Sold out".
 preview}` — or null. `preview` is the platform's own 30-second clip; both URLs are admitted only from the
 platforms' own hosts and emitted WHATWG-normalised with no userinfo (`shapeTrack()`).
 
+`artist_tracks` (0029) is one representative track per artist on the bill — `[{artist, platform: 'apple', title,
+url, preview}]` — from the iTunes Search API, joined in `EVENTS_COLUMNS_SQL` (no view change) and validated by
+the same `shapeTrack()`; `artist` is the artist's name as `lineup` spells it.
+
 The event sheet shows people in a **Line-up** section (`lineupSection()`), after the specs table: one row per
 name, the whole row a tap to the artist sheet, the right edge reading *Set →* (what that sheet answers: the
 searches for their sets, their other nights), the first row marked *Headliner* when there are several (billing
-order is all any source gives). The night's track hangs under the artist it belongs to — `trackWho()`: a line-up
-name inside the track title, else the only name on the bill; two or more names and no match puts it last,
-unattributed — with the artist's name dropped from the front of the title (*Me veo volar*, not *Coco Maria - Me
-veo volar*). The title is the play control (*Afterglow · Play 30 s* / *· Stop* / *· Unavailable*) on one shared
-`<audio>` (never autoplay; a Stop before the clip starts is not a failure; stops when the sheet closes or
-another night opens), and *Play full (Spotify)* links to the whole track. The platform is named on purpose —
+order is all any source gives). Under each artist, a track row when there is one: the night's own DICE track for
+the artist it names (`trackWho()`: a line-up name inside the track title, else the only name on the bill), else
+that artist's representative track; a night-track nobody can be named for closes the list. The artist's name is
+dropped from the front of a title (*Me veo volar*, not *Coco Maria - Me veo volar*). The title is the play control
+(*Afterglow · Play 30 s* / *· Stop* / *· Unavailable*), every row on one shared `<audio>` keyed per row
+(`SHEET_TRACKS`; starting one stops another; never autoplay; a Stop before the clip starts is not a failure;
+stops when the sheet closes or another night opens), and *Play full (Apple Music | Spotify)* links to the whole
+track. When any Apple preview is on the sheet the section ends with *Previews courtesy of Apple Music*, which
+Apple's terms require. The platform is named on purpose —
 the credit the platforms ask of their own integrations — and this is not the "no source names" decision,
 which is about listings. See docs/DATA_SOURCES.md for what is and is not confirmed about the terms.
 

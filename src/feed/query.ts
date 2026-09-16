@@ -115,7 +115,8 @@ export const EVENTS_COLUMNS_SQL = `
          f.sound_summary, f.is_electronic, f.needs_review, f.listing_count, f.platforms, f.sources,
          f.cheapest_price, f.sold_out, f.going_count, f.city, f.tz,
          f.track,
-         o.offers
+         o.offers,
+         at.artist_tracks
   from event_feed f
   left join lateral (
     select jsonb_agg(jsonb_build_object(
@@ -124,7 +125,14 @@ export const EVENTS_COLUMNS_SQL = `
              'available', x.available, 'note', x.note, 'sold_out', x.sold_out)
            order by (x.available is not false) desc, x.price nulls last, x.platform_priority desc) as offers
     from event_offer x where x.event_id = f.event_id
-  ) o on true`;
+  ) o on true
+  left join lateral (
+    -- a representative track per artist on the bill (0029), keyed by the artist's name as the line-up spells it
+    select jsonb_agg(jsonb_build_object('artist', a.name, 'platform', t.platform, 'title', t.title, 'url', t.url, 'preview', t.preview)
+                     order by ea.position nulls last, a.name) as artist_tracks
+    from event_artist ea join artist a on a.artist_id = ea.artist_id join artist_track t on t.artist_id = ea.artist_id
+    where ea.event_id = f.event_id and t.found
+  ) at on true`;
 
 const EVENTS_SQL = `${EVENTS_COLUMNS_SQL}
   where f.night between $1::date and $2::date

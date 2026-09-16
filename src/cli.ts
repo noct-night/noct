@@ -7,6 +7,7 @@
  *   npm run ingest -- ra dice               # fetch + upsert + resolve into DATABASE_URL
  *   npm run ingest -- all
  *   npm run enrich -- --limit 50            # genre/vibe pass over events needing it
+ *   npm run noct -- tracks --limit 400      # representative tracks for artists on upcoming nights (iTunes Search)
  */
 import { parseArgs } from 'node:util';
 import { getAdapter } from './sources/registry.js';
@@ -33,7 +34,7 @@ async function main(argv: string[]): Promise<number> {
   });
   const [cmd, ...rest] = positionals;
   if (!cmd || values.help) {
-    console.log('usage: noct <fetch|ingest|enrich> [sources...] [--limit N] [--days N] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--json] [--raw] [--force]');
+    console.log('usage: noct <fetch|ingest|enrich|tracks> [sources...] [--limit N] [--days N] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--json] [--raw] [--force]');
     return cmd ? 0 : 1;
   }
   const limit = values.limit ? Number(values.limit) : undefined;
@@ -80,6 +81,15 @@ async function main(argv: string[]): Promise<number> {
     const { closePool } = await import('./lib/db.js');
     await closePool();
     return summary.runs.some((r) => r.status === 'failed') ? 2 : 0;
+  }
+
+  if (cmd === 'tracks') {
+    const { resolveArtistTracks } = await import('./enrich/artist_tracks.js');
+    const summary = await resolveArtistTracks({ limit, budgetMs: 6 * 3_600_000, log: log.child('tracks') });
+    console.log(JSON.stringify(summary, null, 2));
+    const { closePool } = await import('./lib/db.js');
+    await closePool();
+    return summary.errors ? 2 : 0;
   }
 
   if (cmd === 'enrich') {

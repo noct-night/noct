@@ -12,6 +12,7 @@
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { runEnrichment, type EnrichSummary } from '../src/enrich/run.js';
+import { resolveArtistTracks, type ArtistTracksSummary } from '../src/enrich/artist_tracks.js';
 import { createLogger } from '../src/lib/log.js';
 import { requireCron } from './_lib/auth.js';
 
@@ -58,11 +59,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const force = ['1', 'true', 'yes'].includes((first(req.query.force) ?? '').toLowerCase());
   try {
     const summary: EnrichSummary = await runEnrichment({ limit, force, eventIds: eventIds.length ? eventIds : undefined, log });
+    // Then, in whatever the classifier left of the 300 s, look up representative tracks for artists on
+    // upcoming nights (Apple allows ~20 calls a minute, so this is a few dozen names a day; the backlog is
+    // worked off with `npm run noct -- tracks`). Its failures never fail the run: it is a lookup, not a write
+    // anyone is waiting on.
+    let tracks: ArtistTracksSummary | { error: string } | undefined;
+    if (!eventIds.length) {
+      const left = 285_000 - (Date.now() - started);
+      if (left > 15_000) {
+        try { tracks = await resolveArtistTracks({ budgetMs: left - 10_000, log: log.child('tracks') }); }
+        catch (err) { tracks = { error: err instanceof Error ? err.message : String(err) }; }
+      }
+    }
     // With a fallback chain, a primary that is out of quota is the chain working, not the run failing: every
     // event still got classified. Report failure only when something was actually left undone.
     const ok = summary.errors.length === 0
       || (summary.classified + summary.skipped >= summary.considered && !summary.deferred && !summary.quotaStopped);
-    res.status(200).json({ ok, force, limit, eventIds, ...summary, ms: Date.now() - started });
+    res.status(200).json({ ok, force, limit, eventIds, ...summary, tracks, ms: Date.now() - started });
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     log.error('enrich run failed', { error });

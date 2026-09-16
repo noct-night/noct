@@ -134,6 +134,17 @@ chain) are the two buildable next sources.
   disappears on the next ingest. Only the platforms' own hosts are allowed through, and the URLs are emitted in
   normalised form (`shapeTrack()` in `src/feed/shape.ts`, `cleanTrack()` in `app.js`). Reversible by dropping
   the two fields from `raw` again in `src/sources/dice.ts`.
+- **Representative tracks come from Apple's iTunes Search API since 2026-09-16** (`src/enrich/artist_tracks.ts`,
+  `0029_artist_track.sql`). For every artist on an upcoming night NOCT searches the name once, keeps the top song
+  only when Apple's artist name equals ours with accents folded and the genre is not one no DJ is filed under,
+  and stores the URLs — never the audio. Apple's published terms (performance-partners.apple.com/search-api):
+  no key; "approximately 20 calls per minute"; cache the search results (hits and misses are kept 60 days);
+  previews "streamed only, and not downloaded, saved, cached"; shown as promotion next to a link to the track
+  on Apple Music; credited "courtesy of" Apple. The event sheet streams from `audio-ssl.itunes.apple.com`, links
+  *Play full (Apple Music)* to `music.apple.com`, and prints *Previews courtesy of Apple Music* under the
+  line-up. About half of the names match (probe 2026-09-16: 6 of 14; first 135 lookups: 69). The daily
+  `/api/enrich` cron looks up what the classifier's time budget leaves (a few dozen a day); the backlog is
+  `npm run noct -- tracks`. The night's own DICE track (0024) still takes precedence for the artist it names.
 - **EDMTrain:** apply truthfully or drop. Do not scrape edmtrain.com.
 - **Ticketmaster + Eventbrite keys** are self-serve; both need a NOCT account (owner action).
 - **Plan upgrades before launch:** Vercel Pro (commercial use, per-minute crons, 800 s functions) and

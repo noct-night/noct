@@ -761,21 +761,26 @@ function openDet(eid){
    One <audio>, never autoplayed: Play starts it; Stop, the clip ending, or closing the sheet stops it. The
    platform is named and linked next to it -- the credit the platforms ask of their own integrations, and it is
    where the whole track lives. */
-let AUDIO=null,TRK={uuid:''};
-const trackPlaying=e=>!!(e&&AUDIO&&!AUDIO.paused&&TRK.uuid===e.uuid);
-/* the track's own words: its title is the control, the state rides after it. Under the artist's own row the
+let AUDIO=null,TRK={uuid:'',key:''};
+/* The tracks a sheet can play: the night's own (DICE, 0024) and one per artist (iTunes Search, 0029), each
+   keyed so several rows can share one <audio>. Rebuilt by lineupSection() every time the sheet renders. */
+let SHEET_TRACKS={};
+const trackOf=key=>SHEET_TRACKS[key]||null;
+const playingKey=()=>(AUDIO&&!AUDIO.paused&&TRK.uuid===(DET_EV&&DET_EV.uuid))?TRK.key:'';
+/* a track's own words: its title is the control, the state rides after it. Under the artist's own row the
    artist's name is dropped from the front of the title ("Coco Maria - Me veo volar" -> "Me veo volar"). */
-function trackTitle(e){
-  const t=String(e.track.title),who=trackWho(e);
-  if(!who)return t;
-  const m=new RegExp('^'+who.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*[-–—:]\\s*','i');
-  const cut=t.replace(m,'');
-  return cut.length>=2?cut:t;
+function trackTitle(t,artist){
+  const title=String(t.title);
+  if(!artist)return title;
+  const m=new RegExp('^'+artist.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*[-–—:]\\s*','i');
+  const cut=title.replace(m,'');
+  return cut.length>=2?cut:title;
 }
-const trackLabel=(e,state)=>`${trackTitle(e)} · <span class="nw">${state==='stop'?'Stop':state==='gone'?'Unavailable':'Play 30&nbsp;s'}</span>`;
-/* Whose track this is, when the data says so: a line-up name inside the title ("Caiiro - Ndisize"), else the
-   only name on the bill ("Afterglow" on a Nils Hoffmann night -- DICE drops the artist when it is the
-   headliner). Two or more names and no match: the track stands alone at the end of the list. */
+const trackLabel=(t,artist,state)=>`${trackTitle(t,artist)} · <span class="nw">${state==='stop'?'Stop':state==='gone'?'Unavailable':'Play 30&nbsp;s'}</span>`;
+const platName=t=>t.platform==='apple'?'Apple Music':'Spotify';
+/* Whose night-track this is, when the data says so: a line-up name inside the title ("Caiiro - Ndisize"),
+   else the only name on the bill ("Afterglow" on a Nils Hoffmann night -- DICE drops the artist when it is
+   the headliner). Two or more names and no match: the track stands alone at the end of the list. */
 function trackWho(e){
   const names=(e.lineup&&e.lineup.length?e.lineup:(e.act?[e.act]:[])).filter(Boolean);
   const t=String(e.track.title).toLowerCase();
@@ -783,46 +788,60 @@ function trackWho(e){
   if(inTitle)return inTitle;
   return names.length===1?names[0]:null;
 }
+const foldName=s=>String(s||'').normalize('NFKD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 /* ---------- Line-up ----------
    Its own section, one row per name, the first marked as the headliner when there are several (billing order
    is what every source gives us). "Set →" is what the tap answers: the artist sheet, with the searches for
-   their sets and their other nights. The night's track hangs under the artist it belongs to -- the title is
-   the play control, the platform link plays the whole thing -- or closes the list when nobody can be named. */
+   their sets and their other nights. Under each artist, a track: the night's own when it is theirs, else
+   their representative one -- the title is the play control, the platform link plays the whole thing. A
+   night-track nobody on the bill can be named for closes the list. Apple's previews carry Apple's credit. */
+function trackRow(key,t,artist){
+  const st=playingKey()===key?'stop':'play';
+  return `<div class="tkr"><button class="tkp" id="trk-${key}" data-key="${key}" onclick="toggleTrack('${key}')" aria-pressed="${st==='stop'}">${trackLabel(t,artist,st)}</button><a href="${t.url}" target="_blank" rel="noopener">Play full (${platName(t)})</a></div>`;
+}
 function lineupSection(e){
   const names=(e.lineup&&e.lineup.length?e.lineup:(e.act?[e.act]:[])).filter(Boolean);
-  const t=e.track||null;
-  if(!names.length&&!t)return '';
-  const who=t?trackWho(e):null;
-  const plat=t?(t.platform==='apple'?'Apple Music':'Spotify'):'';
-  const trackRow=t?`<div class="tkr"><button class="tkp" id="trkBtn" onclick="toggleTrack()" aria-pressed="${trackPlaying(e)}">${trackLabel(e,trackPlaying(e)?'stop':'play')}</button><a href="${t.url}" target="_blank" rel="noopener">Play full (${plat})</a></div>`:'';
+  const night=e.track||null;
+  const byArtist=new Map((e.artist_tracks||[]).map(t=>[foldName(t.artist),t]));
+  SHEET_TRACKS={};
+  if(!names.length&&!night)return '';
+  const who=night?trackWho(e):null;
+  let apple=false;
   const rows=names.map((n,i)=>{
-    const has=t&&who===n;
-    return `<button class="lu ${has?'has':''}" onclick="openArtistByName('${esc(n)}')"><span class="lun">${n}${i===0&&names.length>1?`<span class="luh">Headliner</span>`:''}</span><span class="luset">Set →</span></button>`+(has?trackRow:'');
+    const t=(night&&who===n)?night:(byArtist.get(foldName(n))||null);
+    if(t){SHEET_TRACKS['a'+i]=t;if(t.platform==='apple')apple=true}
+    return `<button class="lu ${t?'has':''}" onclick="openArtistByName('${esc(n)}')"><span class="lun">${n}${i===0&&names.length>1?`<span class="luh">Headliner</span>`:''}</span><span class="luset">Set →</span></button>`
+      +(t?trackRow('a'+i,t,n):'');
   });
-  if(t&&!(who&&names.includes(who)))rows.push(trackRow);
-  return `<div class="grp"><h3>Line-up${names.length>1?` · ${names.length}`:''}</h3>${rows.join('')}</div>`;
+  if(night&&!(who&&names.includes(who))){SHEET_TRACKS.n=night;if(night.platform==='apple')apple=true;rows.push(trackRow('n',night,null))}
+  return `<div class="grp"><h3>Line-up${names.length>1?` · ${names.length}`:''}</h3>${rows.join('')}`
+    +(apple?`<div class="credit">Previews courtesy of Apple Music</div>`:'')+`</div>`;
 }
 function stopTrack(){
   if(AUDIO){AUDIO.pause();AUDIO.removeAttribute('src');AUDIO.load()}
-  TRK={uuid:''};
-  const b=$('#trkBtn');if(b&&!b.disabled&&DET_EV&&DET_EV.track){b.innerHTML=trackLabel(DET_EV,'play');b.setAttribute('aria-pressed','false')}
+  const was=TRK.key;TRK={uuid:'',key:''};
+  const b=was?$('#trk-'+was):null;
+  if(b&&!b.disabled){const t=trackOf(was);if(t)b.innerHTML=trackLabel(t,artistOfKey(was),'play');b.setAttribute('aria-pressed','false')}
 }
-function toggleTrack(){
-  const e=DET_EV;if(!e||!e.track)return;
-  if(trackPlaying(e)){stopTrack();return}
+/* the artist a row belongs to, for the title trim: 'a<i>' is the i-th name on the bill, 'n' is nobody's */
+const artistOfKey=key=>{if(!DET_EV||!/^a\d+$/.test(key))return null;const names=(DET_EV.lineup&&DET_EV.lineup.length?DET_EV.lineup:(DET_EV.act?[DET_EV.act]:[])).filter(Boolean);return names[+key.slice(1)]||null};
+function toggleTrack(key){
+  const e=DET_EV,t=trackOf(key);if(!e||!t)return;
+  if(playingKey()===key){stopTrack();return}
+  stopTrack();                                   /* one clip at a time: a second row stops the first */
   if(!AUDIO){
     AUDIO=new Audio();AUDIO.preload='none';
     AUDIO.addEventListener('ended',stopTrack);
-    AUDIO.addEventListener('error',()=>{if(!TRK.uuid)return;TRK={uuid:''};const x=$('#trkBtn');if(x&&DET_EV&&DET_EV.track){x.innerHTML=trackLabel(DET_EV,'gone');x.disabled=true}});
+    AUDIO.addEventListener('error',()=>{if(!TRK.key)return;const k=TRK.key;TRK={uuid:'',key:''};const x=$('#trk-'+k),tt=trackOf(k);if(x&&tt){x.innerHTML=trackLabel(tt,artistOfKey(k),'gone');x.disabled=true}});
   }
   /* the tap answers at once; the clip follows when the platform has sent enough of it */
-  const mine={uuid:e.uuid};TRK=mine;
-  const b=$('#trkBtn');if(b){b.innerHTML=trackLabel(e,'stop');b.setAttribute('aria-pressed','true')}
-  AUDIO.src=e.track.preview;
+  const mine={uuid:e.uuid,key};TRK=mine;
+  const b=$('#trk-'+key);if(b){b.innerHTML=trackLabel(t,artistOfKey(key),'stop');b.setAttribute('aria-pressed','true')}
+  AUDIO.src=t.preview;
   AUDIO.play().catch(()=>{
     /* a Stop (or another sheet) before the clip started rejects play() too -- that is not a failure */
     if(TRK!==mine)return;
-    TRK={uuid:''};if(b){b.innerHTML=trackLabel(e,'gone');b.disabled=true}
+    TRK={uuid:'',key:''};if(b){b.innerHTML=trackLabel(t,artistOfKey(key),'gone');b.disabled=true}
   });
 }
 
@@ -1680,7 +1699,8 @@ function applyFeed(f){
     ra:cleanUrl(e.ra),dice:cleanUrl(e.dice),eb:cleanUrl(e.eb),url:cleanUrl(e.url),tex:TEX.indexOf(e.tex)>=0?e.tex:'x1',
     full:!!e.full,soldout:!!e.soldout,on_sale:!!e.on_sale,note:clean(e.note),status:clean(e.status),image:cleanUrl(e.image),going_count:e.going_count||0,
     act:e.act?clean(e.act):null,
-    track:cleanTrack(e.track)
+    track:cleanTrack(e.track),
+    artist_tracks:(Array.isArray(e.artist_tracks)?e.artist_tracks:[]).map(t=>{const c=cleanTrack(t);return c&&t&&t.artist?Object.assign(c,{artist:clean(t.artist)}):null}).filter(Boolean)
   }));
   const vs={};
   Object.keys(f.venues||{}).forEach(k=>{const v=f.venues[k]||{};vs[clean(k)]={addr:clean(v.addr),hood:clean(v.hood),boro:clean(v.boro),
