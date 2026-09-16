@@ -16,6 +16,7 @@
  * environment. The alternative -- rewriting a Vercel environment variable from inside a running function --
  * is far more moving parts for the same secret in a different place.
  */
+import { createHash } from 'node:crypto';
 import { query } from '../lib/db.js';
 import { env } from '../lib/env.js';
 import type { Logger } from '../lib/log.js';
@@ -61,6 +62,56 @@ export function shouldRefresh(t: StoredToken, now: Date = new Date()): boolean {
 export function daysUntilExpiry(t: StoredToken, now: Date = new Date()): number | null {
   if (!t.expiresAt) return null;
   return Math.floor((t.expiresAt.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+}
+
+/**
+ * The token as someone meant to paste it.
+ *
+ * A value pasted into a dashboard field routinely carries a trailing newline or space, and sometimes the
+ * quotes it was copied out of. Instagram rejects any of those with a bare "Failed to decrypt" (code 190),
+ * which says nothing about whitespace -- so strip it here rather than make anyone diagnose that.
+ */
+export function normaliseSeed(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  let v = raw.trim();
+  if (v.length >= 2 && ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'")))) {
+    v = v.slice(1, -1).trim();
+  }
+  return v === '' ? undefined : v;
+}
+
+/** A short, one-way fingerprint of a seed, so the database records which one it holds without holding it twice. */
+export function seedFingerprint(seed: string): string {
+  return createHash('sha256').update(seed).digest('hex').slice(0, 16);
+}
+
+/**
+ * Whether the stored token should be thrown away and replaced from the environment.
+ *
+ * Changing IG_ACCESS_TOKEN is how a person replaces the credential, so a seed the database has not seen is
+ * always taken. Without this, the first token ever stored -- however broken -- would be used forever, and
+ * fixing the env var would silently change nothing. A refreshed token legitimately differs from the seed,
+ * which is why this compares the seed it came from, not the token itself. A row from before fingerprints
+ * existed has none, and is reseeded once.
+ */
+export function needsReseed(seed: string | undefined, storedFingerprint: string | null): boolean {
+  if (!seed) return false;
+  return storedFingerprint !== seedFingerprint(seed);
+}
+
+const SEED_SETTING = 'ig_token_seed';
+
+async function readSeedFingerprint(): Promise<string | null> {
+  const { rows } = await query<{ value: string }>(`select value from app_setting where key = $1`, [SEED_SETTING]);
+  return rows[0]?.value ?? null;
+}
+
+async function writeSeedFingerprint(fingerprint: string): Promise<void> {
+  await query(
+    `insert into app_setting (key, value) values ($1, $2)
+       on conflict (key) do update set value = excluded.value, updated_at = now()`,
+    [SEED_SETTING, fingerprint],
+  );
 }
 
 interface TokenRow {
@@ -117,15 +168,18 @@ export async function refreshToken(token: string): Promise<{ token: string; expi
  * a credential that has not actually expired yet.
  */
 export async function currentToken(log: Logger, source = process.env): Promise<StoredToken> {
-  const seed = env('IG_ACCESS_TOKEN', undefined, source);
+  const seed = normaliseSeed(env('IG_ACCESS_TOKEN', undefined, source));
   let stored = await readStored();
 
-  if (!stored) {
-    if (!seed) throw new TokenError('no Instagram token: set IG_ACCESS_TOKEN and publish once to seed it');
-    // Age unknown, so it is stored as a seed and refreshed on the next run rather than immediately.
-    stored = await writeStored(seed, null);
+  if (needsReseed(seed, await readSeedFingerprint())) {
+    // A seed we have not stored before: someone replaced the credential. Age unknown, so it is stored with no
+    // expiry and refreshed on a later run rather than immediately (Instagram refuses tokens under a day old).
+    stored = await writeStored(seed!, null);
+    await writeSeedFingerprint(seedFingerprint(seed!));
     log.info('Instagram token seeded from the environment');
   }
+
+  if (!stored) throw new TokenError('no Instagram token: set IG_ACCESS_TOKEN');
 
   if (!shouldRefresh(stored)) return stored;
 
