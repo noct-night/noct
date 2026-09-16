@@ -316,3 +316,11 @@ a{color:inherit}
 .nxv{font-size:17px}
 .nxh{font-size:13.5px;color:var(--d1);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .nxs{font-size:13px;color:var(--d2);margin-top:3px}
+/* Group Mode. The deck is the image view with two words under the card; the plan is a sheet of counts. */
+#group{z-index:63}
+.gvote{display:flex;gap:34px;margin:2px 0 16px}
+.gvote button{font-size:17px;color:var(--d1);text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:.7px}
+.gvote button[aria-pressed="true"]{color:var(--chalk)}
+.gsub{font-size:14px;color:var(--d2);margin:-4px 0 22px;line-height:1.5}
+.gcount{font-size:14px;color:var(--d2);white-space:nowrap}
+.gcount.all{color:var(--chalk)}

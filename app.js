@@ -211,6 +211,8 @@ const canFilterForMe=()=>TASTE.length>0||S.recs.list.some(r=>!r.gone);
 /* Picks are an ordered answer -- Best, Safer, Wildcard -- so they come back in that order, not by door time.
    The night's own filters still apply: "Filter · 2" has to mean the same thing on three cards as on thirty. */
 const results=()=>{
+  /* a group deck is a fixed hand of cards, in the order the plan was dealt; the ones no longer listed drop out */
+  if(GRP.active){const out=[];GRP.deck.forEach(u=>{const e=EV.find(x=>x.uuid===u);if(e)out.push(e)});return out}
   if(S.sel==='picks'){
     const out=[];
     S.picks.list.forEach(p=>{const e=EV.find(x=>x.uuid===p.uuid);if(e&&ok(e))out.push(e)});
@@ -236,7 +238,7 @@ function renderOnlyBtn(){
   const loadingPicks=S.picks.loading&&S.sel==='picks';
   const have={all:true,you:canFilterForMe(),picks:S.picks.list.length>0||loadingPicks};
   if(!have[S.sel])S.sel='all';                        /* the taste was cleared, or the night has no picks */
-  const show=(have.you||have.picks)&&(S.view==='image'||S.view==='list'||S.view==='map');
+  const show=(have.you||have.picks)&&!GRP.active&&(S.view==='image'||S.view==='list'||S.view==='map');
   b.hidden=!show;
   b.querySelectorAll('button').forEach(x=>{
     x.hidden=!have[x.dataset.sel];
@@ -257,16 +259,21 @@ function renderImage(){
   const list=results();
   if(S.i>=list.length)S.i=0;
   $('#slides').innerHTML=list.map((e,n)=>`<div class="slide ${n===S.i?'on':''}"><div class="tex ${e.tex}"${n===S.i?art(e):''}></div></div>`).join('');
-  $('#swipeLbl').textContent=list.length?`Swipe ${dateLabel().toLowerCase()}`:'Nothing here';
-  if(!list.length){$('#caption').innerHTML=`<div class="sm">Nothing matches.</div><button class="lnk" onclick="clearAll()" style="margin-top:10px">Clear filters</button>`;return}
-  const e=list[S.i],rec=recFor(e),pk=pickFor(e);
+  $('#swipeLbl').textContent=GRP.active?'Pass · Like':list.length?`Swipe ${dateLabel().toLowerCase()}`:'Nothing here';   /* the pill's own arrows say which is which */
+  if(!list.length){
+    if(GRP.active){$('#caption').innerHTML=`<div class="sm">Nothing on this night any more.</div><button class="lnk" onclick="openGroupResult()" style="margin-top:10px">See the plan</button>`;return}
+    $('#caption').innerHTML=`<div class="sm">Nothing matches.</div><button class="lnk" onclick="clearAll()" style="margin-top:10px">Clear filters</button>`;return
+  }
+  const e=list[S.i],rec=recFor(e),pk=pickFor(e),my=GRP.active?GRP.mine[e.uuid]:undefined;
   $('#caption').innerHTML=`
     <div class="idx sm">${S.i+1} of ${list.length} · ${dayFull(e.d)}</div>
-    ${pk?`<div class="fortag"><span class="fydot"></span>${pk.slot}</div>`:rec?`<div class="fortag"><span class="fydot"></span>For you</div>`:''}
+    ${GRP.active?(my===true?`<div class="fortag"><span class="fydot"></span>Liked</div>`:my===false?`<div class="fortag">Passed</div>`:'')
+      :pk?`<div class="fortag"><span class="fydot"></span>${pk.slot}</div>`:rec?`<div class="fortag"><span class="fydot"></span>For you</div>`:''}
     <div class="name">${e.head}</div>
     <div class="gen">${genreLine(e)}</div>
-    <div class="meta sm ${pk?'haswhy':''}">${e.venue}</div>
-    ${pk?`<div class="why">${pk.note}</div>`:''}
+    <div class="meta sm ${pk&&!GRP.active?'haswhy':''}">${e.venue}</div>
+    ${pk&&!GRP.active?`<div class="why">${pk.note}</div>`:''}
+    ${GRP.active?`<div class="gvote"><button onclick="vote(false)" aria-pressed="${my===false}">Pass</button><button onclick="vote(true)" aria-pressed="${my===true}">Like</button></div>`:''}
     <button class="lnk" onclick="openDet(${e.id})">View event</button>`;
 }
 function filmCut(){
@@ -730,6 +737,7 @@ function openDet(eid){
       <a class="lnk" href="${e.ra||e.dice||e.url||'#'}" target="_blank" rel="noopener">Open listing</a>
       ${e.uuid?`<a class="lnk" href="${API_BASE}/api/ics?e=${encodeURIComponent(e.uuid)}" rel="noopener">Add to calendar</a>`:''}
       <button class="lnk" onclick="shareEvent(${e.id})">Share</button>
+      ${LIVE&&e.uuid&&(GRP.id?true:deckFor(e.d,e.uuid).length>=3)?`<button class="lnk" onclick="${GRP.id?'openGroupResult()':`planWith(${e.id})`}">${GRP.id?'Plan':'Plan with friends'}</button>`:''}
     </div>
   </div>`;
   $('#det').classList.add('open');$('#det').scrollTop=0;
@@ -809,6 +817,146 @@ async function loadNext(e){
 function openNext(uuid,night){const ev=EV.find(x=>x.uuid===uuid);if(ev){openDet(ev.id);return}openNightAt(uuid,S.city,night)}
 /* origin and destination as coordinates: Maps starts the route at this door, walking when it is close */
 const dirBetween=(o,d,walk)=>`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(o.lat+','+o.lng)}&destination=${encodeURIComponent(d.lat+','+d.lng)}&travelmode=${walk?'walking':'transit'}`;
+
+/* ---------- Group Mode ----------
+   One link, everyone swipes, the count decides. The owner taps "Plan with friends" on a night: NOCT deals a
+   deck of up to twelve cards from the top of the owner's own list for that night, copies a link, and the
+   owner swipes first. Everyone who opens the link swipes the same deck; the result is a count per card, in
+   words -- "3 of 4 liked", "2 of 4 finished". Never a percentage, never "everyone" unless it is everyone who
+   voted, and nobody's individual votes leave the database except their own (0025 group_result). */
+const DECK_SIZE=12;
+let GRP={id:'',city:'',night:'',deck:[],mine:{},active:false,result:null,owner:false,poll:null,since:0};
+/* The owner's list for that night, one card per venue, flyers first, the night in hand leading. `rank`
+   already folds recommendations and taste in; interested breaks ties. */
+function deckFor(d,leadUuid){
+  const pool=EV.filter(e=>e.d===d&&e.uuid&&(!e.status||e.status==='scheduled'))
+    .sort((a,b)=>(b.image?1:0)-(a.image?1:0)||rank(b)-rank(a)||(b.interested||0)-(a.interested||0));
+  const out=[],venues=new Set();
+  const lead=pool.find(e=>e.uuid===leadUuid);
+  if(lead){out.push(lead.uuid);venues.add(lead.venue)}
+  for(const e of pool){if(out.length>=DECK_SIZE)break;if(venues.has(e.venue))continue;venues.add(e.venue);out.push(e.uuid)}
+  return out;
+}
+const groupLink=()=>`${location.origin}${location.pathname}?${new URLSearchParams({g:GRP.id,city:GRP.city||S.city||'nyc',from:GRP.night,to:GRP.night})}`;
+async function planWith(id){
+  const e=evById(id);if(!e||!LIVE||!e.uuid)return;
+  const deck=deckFor(e.d,e.uuid);
+  if(deck.length<3){toast('Not enough on this night to plan around');return}
+  const night=(DAYS[e.d]||[])[3]||'';
+  let sid='';
+  try{
+    const r=await sbRest('POST','/group_session',{city:S.city||'nyc',night,deck},'return=representation');
+    if(r&&r.ok){const rows=await r.json();sid=(Array.isArray(rows)&&rows[0]&&rows[0].session_id)||''}
+  }catch(err){}
+  if(!sid){toast('Could not start a plan — check your connection',4000);return}
+  GRP={id:sid,city:S.city||'nyc',night,deck,mine:{},active:false,result:null,owner:true,poll:null,since:Date.now()};
+  const ok=await copyText(groupLink());
+  toast(ok?'Link copied · your turn first':'Could not copy — '+groupLink(),4000);
+  startDeck();
+}
+/* the deck takes over the image view; the seg hides, the swipe pill says what a swipe now means */
+function startDeck(){
+  closeAll();closePage('det');closePage('ven');
+  GRP.active=true;
+  const list=results();
+  const first=list.findIndex(e=>GRP.mine[e.uuid]===undefined);
+  S.i=first>=0?first:0;
+  setView('image');
+}
+function exitDeck(){GRP.active=false;stopPoll();closeAll();S.i=0;setView(S.mode)}
+const unvotedLeft=()=>GRP.active&&results().some(e=>GRP.mine[e.uuid]===undefined);
+async function vote(liked){
+  if(!GRP.active||!GRP.id)return;
+  const list=results(),e=list[S.i];if(!e)return;
+  const prev=GRP.mine[e.uuid];
+  GRP.mine[e.uuid]=liked;
+  const after=list.findIndex((x,i)=>i>S.i&&GRP.mine[x.uuid]===undefined);
+  const any=list.findIndex(x=>GRP.mine[x.uuid]===undefined);
+  const next=after>=0?after:any;
+  if(next>=0){S.i=next;filmCut();renderImage();captionIn()}
+  else{renderImage();openGroupResult()}
+  let ok=false;
+  try{const r=await sbRest('POST','/group_vote',{session_id:GRP.id,event_id:e.uuid,liked});ok=!!r&&r.ok}catch(err){}
+  if(!ok){
+    if(prev===undefined)delete GRP.mine[e.uuid];else GRP.mine[e.uuid]=prev;
+    liveNote('Could not save that — check your connection');renderImage();
+  }
+}
+/* the link holder's view of a plan: the session, counts per card, and their own votes */
+async function loadGroup(id){
+  try{
+    const r=await sbRest('POST','/rpc/group_result',{p_session:id},null);
+    if(!r||!r.ok)return null;
+    const j=await r.json();
+    return j&&j.session&&j.session.id?j:null;
+  }catch(err){return null}
+}
+function applyGroup(j){
+  const s=j.session;
+  GRP.id=clean(s.id);GRP.city=clean(s.city);GRP.night=clean(s.night);GRP.owner=!!s.owner;
+  GRP.deck=((Array.isArray(s.live)&&s.live.length?s.live:s.deck)||[]).map(clean);
+  const mine={};(j.mine||[]).forEach(v=>{if(v&&v.event_id)mine[clean(v.event_id)]=!!v.liked});
+  GRP.mine=Object.assign(mine,GRP.mine);      /* a vote made a moment ago beats a stale read */
+  GRP.result=j;
+}
+/** ?g=<session>: land on the plan's night (the link carries city/from/to), then pick up where this person left off. */
+async function openGroupLink(){
+  if(openGroupLink.done)return;
+  const g=new URLSearchParams(location.search).get('g');
+  if(!g)return;
+  openGroupLink.done=true;
+  if(!/^[0-9a-f-]{36}$/i.test(g)){toast('That plan is no longer available',4000);return}
+  const j=await loadGroup(g);
+  if(!j){toast('That plan is no longer available',4000);return}
+  applyGroup(j);
+  if(GRP.night&&GRP.night!==((DAYS[0]||[])[3]||'')){await loadFeed({from:GRP.night,to:GRP.night})}
+  const past=GRP.night&&GRP.night<cityDate(0);
+  const left=GRP.deck.some(u=>GRP.mine[u]===undefined&&EV.some(e=>e.uuid===u));
+  if(past||!left){GRP.active=true;openGroupResult();if(past)liveNote('That night has passed')}
+  else startDeck();
+}
+function openGroupResult(){
+  if(!GRP.id)return;
+  closeAll();closePage('det');closePage('ven');
+  renderGroup();$('#group').classList.add('open');$('#group').scrollTop=0;
+  refreshGroup();startPoll();
+}
+function closeGroup(){stopPoll();closeAll();if(GRP.active&&!unvotedLeft())exitDeck()}
+async function refreshGroup(){
+  if(!GRP.id)return;
+  const j=await loadGroup(GRP.id);
+  if(j&&GRP.id===clean(j.session.id)){applyGroup(j);renderGroup()}
+}
+/* Counts arrive on a poll, a few seconds apart, while the sheet is open and the tab is visible; nothing here
+   says "live". Ten minutes is plenty -- a plan is decided or it is not. */
+function startPoll(){
+  stopPoll();GRP.since=Date.now();
+  GRP.poll=setInterval(()=>{
+    const open=$('#group').classList.contains('open');
+    if(!open||Date.now()-GRP.since>600000){stopPoll();return}
+    if(document.visibilityState==='visible')refreshGroup();
+  },4000);
+}
+function stopPoll(){if(GRP.poll){clearInterval(GRP.poll);GRP.poll=null}}
+function renderGroup(){
+  const b=$('#groupBody');if(!b)return;
+  const j=GRP.result,m=j?Number(j.members)||0:0,fin=j?Number(j.finished)||0:0;
+  const rows=(j&&j.events||[]).map(x=>({e:EV.find(v=>v.uuid===x.event_id),likes:Number(x.likes)||0,votes:Number(x.votes)||0})).filter(x=>x.e);
+  const top=rows[0];
+  const head=!j?'Reading the plan…'
+    :m===0?'No votes yet'
+    :m===1?(Object.keys(GRP.mine).length?'Only you so far':'One person so far')
+    :(top&&top.likes===m?`${m} of ${m} liked`:`Most liked: ${top?top.likes:0} of ${m}`);
+  const left=unvotedLeft();
+  b.innerHTML=`<button class="sx" onclick="closeGroup()" aria-label="Close">✕</button>`
+    +`<div class="sh2">${head}</div>`
+    +`<div class="gsub">${m?`${fin} of ${m} finished`:'Send the link'}${GRP.night?` · ${nightLabel(GRP.night)}`:''}</div>`
+    +rows.map(x=>`<button class="frow" onclick="closeAll();openDet(${x.e.id})"><div><div class="fn">${x.e.head}</div>`
+      +`<div class="fm">${x.e.venue}${x.e.door?' · '+x.e.door:''}${GRP.mine[x.e.uuid]===true?' · You liked this':GRP.mine[x.e.uuid]===false?' · You passed':''}</div></div>`
+      +`<span class="gcount ${m&&x.likes===m?'all':''}">${m?`${x.likes} of ${m}`:'—'}</span></button>`).join('')
+    +`<div class="foot"><button class="lnk" onclick="copyText(groupLink()).then(ok=>toast(ok?'Link copied':'Could not copy — '+groupLink()))">Copy link</button>`
+    +(left?`<button class="lnk" onclick="closeAll();startDeck()">Keep swiping</button>`:`<button class="lnk" style="color:var(--d2)" onclick="exitDeck()">Back to the night</button>`)+`</div>`;
+}
 
 /**
  * Share a night. NOCT has no per-event route, so the link carries the event's uuid AND its date: the recipient
@@ -1152,6 +1300,7 @@ function quickGen(g){S.gen.has(g)?S.gen.delete(g):S.gen.add(g);S.i=0;buildAll();
 function goBack(){setView(S.mode)}
 function goHome(){
   closeAll();closePage('det');closePage('ven');
+  if(GRP.active){stopPoll();GRP.active=false}          /* the plan stays reachable from any event sheet ("Plan") */
   S.i=0;setView(S.mode);
   ['listView','savedView','venuesView','profileView'].forEach(id=>{const el=$('#'+id);if(el)el.scrollTop=0});
   $('#topscrim').classList.remove('on');
@@ -1200,7 +1349,8 @@ document.addEventListener('keydown',e=>{
 });
 let x0=null;
 $('#imageView').addEventListener('pointerdown',e=>x0=e.clientX);
-$('#imageView').addEventListener('pointerup',e=>{if(x0===null)return;const dx=e.clientX-x0;x0=null;if(Math.abs(dx)>40)step(dx<0?1:-1)});
+/* in a group deck the swipe IS the vote: left passes, right likes */
+$('#imageView').addEventListener('pointerup',e=>{if(x0===null)return;const dx=e.clientX-x0;x0=null;if(Math.abs(dx)<=40)return;if(GRP.active)vote(dx>0);else step(dx<0?1:-1)});
 
 function render(){
   $('#locLbl').textContent=locLabel();
@@ -1277,14 +1427,17 @@ async function sbSession(){
   })();
   try{return await SB_INFLIGHT}finally{SB_INFLIGHT=null}
 }
-async function sbRest(method,path,body){
+/* `prefer`: PostgREST's Prefer header -- upsert by default, 'return=representation' to read back an insert
+   (a new plan's id), null for an RPC, which wants neither */
+async function sbRest(method,path,body,prefer='resolution=merge-duplicates'){
   const s=await sbSession();if(!s)return null;
-  const opts={method,headers:Object.assign(sbHeaders(s.access_token),{prefer:'resolution=merge-duplicates'})};
+  const hdr=t=>Object.assign(sbHeaders(t),prefer?{prefer}:{});
+  const opts={method,headers:hdr(s.access_token)};
   if(body)opts.body=JSON.stringify(body);
   let r=await fetch(SB_URL+'/rest/v1'+path,opts);
   if(r.status===401){                                      /* token rejected: start a new session once */
     SB=null;const s2=await sbSession();if(!s2)return null;
-    opts.headers=Object.assign(sbHeaders(s2.access_token),{prefer:'resolution=merge-duplicates'});
+    opts.headers=hdr(s2.access_token);
     r=await fetch(SB_URL+'/rest/v1'+path,opts);
   }
   return r;
@@ -1486,6 +1639,7 @@ async function loadFeed(range){
     syncMine();                      /* restore this account's going/saved; renders again when it lands */
     if(tasteRestore()){S.sortTaste=TASTE.length>0;render()}else{maybeOnboard()}
     openShared();
+    openGroupLink();
   }catch(err){
     liveNote('Live data unavailable — showing sample weekend');
   }

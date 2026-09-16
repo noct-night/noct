@@ -104,6 +104,23 @@ venue · title · door–close · *walkable* or whole km · Directions (origin =
 `walk`) — remembers the answer across Save / I'm going re-renders, and shows nothing at all when `next` is empty.
 No routing, no minutes, no "afters", no plan wording.
 
+**Group Mode** (0025, `GRP` in app.js). On an event sheet, *Plan with friends* deals a deck of up to twelve
+cards from the top of the owner's own list for that night (`deckFor()`: flyers first, `rank()` then interested,
+one card per venue, the night in hand leading), inserts a `group_session` through PostgREST (`Prefer:
+return=representation` gives back the id), copies `?g=<session>&city&from&to` and puts the owner into the deck.
+The deck is the image view: `results()` returns the deck's cards in dealt order, the seg hides, the swipe pill
+reads *Pass ← · → Like*, a swipe or the two text buttons write one `group_vote` row (upsert), and the last vote
+opens the plan sheet `#group`. A link holder lands on the night (the link carries the range), `openGroupLink()`
+reads `group_result(p_session)` and starts them at their first unvoted card, or straight at the plan when they
+are done or the night has passed. The plan sheet says it in words only — heading *`m` of `m` liked* when the
+top card was liked by everyone who voted, else *Most liked: `n` of `m`*; sub-line *`k` of `m` finished*; one
+`.frow` per card with *`likes` of `m`* — polls `group_result` every 4 s while open and visible (ten minutes at
+most; nothing says "live"), and offers *Copy link*, *Keep swiping* or *Back to the night*. `m` counts people
+who voted on at least one card, never people who merely opened the link; a person's own votes never leave the
+database except to them (RLS + a SECURITY DEFINER aggregate). No percentages, no "match", no group-taste deck,
+no push. Identity is the anonymous account, so a link opened in an in-app browser and again in Safari counts as
+two people until accounts can be linked.
+
 `on_sale` is the positive claim `soldout` cannot make: true only when a ticketer's live offer says `available`
 (event_offer is ticketers only, 0019). `soldout = false` means nobody said sold out, which is also true of a
 door-price night on a community board — so the **Availability → On sale** filter uses `on_sale`, and a night with
