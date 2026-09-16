@@ -1,5 +1,5 @@
 /**
- * The review queue's data API. Studio session required on every method.
+ * The studio's data API. Studio session required on every method.
  *
  *   GET    /api/posts                  every post, newest slot first
  *   GET    /api/posts?status=approved  one review state
@@ -92,6 +92,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     log.error('posts endpoint failed', { error, method: req.method });
-    sendJson(res, 500, { error: 'queue unavailable' }, NO_STORE);
+    sendJson(res, 500, { error: 'studio unavailable' }, NO_STORE);
   }
 }

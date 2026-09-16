@@ -1,5 +1,5 @@
 /**
- * Reading and writing the post queue. Everything that touches ig_post goes through here.
+ * Reading and writing the post store. Everything that touches ig_post goes through here.
  *
  * Approvals live in Postgres and not in the browser, because an approval is a decision about what NOCT
  * says in public: it has to survive a closed tab, be visible from a second device, and still be there when
@@ -76,7 +76,7 @@ export class PostConflict extends Error {
  * Update the mutable parts of a post.
  *
  * A published post is frozen: Instagram has the image and the caption, and letting the row drift from what
- * is on the account turns the queue into a record of what was meant rather than what happened.
+ * is on the account turns the record into what was meant rather than what happened.
  */
 export async function patchPost(id: string, patch: PostPatch): Promise<Post> {
   const sets: string[] = [];
@@ -155,7 +155,7 @@ export async function upsertDraft(input: DraftInput): Promise<Post> {
  *
  * The publish function is capped at 120 s (vercel.json), so anything still 'running' after this was not
  * running -- the lambda was killed between the Graph API call and the row update. Without a window like
- * this, one crash leaves a post permanently unpublishable, with the queue insisting a publish is in flight
+ * this, one crash leaves a post permanently unpublishable, with the studio insisting a publish is in flight
  * that nothing is doing. Generous enough that it can never race a real attempt.
  */
 export const PUBLISH_STALE_MS = 15 * 60 * 1000;

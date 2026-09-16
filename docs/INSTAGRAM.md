@@ -7,7 +7,7 @@ is opened, the deck is reviewed, a button is pressed. That is the whole product.
                   /api/posts?draft=weekend
   event_feed  ──────────────────────────────▶  ig_post (slides jsonb, caption, status)
                      src/post/draft.ts                    │
-                                                          │  /queue  (studio session)
+                                                          │  /studio  (studio session)
                                                           ▼
                                                   review, edit, approve
                                                           │
@@ -20,26 +20,26 @@ is opened, the deck is reviewed, a button is pressed. That is the whole product.
 
 | Path | What it is |
 |---|---|
-| `/queue` | The review page. Served by `api/queue.ts`, never as a static file, so it is gated. |
-| `api/studio.ts` | Exchanges the studio password for a session cookie. |
-| `api/posts.ts` | The queue's data API: list, draft a weekend, patch caption/status/slides/look. |
+| `/studio` | The review page. Served by `api/studio.ts`, never as a static file, so it is gated. |
+| `api/session.ts` | Exchanges the studio password for a session cookie. |
+| `api/posts.ts` | The studio's data API: list, draft a weekend, patch caption/status/slides/look. |
 | `api/img.ts` | One flyer, treated, as JPEG. Public, CORS, cached hard. |
 | `api/render.ts` | `GET` composes one slide (signed URL); `POST` signs a deck (session). |
 | `api/publish.ts` | `POST` puts one approved deck on the account; `GET` is a preflight that posts nothing. |
 | `src/post/token.ts` | Keeps the 60-day Instagram token alive so a weekly post needs no attention. |
 | `src/post/` | Templates, layers, treatments, drafting, the store, the Graph API client. |
-| `queue/page.{html,css,js}` | The queue's source, inlined into one gated response. |
-| `queue/gate.js` | The sign-in door's script, and the only one a stranger receives. |
+| `studio/page.{html,css,js}` | The studio's source, inlined into one gated response. |
+| `studio/gate.js` | The sign-in door's script, and the only one a stranger receives. |
 | `supabase/migrations/0019_ig_posts.sql` | `ig_post` and `ig_publish_run`. |
 | `supabase/migrations/0020_ig_token.sql` | `ig_token`, the one row holding the live credential. |
 
-## Why the queue lives here
+## Why the studio lives here
 
-The prototype queue was a claude.ai artifact, which blocks images from external domains. RA and DICE flyers
+The prototype review queue was a claude.ai artifact, which blocks images from external domains. RA and DICE flyers
 cannot render there, so every image had to be uploaded by hand, every week — the one thing this is supposed
 to remove. Two workarounds were tested and both failed: a proxy on Vercel does not help, because the block
 is on the artifact loading *any* outside host; and Claude fetching the flyers itself is blocked too. So the
-queue runs on noct's own domain. That is a constraint, not a preference.
+studio runs on noct's own domain. That is a constraint, not a preference.
 
 ## How a slide is drawn
 
@@ -130,13 +130,13 @@ the edges, and a square flyer centred into 4:5 loses 10% off each side, which ca
 headliner. Worse, the flyer's own type then competes with NOCT's type over it.
 
 `cover` stays the default because it is the design. Each slide with a photo also has a **fit** control in the
-queue (`Fill` / `Fit whole flyer`) that switches it to `contain`, letterboxed onto the ground. Only a person
+studio (`Fill` / `Fit whole flyer`) that switches it to `contain`, letterboxed onto the ground. Only a person
 looking at the result can tell which is right for a given flyer, and a person is already looking.
 
 ## Copy rules
 
 Encoded in `src/post/caption.ts`, checked as she types and again before publishing. `checkCaption()`
-**reports and never rewrites**: the queue shows what it says and she decides, because silently editing her
+**reports and never rewrites**: the studio shows what it says and she decides, because silently editing her
 words would be worse than leaving a mistake.
 
 - At most **five hashtags**, the ones closest to the specific event.
@@ -153,11 +153,11 @@ words would be worse than leaving a mistake.
 
 **The publish endpoint posts in public under NOCT's name.** That is the thing being protected.
 
-- **`/queue` is gated server-side.** A `?studio=1` flag hides nothing — the markup ships to every visitor
-  either way. Here the page is served by a function, and without a session the queue half is *cut out of the
-  response*: no queue markup, and no `page.js`, which would otherwise name every endpoint and every action.
+- **`/studio` is gated server-side.** A `?studio=1` flag hides nothing — the markup ships to every visitor
+  either way. Here the page is served by a function, and without a session the studio half is *cut out of the
+  response*: no studio markup, and no `page.js`, which would otherwise name every endpoint and every action.
   A stranger gets the door and `gate.js`. Stripping the markup alone was not enough — the inlined script
-  still described the whole queue, which is why the door has a script of its own, and why there is a test
+  still described the whole studio, which is why the door has a script of its own, and why there is a test
   asserting that `/api/publish` never appears in a signed-out response.
 - **Fails closed.** With no `STUDIO_PASSWORD`, production returns 503 rather than an open publish button.
   Locally it stays open so the page can be worked on. Same shape as `api/_lib/auth.ts`.
@@ -188,7 +188,7 @@ words would be worse than leaving a mistake.
    afterwards: Vercel does not apply new environment variables to a running deployment.
 4. Check the credential without posting anything: `GET /api/publish` (signed in) returns the account handle,
    the remaining daily quota, and how many days the token has left.
-5. Open `/queue`, sign in, press **Draft the coming weekend**.
+5. Open `/studio`, sign in, press **Draft the coming weekend**.
 
 `IG_ACCESS_TOKEN` can post as NOCT. Never in the repo, never in the client bundle, never pasted into a chat.
 

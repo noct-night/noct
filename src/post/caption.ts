@@ -12,7 +12,7 @@
  *     drafting and posting, so they belong in the caption if anywhere -- it is reviewed and edited in the
  *     minute before publishing, and a slide is baked into a JPEG hours earlier.
  *
- * checkCaption() reports rather than rewrites. The queue shows what it says next to the field and lets her
+ * checkCaption() reports rather than rewrites. The studio shows what it says next to the field and lets her
  * decide: silently editing her words would be the worse behaviour, and she is the one who signs the post.
  */
 import { CAPTION_MAX, HASHTAG_MAX } from './types.js';
@@ -109,7 +109,7 @@ export interface CaptionSeed {
 }
 
 /**
- * The first draft of a weekend caption. It is a starting point to edit, not a finished caption: the queue
+ * The first draft of a weekend caption. It is a starting point to edit, not a finished caption: the studio
  * opens it in an editable field for exactly that reason.
  */
 export function draftWeekendCaption(seed: CaptionSeed): string {

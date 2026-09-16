@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<title>NOCT · post queue</title>
+<title>NOCT · studio</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -13,23 +13,23 @@
 <body>
 
 <!-- The sign-in door. Server-rendered as the whole page when there is no session, so an unauthenticated
-     visitor never receives the queue markup at all. -->
+     visitor never receives the studio markup at all. -->
 <div class="wrap" id="gateView" hidden>
   <form class="gate" id="gateForm">
     <h1>NOCT studio</h1>
-    <p>The Instagram review queue. Sign in to load the weekend.</p>
+    <p>Sign in to review the weekend.</p>
     <input type="password" id="gatePass" name="password" placeholder="Studio password" autocomplete="current-password" required>
     <button class="btn btn-go" type="submit">Sign in</button>
     <p class="err" id="gateErr" hidden></p>
   </form>
 </div>
 
-<!--noct:queue-start-->
-<div class="wrap" id="queueView" hidden>
+<!--noct:studio-start-->
+<div class="wrap" id="studioView" hidden>
   <header class="bar"><span>NO</span><span>CT</span></header>
 
   <div class="mast">
-    <h1>Instagram post queue</h1>
+    <h1>Instagram posts</h1>
     <div class="ready" id="ready">Nothing approved yet</div>
   </div>
 
@@ -51,7 +51,7 @@
 
   <main id="stream"></main>
 </div>
-<!--noct:queue-end-->
+<!--noct:studio-end-->
 
 <script>/*noct:gate*/</script>
 <script>/*noct:js*/</script>

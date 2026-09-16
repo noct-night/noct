@@ -57,7 +57,7 @@ export function shouldRefresh(t: StoredToken, now: Date = new Date()): boolean {
   return t.expiresAt.getTime() - now.getTime() < REFRESH_WINDOW_MS;
 }
 
-/** Days left, for the queue to show. Null when the expiry is not yet known. */
+/** Days left, for the studio to show. Null when the expiry is not yet known. */
 export function daysUntilExpiry(t: StoredToken, now: Date = new Date()): number | null {
   if (!t.expiresAt) return null;
   return Math.floor((t.expiresAt.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
@@ -147,7 +147,7 @@ export async function currentToken(log: Logger, source = process.env): Promise<S
   }
 }
 
-/** What the queue shows about the credential, without ever handing the token to the browser. */
+/** What the studio shows about the credential, without ever handing the token to the browser. */
 export async function tokenStatus(): Promise<{ present: boolean; days_left: number | null }> {
   const stored = await readStored().catch(() => null);
   if (!stored) return { present: Boolean(env('IG_ACCESS_TOKEN')), days_left: null };

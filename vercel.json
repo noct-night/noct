@@ -24,9 +24,9 @@
     "api/posts.ts": {
       "maxDuration": 60
     },
-    "api/queue.ts": {
+    "api/studio.ts": {
       "maxDuration": 15,
-      "includeFiles": "queue/**"
+      "includeFiles": "studio/**"
     }
   },
   "crons": [
@@ -70,8 +70,8 @@
   ],
   "rewrites": [
     {
-      "source": "/queue",
-      "destination": "/api/queue"
+      "source": "/studio",
+      "destination": "/api/studio"
     }
   ]
 }

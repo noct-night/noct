@@ -1,5 +1,5 @@
 /**
- * The post queue's vocabulary: slide templates, their data, and the review states.
+ * The studio's vocabulary: slide templates, their data, and the review states.
  *
  * Templates and every type size in src/post/templates.ts came from the review prototype
  * (docs/INSTAGRAM.md records where). The schemas here are what /api/render and /api/publish validate
@@ -135,7 +135,7 @@ export const slideSchema = z.discriminatedUnion('template', [
 export type Slide = z.infer<typeof slideSchema>;
 export type Template = Slide['template'];
 
-/** What a slide looks like on the page, for the queue's per-template label. */
+/** What a slide looks like on the page, for the studio's per-template label. */
 export const TEMPLATE_LABEL: Record<Template, string> = {
   cover: 'carousel',
   event: 'event',
@@ -161,7 +161,7 @@ export const STATUS_LABEL: Record<PostStatus, string> = {
   posted: 'Published',
 };
 
-/** One row of ig_post as the queue page sees it. */
+/** One row of ig_post as the studio page sees it. */
 export interface Post {
   id: string;
   series: Series;
@@ -177,7 +177,7 @@ export interface Post {
   updated_at: string;
 }
 
-/** The subset of a post the queue may change. Status moves have their own route; publishing has its own. */
+/** The subset of a post the studio may change. Status moves have their own route; publishing has its own. */
 export const postPatchSchema = z.object({
   caption: z.string().max(CAPTION_MAX).optional(),
   status: z.enum(STATUSES).optional(),
