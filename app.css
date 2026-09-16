@@ -243,9 +243,6 @@ a{color:inherit}
 .dbody{padding:26px var(--pad) 50px}
 .dname{font-size:27px;font-weight:500;letter-spacing:-.032em;line-height:1.1}
 /* when the title IS the act, the title is the way to their sets */
-.asact{font:inherit;color:inherit;text-align:left;padding:0}
-.asarrow{color:var(--d2);font-size:20px}
-.asact:active .asarrow{color:var(--chalk)}
 .dsup{font-size:15px;color:var(--d1);margin-top:10px;line-height:1.5}
 .specs{display:grid;grid-template-columns:104px minmax(0,1fr);gap:9px 18px;margin-top:24px;padding-top:24px;
  border-top:.7px solid var(--rule);font-size:15px;line-height:1.5}
@@ -310,11 +307,18 @@ a{color:inherit}
 .mapnote[hidden]{display:none}
 /* The promoter's track: a text control, the title, the platform it plays from. No meter and no progress bar --
    either would imply a chosen segment, and the clip is the platform's, not ours. */
-.trk{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
-.trk .go[aria-pressed="true"]{color:var(--chalk)}
-.trk .go[disabled]{color:var(--d2);text-decoration:none;cursor:default}
-.trk .trkt{color:var(--d1)}
-.trk a{color:var(--d2);font-size:13px;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
+.trk{display:flex;flex-direction:column;gap:5px}
+.trk .trkt{color:var(--chalk)}
+.trk .by{color:var(--d1)}
+.trk .trkc{display:flex;flex-wrap:wrap;gap:3px 18px;align-items:baseline;font-size:13.5px;color:var(--d2)}   /* no dot between: it dangled when the two wrapped */
+.trk .trkc .go{color:var(--d1)}
+.trk .trkc .go[aria-pressed="true"]{color:var(--chalk)}
+.trk .trkc .go[disabled]{color:var(--d2);text-decoration:none;cursor:default}
+.trk .trkc a{color:var(--d1);text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
+/* "Who's Coco Maria? →": the tap explained as the question it answers, under the line-up and under a title that is the act */
+.who{display:block;margin-top:8px;font-size:13.5px;color:var(--d1);text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
+.dwho{margin-top:10px}
+.dwho .who{margin-top:0;font-size:15px}
 /* After this, nearby: one room per row, the way to it on the right */
 .nx{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:baseline;padding:12px 0;border-bottom:.7px solid var(--hair)}
 .nx:last-child{border-bottom:0}

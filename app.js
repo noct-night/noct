@@ -718,16 +718,17 @@ function openDet(eid){
   $('#det').innerHTML=`
   <div class="dhero"><div class="tex ${e.tex}"${art(e)}></div><button class="dx" onclick="closePage('det')" aria-label="Close">✕</button></div>
   <div class="dbody">
-    <div class="dname">${titleIsTheAct(e)?`<button class="asact" onclick="openArtistByName('${esc(titleIsTheAct(e))}')">${e.head} <span class="asarrow">→</span></button>`:e.head}</div>
+    <div class="dname">${e.head}</div>
+    ${titleIsTheAct(e)?`<div class="dwho"><button class="who" onclick="openArtistByName('${esc(titleIsTheAct(e))}')">Who's ${titleIsTheAct(e)}? →</button></div>`:''}
     <div class="dsup">${dayFull(e.d)}${e.door?` · ${e.door}${e.close?' to '+e.close:''}`:''} · ${e.venue}${e.room?' · '+e.room:''}</div>
     <div class="specs">
       <div class="k">Genre</div><div>${e.genre.length
         ?genOf(e)
         :`<span style="color:var(--d2)">No genre yet.</span> <button class="go" onclick="suggestGenre(${e.id})">Suggest one</button>`}</div>
       ${e.sound?`<div class="k">Sound</div><div>${e.sound}</div>`:''}
-      ${e.track?`<div class="k">Track</div><div class="trk"><button class="go" id="trkBtn" onclick="toggleTrack()" aria-pressed="${trackPlaying(e)}">${trackPlaying(e)?'Stop':'Play'}</button><span class="trkt">${e.track.title}</span><a href="${e.track.url}" target="_blank" rel="noopener">${e.track.platform==='apple'?'Apple Music':'Spotify'}</a></div>`:''}
+      ${e.track?trackRow(e):''}
       ${(e.vibes||[]).length?`<div class="k">Vibe</div><div>${e.vibes.map(v=>v.label).join(' · ')}</div>`:''}
-      ${!e.set&&!titleIsTheAct(e)&&(e.lineup.length||e.act)?`<div class="k">Line-up</div><div class="lineup">${(e.lineup.length?e.lineup:[e.act]).map(a=>`<button class="go" onclick="openArtistByName('${esc(a)}')">${a}</button>`).join('<span class="sep2"> · </span>')}<div class="hint">Tap a name to hear their sets</div></div>`:''}
+      ${!e.set&&!titleIsTheAct(e)&&(e.lineup.length||e.act)?`<div class="k">Line-up</div><div class="lineup">${(e.lineup.length?e.lineup:[e.act]).map(a=>`<button class="go" onclick="openArtistByName('${esc(a)}')">${a}</button>`).join('<span class="sep2"> · </span>')}<button class="who" onclick="openArtistByName('${esc((e.lineup.length?e.lineup:[e.act])[0])}')">Who's ${(e.lineup.length?e.lineup:[e.act])[0]}? →</button></div>`:''}
       <div class="k">Venue</div><div><button class="go" onclick="openVenue('${esc(e.venue)}')">${e.venue} →</button></div>
       ${vInfo(e.venue).hood?`<div class="k">Area</div><div>${vInfo(e.venue).hood}${vInfo(e.venue).boro?', '+vInfo(e.venue).boro:''}</div>`:''}
       ${e.age?`<div class="k">Ages</div><div>${e.age}</div>`:''}
@@ -764,10 +765,31 @@ function openDet(eid){
    where the whole track lives. */
 let AUDIO=null,TRK={uuid:''};
 const trackPlaying=e=>!!(e&&AUDIO&&!AUDIO.paused&&TRK.uuid===e.uuid);
+const PLAY_LBL='Play 30-second clip';
+/* Whose track this is, when the data says so: a line-up name inside the title ("Caiiro - Ndisize"), else the
+   only name on the bill ("Afterglow" on a Nils Hoffmann night -- DICE drops the artist when it is the
+   headliner). Two or more names and no match: the title stands alone rather than guess. */
+function trackWho(e){
+  const names=(e.lineup&&e.lineup.length?e.lineup:(e.act?[e.act]:[])).filter(Boolean);
+  const t=String(e.track.title).toLowerCase();
+  const inTitle=names.find(n=>n.length>=3&&t.includes(n.toLowerCase()));
+  if(inTitle)return {name:inTitle,inTitle:true};
+  if(names.length===1)return {name:names[0],inTitle:false};
+  return null;
+}
+/* "Play · Afterglow · Spotify" was three words with no sentence between them. Now: the track and whose it
+   is, then what the control does and where the whole thing lives. */
+function trackRow(e){
+  const w=trackWho(e),plat=e.track.platform==='apple'?'Apple Music':'Spotify',on=trackPlaying(e);
+  return `<div class="k">Track</div><div class="trk">`
+    +`<div class="trkt">${e.track.title}${w&&!w.inTitle?` <span class="by">by <button class="go" onclick="openArtistByName('${esc(w.name)}')">${w.name}</button></span>`:''}</div>`
+    +`<div class="trkc"><button class="go" id="trkBtn" onclick="toggleTrack()" aria-pressed="${on}">${on?'Stop':PLAY_LBL}</button>`
+    +`<a href="${e.track.url}" target="_blank" rel="noopener">Full track on ${plat}</a></div></div>`;
+}
 function stopTrack(){
   if(AUDIO){AUDIO.pause();AUDIO.removeAttribute('src');AUDIO.load()}
   TRK={uuid:''};
-  const b=$('#trkBtn');if(b&&!b.disabled){b.textContent='Play';b.setAttribute('aria-pressed','false')}
+  const b=$('#trkBtn');if(b&&!b.disabled){b.textContent=PLAY_LBL;b.setAttribute('aria-pressed','false')}
 }
 function toggleTrack(){
   const e=DET_EV;if(!e||!e.track)return;
