@@ -111,6 +111,20 @@ describe('shapeEvent (offline)', () => {
     // no ticketing offers: one "way in" per source link instead
     expect(e.srcs).toEqual([['Resident Advisor', null, 'See listing', 'https://ra.co/events/2473602'], ['DICE', null, 'See listing', 'https://dice.fm/event/eoxvey']]);
   });
+  it('on_sale is a ticketer\'s positive word, not the absence of "sold out"', () => {
+    // the canned row: one RA tier unavailable, GA on sale -> a ticket can be bought
+    expect(shapeEvent(cannedRow()).on_sale).toBe(true);
+    // door price on a community board only: listed, not on sale
+    expect(shapeEvent(cannedRow({ offers: [], cheapest_price: '15' })).on_sale).toBe(false);
+    // every tier gone but nobody said sold out: still not "on sale"
+    const gone = cannedRow().offers!.map((o) => ({ ...o, available: false as const }));
+    expect(shapeEvent(cannedRow({ offers: gone })).on_sale).toBe(false);
+    // availability unknown (null) is not a yes
+    const unknown = cannedRow().offers!.map((o) => ({ ...o, available: null }));
+    expect(shapeEvent(cannedRow({ offers: unknown })).on_sale).toBe(false);
+    // and a sold-out verdict wins over a stale available tier
+    expect(shapeEvent(cannedRow({ sold_out: true })).on_sale).toBe(false);
+  });
   it('counts a Public Records link.dice.fm short link as a DICE way in', () => {
     const e = shapeEvent(cannedRow({ sources: [{ source: 'publicrecords', name: 'Public Records', url: 'https://link.dice.fm/abc' }], offers: [] }));
     expect(e.dice).toBe('https://link.dice.fm/abc');

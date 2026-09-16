@@ -83,6 +83,11 @@ so; when no listing has an opinion it falls back to "every offer is unavailable"
 `VALID` / `SOLDOUT` / `NOLONGERONSALE` / `NOTYETONSALE` tokens are humanised there; other sources' notes pass
 through verbatim) and do not by themselves make the event "Sold out".
 
+`on_sale` is the positive claim `soldout` cannot make: true only when a ticketer's live offer says `available`
+(event_offer is ticketers only, 0019). `soldout = false` means nobody said sold out, which is also true of a
+door-price night on a community board — so the **Availability → On sale** filter uses `on_sale`, and a night with
+neither verdict matches neither filter. The picks line prints *On sale* from the same field, never from its absence.
+
 Every enrichment field is null-safe: before `npm run enrich` has touched an event, `primary` is null,
 `genre_codes`/`tags`/`vibes` are empty, the scalars are null, `sound` is `''`, and `genre` falls back to the raw
 source labels with `gsrc` naming the sources that tagged ("DICE + RA tags").
@@ -97,6 +102,12 @@ source labels with `gsrc` naming the sources that tagged ("DICE + RA tags").
   platform filter and `platformOf()` keep working; `PLATS` and `AREAS` are rebuilt from the loaded events.
 - `VENUES` keys are the family names the events carry; each gets deterministic `tones` (the placeholder art) from
   a hash of the name.
+- `All` / `For you` / `Picks` (`S.sel`, the `.seg` under city and date) filter all three views through `results()`.
+  `Picks` is up to three for the first night loaded — Best match, Safer choice, Wildcard — from
+  `/api/recommend?night=` and `assignSlots()`; a pick is also marked with its slot name in `All`. See
+  docs/RECOMMENDATIONS.md § Picks. The app opens on `Picks` the first time a session has two or more; a tap on
+  the control holds for the session (`sessionStorage`). "Tonight" for the When presets is computed in the
+  **city's** zone (`cityDate()`, zones from `cities[].tz`), not New York's.
 - Where present, the image caption and list rows show the **primary genre + up to two vibe chips**
   (`tagLine()`); untagged events show the raw genres exactly as before. The event page adds a **Sound** row
   (`sound_summary`), a **Vibe** row, and a **Why these tags?** block listing genre codes/labels (with the

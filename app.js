@@ -99,8 +99,11 @@ const S={mode:'image',view:'image',from:0,to:0,i:0,city:'nyc',area:'All',geo:fal
  /* going rows by uuid -> created_at, the feed's generated_at, and rows removed that the feed had counted:
     together these correct a cached going_count without guessing */
  mineAt:new Map(),feedAt:'',goOff:new Set(),
- sortTaste:false,only:false,
- recs:{loading:false,loaded:false,error:false,list:[],history:0}};
+ /* which nights the three views show: everything, the ones NOCT has a reason for, or the picks for one night */
+ sortTaste:false,sel:'all',
+ recs:{loading:false,loaded:false,error:false,list:[],history:0},
+ /* up to three for the first night loaded -- Best match, Safer choice, Wildcard -- see loadPicks() */
+ picks:{loading:false,loaded:false,error:false,list:[],night:''}};
 /* true once a real feed replaces the sample weekend: only then are there rows to read and write */
 let LIVE=false;
 const $=s=>document.querySelector(s);
@@ -172,7 +175,9 @@ function ok(e){
   if(S.area!=='All'&&vi.boro!==S.area)return false;
   if(S.gen.size&&!e.genre.some(g=>S.gen.has(g)))return false;
   if(S.door.size&&!S.door.has(band(e)))return false;
-  if(S.avail.size&&!S.avail.has(e.soldout?'out':'on'))return false;
+  /* "On sale" is a ticketer saying a ticket can be bought (on_sale), not the absence of "sold out": a
+     door-price night is listed, and matches neither filter */
+  if(S.avail.size&&!S.avail.has(e.soldout?'out':(e.on_sale?'on':'listed')))return false;
   return true;
 }
 /* A recommendation outranks any taste score (tasteScore is bounded far below 1000), and both only apply
@@ -195,22 +200,40 @@ const forMe=e=>{
 };
 /** Nothing to filter by until there is a taste or a recommendation, so the control stays hidden until then. */
 const canFilterForMe=()=>TASTE.length>0||S.recs.list.some(r=>!r.gone);
-const results=()=>EV.filter(ok).filter(e=>!S.only||forMe(e)).sort((a,b)=>a.d-b.d
-  ||(S.sortTaste?rank(b)-rank(a):0)
-  ||(a.door||'99').localeCompare(b.door||'99'));
-/** One switch for both views. In image view the caption's "1 of N" is what makes the change legible. */
-function setOnly(on){
-  if(S.only===on)return;
-  S.only=on;
-  if(on)S.sortTaste=true;                /* filtering by taste while ignoring it in the order is incoherent */
+/* Picks are an ordered answer -- Best, Safer, Wildcard -- so they come back in that order, not by door time.
+   The night's own filters still apply: "Filter · 2" has to mean the same thing on three cards as on thirty. */
+const results=()=>{
+  if(S.sel==='picks'){
+    const out=[];
+    S.picks.list.forEach(p=>{const e=EV.find(x=>x.uuid===p.uuid);if(e&&ok(e))out.push(e)});
+    return out;
+  }
+  return EV.filter(ok).filter(e=>S.sel!=='you'||forMe(e)).sort((a,b)=>a.d-b.d
+    ||(S.sortTaste?rank(b)-rank(a):0)
+    ||(a.door||'99').localeCompare(b.door||'99'));
+};
+/** One switch for all three views. In image view the caption's "1 of N" is what makes the change legible. */
+const SEL_KEY='noct.sel';
+function setSel(v){
+  if(S.sel===v)return;
+  S.sel=v;
+  if(v!=='all')S.sortTaste=true;         /* filtering by taste while ignoring it in the order is incoherent */
+  try{sessionStorage.setItem(SEL_KEY,v)}catch(e){}   /* an explicit choice holds for the session */
   S.i=0;buildAll();render();renderOnlyBtn();
 }
 function renderOnlyBtn(){
   const b=$('#btnFor');
   if(!b)return;
-  const show=canFilterForMe()&&(S.view==='image'||S.view==='list'||S.view==='map');
+  /* a night change empties the picks until the new ones land; do not bounce someone to All in between */
+  const loadingPicks=S.picks.loading&&S.sel==='picks';
+  const have={all:true,you:canFilterForMe(),picks:S.picks.list.length>0||loadingPicks};
+  if(!have[S.sel])S.sel='all';                        /* the taste was cleared, or the night has no picks */
+  const show=(have.you||have.picks)&&(S.view==='image'||S.view==='list'||S.view==='map');
   b.hidden=!show;
-  b.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String((x.dataset.only==='1')===S.only)));
+  b.querySelectorAll('button').forEach(x=>{
+    x.hidden=!have[x.dataset.sel];
+    x.setAttribute('aria-pressed',String(x.dataset.sel===S.sel));
+  });
 }
 const nF=()=>S.gen.size+S.door.size+S.avail.size;
 /* the preset's own words when one is active ("This weekend"), otherwise the nights themselves */
@@ -228,13 +251,14 @@ function renderImage(){
   $('#slides').innerHTML=list.map((e,n)=>`<div class="slide ${n===S.i?'on':''}"><div class="tex ${e.tex}"${n===S.i?art(e):''}></div></div>`).join('');
   $('#swipeLbl').textContent=list.length?`Swipe ${dateLabel().toLowerCase()}`:'Nothing here';
   if(!list.length){$('#caption').innerHTML=`<div class="sm">Nothing matches.</div><button class="lnk" onclick="clearAll()" style="margin-top:10px">Clear filters</button>`;return}
-  const e=list[S.i],rec=recFor(e);
+  const e=list[S.i],rec=recFor(e),pk=pickFor(e);
   $('#caption').innerHTML=`
     <div class="idx sm">${S.i+1} of ${list.length} · ${dayFull(e.d)}</div>
-    ${rec?`<div class="fortag"><span class="fydot"></span>For you</div>`:''}
+    ${pk?`<div class="fortag"><span class="fydot"></span>${pk.slot}</div>`:rec?`<div class="fortag"><span class="fydot"></span>For you</div>`:''}
     <div class="name">${e.head}</div>
     <div class="gen">${genreLine(e)}</div>
-    <div class="meta sm">${e.venue}</div>
+    <div class="meta sm ${pk?'haswhy':''}">${e.venue}</div>
+    ${pk?`<div class="why">${pk.note}</div>`:''}
     <button class="lnk" onclick="openDet(${e.id})">View event</button>`;
 }
 function filmCut(){
@@ -328,14 +352,15 @@ function renderList(){
   let out='',cur=-1;
   list.forEach(e=>{
     if(e.d!==cur){cur=e.d;out+=`<div class="dayhead">${dayName(e.d)} · ${dayFull(e.d)}</div>`}
-    const rec=recFor(e);
+    const rec=recFor(e),pk=pickFor(e);
     out+=`<div class="row" role="button" tabindex="0" onclick="openDet(${e.id})" onkeydown="if(event.key==='Enter'){openDet(${e.id})}">
-      <div class="rt">${rec?`<span class="rfor">For you</span> · `:''}${e.door||'Time on listing'}</div>
+      <div class="rt">${pk?`<span class="rfor">${pk.slot}</span> · `:rec?`<span class="rfor">For you</span> · `:''}${e.door||'Time on listing'}</div>
       <div class="rn">${e.head}</div>
       <div class="rg">${tagLine(e)}</div>
       <div class="rv">${e.venue}</div>
       <div class="rp ${e.soldout||low(e)===null?'gone':''}">${priceLbl(e)}</div>
       <div class="rgo">${goCount(e.id)} going</div>
+      ${pk?`<div class="why">${pk.note}</div>`:''}
     </div>`;
   });
   $('#rows').innerHTML=list.length?out:`<div class="empty">Nothing matches. <button class="lnk" onclick="clearAll()">Clear filters</button></div>`;
@@ -446,16 +471,16 @@ function onbSkip(){TASTE=[];tasteRemember();closeOnb();persistTaste()}
 /* Editing saves the genres and stops there: someone changing a genre does not need the flyers again. */
 function onbSaveEdit(){
   TASTE=[...ONB.genres];tasteRemember();closeOnb();applyTaste();
-  persistTaste();invalidateRecs();loadRecs();render();
+  persistTaste().then(()=>{invalidateRecs();loadRecs();loadPicks()});render();
   toast(TASTE.length?'Taste updated':'Taste cleared');
 }
 function onbDone(){
   tasteRemember();closeOnb();applyTaste();
-  persistTaste();invalidateRecs();loadRecs();render();
+  persistTaste().then(()=>{invalidateRecs();loadRecs();loadPicks()});render();
 }
 function persistTaste(){
-  if(!LIVE)return;
-  try{sbRest('POST','/profile',{taste_genres:TASTE,onboarded_at:new Date().toISOString()}).catch(()=>{})}catch(e){}
+  if(!LIVE)return Promise.resolve(null);
+  try{return sbRest('POST','/profile',{taste_genres:TASTE,onboarded_at:new Date().toISOString()}).catch(()=>null)}catch(e){return Promise.resolve(null)}
 }
 /* Taste sorts *within* a night, never across one: people read the calendar chronologically and a Saturday
    headliner must not jump above Friday. Nothing is hidden — only reordered. */
@@ -497,6 +522,68 @@ function recFor(e){
   if(!e||!e.uuid)return null;
   return S.recs.list.find(r=>r.uuid===e.uuid&&!r.gone)||null;
 }
+/* ---------- Picks ----------
+   Up to three for the first night loaded, in a fixed order: Best match, Safer choice, Wildcard. RA makes you
+   read thirty cards and judge; this is the judgment, compressed -- and everything it says is something the
+   card can show. No percentage (the score is a weighted sum, not a probability), no minutes away (there is
+   no location), no "tickets available" unless a ticketer said so. Fewer than three when fewer qualify; the
+   night is thin, and padding the slots would be the one thing that made the labels a lie. */
+const SLOT={best:'Best match',safer:'Safer choice',wild:'Wildcard'};
+function pickFor(e){
+  if(!e||!e.uuid)return null;
+  return S.picks.list.find(p=>p.uuid===e.uuid)||null;
+}
+/* Ranked rows from /api/recommend?night= -> the labelled picks. Pure, so the rule lives in one place:
+   Best   = the top of the ranking; its note is the first reason the recommender gave.
+   Safer  = of the rest, the one with the most evidence that other people are going or that a ticket can be
+            bought -- ways in, an interested count, a ticketer's "on sale", a known price. Omitted when nothing
+            has any: "safer" with no evidence is just a second-best.
+   Wild   = of the rest, the highest-ranked one admitted WITHOUT an exact genre or artist match -- the same
+            family, the same rooms, the same kind of night, in a genre this person did not name. */
+function assignSlots(rows){
+  const pool=rows.filter(r=>!r.soldout);
+  if(!pool.length)return [];
+  const out=[],used=new Set();
+  const take=(r,slot,note)=>{used.add(r.uuid);out.push(Object.assign({},r,{slot,note}))};
+  const best=pool[0];
+  take(best,SLOT.best,whyOne(best.why));
+  const rest=()=>pool.filter(r=>!used.has(r.uuid));
+  const evidence=r=>(r.ways>=2?1:0)+(r.on_sale?1:0)+Math.min((r.interested||0)/500,2)+(r.from!==null?.5:0);
+  const safer=rest().map(r=>[evidence(r),r]).filter(x=>x[0]>0).sort((a,b)=>b[0]-a[0]||b[1].score-a[1].score)[0];
+  if(safer)take(safer[1],SLOT.safer,evidenceNote(safer[1]));
+  const wild=rest().find(r=>r.signals&&+r.signals.genre===0&&+r.signals.artist===0);
+  if(wild)take(wild,SLOT.wild,wild.primary?`Outside your genres · ${wild.primary}`:'Outside your genres');
+  return out;
+}
+const whyOne=why=>{const w=(why||[])[0];return w?`${WHY_LEAD[w.kind]||'Matches'} ${clean(w.detail)}`:'Closest to your taste'};
+const evidenceNote=r=>[r.on_sale?'On sale':null,r.interested?`${r.interested.toLocaleString()} interested`:null,
+  r.ways>=2?`${r.ways} ways in`:null].filter(Boolean).slice(0,2).join(' · ')||'Listed';
+async function loadPicks(){
+  if(!LIVE)return;
+  const night=(DAYS[0]||[])[3]||'';
+  if(!night){S.picks={loading:false,loaded:true,error:false,list:[],night:''};renderOnlyBtn();return}
+  const seq=++PICKS_SEQ;
+  S.picks={loading:true,loaded:false,error:false,list:S.picks.night===night?S.picks.list:[],night};
+  try{
+    const s=await sbSession();if(!s)throw new Error('no session');
+    /* deep enough to reach a wildcard: an exact-genre match scores ~1.35, a family-only one ~0.6, and a generic
+       code like techno.peak sits on 146 nights citywide, so the top twelve are usually all exact matches */
+    const qs=new URLSearchParams({city:S.city||'nyc',night,limit:'40'});
+    const r=await fetch(`${API_BASE}/api/recommend?${qs}`,{headers:{accept:'application/json',authorization:'Bearer '+s.access_token}});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const j=await r.json();
+    if(seq!==PICKS_SEQ)return;                          /* a later load moved the night or the city */
+    const rows=(j.events||[]).map(e=>({uuid:e.id,score:+e.score||0,signals:e.signals||{},soldout:!!e.soldout,on_sale:!!e.on_sale,
+      interested:e.interested||0,ways:(e.srcs||[]).length,from:typeof e.from==='number'?e.from:null,
+      primary:e.primary?clean(e.primary):'',why:Array.isArray(e.why)?e.why:[]}));
+    S.picks={loading:false,loaded:true,error:false,list:assignSlots(rows),night};
+  }catch(err){if(seq!==PICKS_SEQ)return;S.picks={loading:false,loaded:true,error:true,list:[],night}}
+  /* First landing with picks to show: open on them. The thesis is that three good answers beat thirty cards,
+     so the three come first -- All is one tap away, and a tap either way holds for the session. */
+  let chosen='';try{chosen=sessionStorage.getItem(SEL_KEY)||''}catch(e){}
+  if(!chosen&&!loadPicks.landed&&S.picks.list.length>=2){S.sel='picks';S.sortTaste=true;S.i=0;loadPicks.landed=true}
+  renderOnlyBtn();render();
+}
 /* A recommendation is usually on another night than the one loaded, so send people to the listing itself
    rather than silently reloading the feed underneath them. Opening one is recorded as a mild interest
    signal (0016) — after window.open, so a blocked-popup heuristic can never eat the click. */
@@ -528,24 +615,39 @@ function whyLine(why){
   const parts=(why||[]).slice(0,2).map(w=>`${WHY_LEAD[w.kind]||'Matches'} ${clean(w.detail)}`);
   return parts.join(' · ')||'Close to your taste';
 }
+/* Each load is numbered so a slow answer for the previous city or night cannot land on top of the current one. */
+let RECS_SEQ=0,PICKS_SEQ=0;
 async function loadRecs(){
   if(!LIVE)return;
+  const seq=++RECS_SEQ;
   S.recs={loading:true,loaded:false,error:false,list:S.recs.list,history:S.recs.history};renderRecs();
   try{
     const s=await sbSession();if(!s)throw new Error('no session');
-    const r=await fetch(`${API_BASE}/api/recommend?limit=12`,{headers:{accept:'application/json',authorization:'Bearer '+s.access_token}});
+    const r=await fetch(`${API_BASE}/api/recommend?limit=12&city=${encodeURIComponent(S.city||'nyc')}`,{headers:{accept:'application/json',authorization:'Bearer '+s.access_token}});
     if(!r.ok)throw new Error('HTTP '+r.status);
     const j=await r.json();
+    if(seq!==RECS_SEQ)return;
+    /* The server knows no taste but this device does: the anonymous account was re-created (a refresh that
+       failed, a cleared session) and the profile row went with it. Put it back once and ask again -- otherwise
+       every For you and every pick stays empty for someone who answered onboarding weeks ago. */
+    if(!(j.history_size>0)&&TASTE.length&&!loadRecs.resynced){
+      loadRecs.resynced=true;
+      await persistTaste();
+      if(seq!==RECS_SEQ)return;
+      invalidateRecs();loadPicks();return loadRecs();
+    }
     S.recs={loading:false,loaded:true,error:false,history:j.history_size||0,
       list:(j.events||[]).map(e=>({uuid:e.id,head:clean(e.head),venue:clean(e.venue),door:clean(e.door),
         night_label:nightLabel(e.night),price:clean(priceOf(e)),why:whyLine(e.why),
         url:cleanUrl(e.url),ra:cleanUrl(e.ra),dice:cleanUrl(e.dice)}))};
-  }catch(err){S.recs={loading:false,loaded:true,error:true,list:[],history:S.recs.history}}
+  }catch(err){if(seq!==RECS_SEQ)return;S.recs={loading:false,loaded:true,error:true,list:[],history:S.recs.history}}
   renderRecs();renderOnlyBtn();
 }
-/* the recommendation JSON is the feed's event shape, so reuse its price wording */
+/* the recommendation JSON is the feed's event shape, so reuse its price wording -- including `from`, the door
+   price a non-ticketer listed, or half of Los Angeles reads "See listing" here and "$20" on the same card */
 const priceOf=e=>{const p=(e.srcs||[]).map(s=>s[1]).filter(v=>typeof v==='number');
-  return e.soldout?'Sold out':(!p.length?'See listing':(Math.max(...p)!==Math.min(...p)?'From $':'$')+Math.min(...p))};
+  const lo=p.length?Math.min(...p):(typeof e.from==='number'?e.from:null),hi=p.length?Math.max(...p):lo;
+  return e.soldout?'Sold out':(lo===null?'See listing':(hi!==lo?'From $':'$')+lo)};
 const nightLabel=d=>{if(!d)return '';const t=new Date(d+'T12:00:00Z');
   return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][t.getUTCDay()]+' '+
     ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][t.getUTCMonth()]+' '+t.getUTCDate()};
@@ -967,6 +1069,7 @@ function goHome(){
 }
 function setView(v){
   if(LIVE&&!S.recs.loading&&!S.recs.loaded)loadRecs();
+  if(LIVE&&!S.picks.loading&&!S.picks.loaded)loadPicks();
   const primary=(v==='image'||v==='list'||v==='map');
   S.view=v;if(primary)S.mode=v;
   const secondary=(v==='saved'||v==='venues'||v==='profile');
@@ -1028,7 +1131,11 @@ const clean=s=>String(s==null?'':s).replace(/</g,'‹').replace(/>/g,'›').repl
 const cleanUrl=u=>{u=String(u==null?'':u).trim();return /^https?:\/\//i.test(u)?u.replace(/["'<>\\\s]/g,''):''};
 const hashOf=s=>{let h=7;for(const c of String(s))h=(h*31+c.charCodeAt(0))>>>0;return h};
 const tonesOf=name=>{const h=hashOf(name);return [0,1,2,3].map(k=>TEX[(h+k*2)%TEX.length])};
-const nyDate=off=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(Date.now()+off*864e5));
+/* Today in the CITY's clock. "Tonight" asked from Los Angeles at 10pm used to be New York's tomorrow. The zones
+   arrive with /api/feed cities[]; New York until they do. */
+let CITY_TZ={nyc:'America/New_York'};
+const cityTz=()=>CITY_TZ[S.city]||'America/New_York';
+const cityDate=off=>new Intl.DateTimeFormat('en-CA',{timeZone:cityTz(),year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(Date.now()+off*864e5));
 
 /* ---------- identity: an anonymous Supabase session ----------
    Every visitor gets a durable user_id with no login screen, so "going" and "saved" survive a reload and a
@@ -1085,7 +1192,9 @@ async function sbRest(method,path,body){
 }
 /** A new mark changes the taste profile. Mark it stale rather than blanking it: the rail keeps showing the
     previous answer until a fresh one lands, so marking a night does not make it flicker. */
-function invalidateRecs(){S.recs.loaded=false;S.recs.error=false}
+/* `loading` is cleared too: a stale in-flight answer is dropped by its sequence number, and the next setView()
+   asks again for the current city and night instead of waiting on the old request. */
+function invalidateRecs(){S.recs.loaded=false;S.recs.error=false;S.recs.loading=false;S.picks.loaded=false;S.picks.error=false;S.picks.loading=false}
 /** Mirror one toggle into Postgres. user_id is defaulted to auth.uid() server-side (0014). */
 async function persist(table,uuid,on){
   if(!LIVE)return true;                                    /* the sample weekend has no rows to write */
@@ -1123,8 +1232,8 @@ const monthAdd=(m,n)=>{const p=m.split('-').map(Number);return new Date(Date.UTC
 
 /** [from, to, label] for a preset key, in New York's calendar. */
 function rangeOf(key){
-  const t=nyDate(0);
-  if(key==='tomorrow')return [nyDate(1),nyDate(1),'Tomorrow'];
+  const t=cityDate(0);
+  if(key==='tomorrow')return [cityDate(1),cityDate(1),'Tomorrow'];
   if(key==='weekend'){
     const dow=dDow(t);
     if(dow===0)return [t,t,'Tonight'];                        /* Sunday: the weekend ends tonight */
@@ -1163,10 +1272,10 @@ function renderCalList(){
       +`<div class="rgo">${goCount(e.id)} going</div></div>`).join('')
     +`</div>`;
 }
-function calMove(n){S.calMonth=monthAdd(S.calMonth||dMonth(nyDate(0)),n);renderCal();loadCounts()}
+function calMove(n){S.calMonth=monthAdd(S.calMonth||dMonth(cityDate(0)),n);renderCal();loadCounts()}
 function renderCal(){
   const el=$('#rcal');if(!el)return;
-  const m=S.calMonth||dMonth(nyDate(0)),today=nyDate(0);
+  const m=S.calMonth||dMonth(cityDate(0)),today=cityDate(0);
   const first=monthStart(m),days=Number(monthEnd(m).slice(8)),p=m.split('-').map(Number);
   let cells='';
   for(let i=0;i<dDow(first);i++)cells+='<div class="pad"></div>';
@@ -1185,7 +1294,7 @@ function renderCal(){
 }
 /** Counts for the visible month, cached per month+city so reopening the sheet is free. */
 async function loadCounts(){
-  const m=S.calMonth||dMonth(nyDate(0)),city=S.city||'nyc';
+  const m=S.calMonth||dMonth(cityDate(0)),city=S.city||'nyc';
   if(S.countsMonth===m&&S.countsCity===city)return;
   if(/[?&]demo=1(&|$)/.test(location.search))return;
   renderCal();
@@ -1221,7 +1330,7 @@ function applyFeed(f){
     srcs:(e.srcs||[]).map(s=>[SHORT_PLAT[s[0]]||clean(s[0]),typeof s[1]==='number'?s[1]:null,clean(s[2]),cleanUrl(s[3])]),
     from:typeof e.from==='number'?e.from:null,
     ra:cleanUrl(e.ra),dice:cleanUrl(e.dice),eb:cleanUrl(e.eb),url:cleanUrl(e.url),tex:TEX.indexOf(e.tex)>=0?e.tex:'x1',
-    full:!!e.full,soldout:!!e.soldout,note:clean(e.note),status:clean(e.status),image:cleanUrl(e.image),going_count:e.going_count||0,
+    full:!!e.full,soldout:!!e.soldout,on_sale:!!e.on_sale,note:clean(e.note),status:clean(e.status),image:cleanUrl(e.image),going_count:e.going_count||0,
     act:e.act?clean(e.act):null
   }));
   const vs={};
@@ -1231,7 +1340,9 @@ function applyFeed(f){
   VENUES=vs;
   GENRES=(f.genres||[]).map(clean);
   AREAS=['All',...new Set(EV.map(e=>vInfo(e.venue).boro).filter(Boolean))];
-  if(Array.isArray(f.cities)&&f.cities.length)CITIES=f.cities.map(c=>[c.key,clean(c.name),!!c.enabled]);
+  if(Array.isArray(f.cities)&&f.cities.length){CITIES=f.cities.map(c=>[c.key,clean(c.name),!!c.enabled]);
+    f.cities.forEach(c=>{if(c.key&&c.tz)CITY_TZ[clean(c.key)]=clean(c.tz)})}
+  if(f.city&&f.city.key&&f.city.tz)CITY_TZ[clean(f.city.key)]=clean(f.city.tz);
   if(f.city&&f.city.key)S.city=f.city.key;
   /* the loaded window IS the selection now — the When tab decides what gets loaded */
   S.from=0;S.to=DAYS.length-1;S.i=0;
@@ -1266,10 +1377,13 @@ async function loadFeed(range){
   try{
     const r=await fetch(`${API_BASE}/api/feed?${qs}`,{headers:{accept:'application/json'}});
     if(!r.ok)throw new Error(`HTTP ${r.status}`);
-    applyFeed(await r.json());
+    const feed=await r.json();
+    /* a new window or city makes the last recommendations and picks stale; applyFeed() -> setView() then loads
+       both exactly once (they used to be requested twice per load) */
+    invalidateRecs();
+    applyFeed(feed);
     liveNote('');
     syncMine();                      /* restore this account's going/saved; renders again when it lands */
-    loadRecs();                      /* the rail is pinned to every view, so recommendations load with the feed */
     if(tasteRestore()){S.sortTaste=TASTE.length>0;render()}else{maybeOnboard()}
     openShared();
   }catch(err){
@@ -1278,7 +1392,7 @@ async function loadFeed(range){
 }
 (function(){
   const seg=document.getElementById('btnFor');
-  if(seg)seg.querySelectorAll('button').forEach(b=>b.onclick=()=>setOnly(b.dataset.only==='1'));
+  if(seg)seg.querySelectorAll('button').forEach(b=>b.onclick=()=>setSel(b.dataset.sel||'all'));
 })();
 (function(){
   const i=document.getElementById('srchIn');if(!i)return;
@@ -1286,4 +1400,5 @@ async function loadFeed(range){
   i.addEventListener('input',()=>{clearTimeout(t);const v=i.value;t=setTimeout(()=>runSearch(v),180)});
   i.addEventListener('keydown',e=>{if(e.key==='Enter'){clearTimeout(t);runSearch(i.value)}});
 })();
-sbRestore();buildAll();setView('image');loadFeed();
+sbRestore();try{S.sel=['all','you','picks'].includes(sessionStorage.getItem(SEL_KEY))?sessionStorage.getItem(SEL_KEY):'all'}catch(e){}
+buildAll();setView('image');loadFeed();

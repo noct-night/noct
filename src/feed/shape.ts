@@ -191,6 +191,12 @@ export interface FeedEvent {
   tex: string;
   full: boolean;
   soldout: boolean;
+  /**
+   * A ticketer currently says a ticket can be bought. The positive claim, as opposed to `soldout`, whose false
+   * only means nobody said sold out: event_offer is ticketers only (0019), and `available` is their own word.
+   * False for a door-price-only night, which is "listed", not "on sale".
+   */
+  on_sale: boolean;
   note: string;
   status: string;
   image: string;
@@ -458,6 +464,7 @@ export function shapeEvent(row: FeedRow, opts: { n?: number; d?: number; tz?: st
     tex: texOf(row.event_id),
     full: hasTime && lineup.length > 0,
     soldout: row.sold_out === true,
+    on_sale: row.sold_out !== true && (row.offers ?? []).some((o) => o.available === true),
     note: row.description ?? '',
     status: row.status,
     image: row.image_url ?? '',

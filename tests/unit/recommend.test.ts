@@ -10,6 +10,8 @@ describe.skipIf(!process.env.DATABASE_URL)('recommend_events against Postgres', 
   const MARK = 'RecTest 2034';
   const ME = '00000000-0000-4000-8000-00000000fa01';
   const OTHER = '00000000-0000-4000-8000-00000000fa02';
+  const POL = '00000000-0000-4000-8000-00000000fa04';
+  const USERS = [ME, OTHER, POL];
   const ids: Record<string, string> = {};
 
   const asUser = <T>(uid: string, sql: string, params: unknown[] = []): Promise<T[]> =>
@@ -31,6 +33,21 @@ describe.skipIf(!process.env.DATABASE_URL)('recommend_events against Postgres', 
     await query(`select link_event_artists($1)`, [ids[key]]);
     return ids[key]!;
   };
+  /** Same, on an exact night: the 0023 window tests need "tonight" in New York's clock, not the session's date. */
+  const mkEventOn = async (key: string, title: string, night: string, genres: string[], vibes: string[], venue: string | null, artists: string[]) => {
+    const r = await query<{ event_id: string }>(
+      `insert into event (title, night, city, tz, genre_codes, vibe_codes, venue_id, lineup, start_lateness, end_lateness, price_tier)
+       values ($1, $2::date, 'nyc', 'America/New_York', $3::text[], $4::text[],
+               (select venue_id from venue where name = $5), $6::text[], 4, 4, 2)
+       returning event_id`,
+      [`${title} ${MARK}`, night, genres, vibes, venue, artists],
+    );
+    ids[key] = r.rows[0]!.event_id;
+    await query(`select link_event_artists($1)`, [ids[key]]);
+    return ids[key]!;
+  };
+  const nyNight = async (offset: number) =>
+    (await query<{ d: string }>(`select (night_date(now(), 'America/New_York') + $1::int)::text as d`, [offset])).rows[0]!.d;
 
   beforeAll(async () => {
     await query(`create schema if not exists auth`);
@@ -65,10 +82,10 @@ describe.skipIf(!process.env.DATABASE_URL)('recommend_events against Postgres', 
   });
 
   afterAll(async () => {
-    await query(`delete from profile where user_id in ($1, $2)`, [ME, OTHER]);
-    await query(`delete from rec_feedback where user_id in ($1, $2)`, [ME, OTHER]);
-    await query(`delete from going where user_id in ($1, $2)`, [ME, OTHER]);
-    await query(`delete from saved where user_id in ($1, $2)`, [ME, OTHER]);
+    await query(`delete from profile where user_id = any($1::uuid[])`, [USERS]);
+    await query(`delete from rec_feedback where user_id = any($1::uuid[])`, [USERS]);
+    await query(`delete from going where user_id = any($1::uuid[])`, [USERS]);
+    await query(`delete from saved where user_id = any($1::uuid[])`, [USERS]);
     await query(`delete from event where title like $1`, [`%${MARK}%`]);
     await query(`delete from venue where name like $1`, [`%${MARK}%`]);
     await query(`delete from artist where name like 'RecTest DJ %'`);
@@ -237,5 +254,65 @@ describe.skipIf(!process.env.DATABASE_URL)('recommend_events against Postgres', 
     const savedScore = rows.find((r) => r.event_id === ids.sameGenre)!.score;
     const goingScore = mine.find((r) => r.event_id === ids.sameGenre)!.score;
     expect(Number(savedScore)).toBeLessThanOrEqual(Number(goingScore));
+  });
+
+  it('"tonight" is the city\'s night, not the server\'s UTC date: days = 0 and p_night window one night (0023)', async () => {
+    const tonight = await nyNight(0);
+    const tomorrow = await nyNight(1);
+    await mkEventOn('tonightDeep', 'Tonight Deep', tonight, ['house.deep'], [], null, ['RecTest DJ Iota']);
+    await mkEventOn('tomorrowDeep', 'Tomorrow Deep', tomorrow, ['house.deep'], [], null, ['RecTest DJ Kappa']);
+    const has = (rows: { event_id: string }[], k: string) => rows.some((r) => r.event_id === ids[k]);
+
+    const only = await asUser<{ event_id: string }>(ME, `select * from recommend_events(20, 'nyc', 0)`);
+    expect(has(only, 'tonightDeep')).toBe(true);
+    expect(has(only, 'tomorrowDeep')).toBe(false);
+
+    const two = await asUser<{ event_id: string }>(ME, `select * from recommend_events(20, 'nyc', 1)`);
+    expect(has(two, 'tonightDeep')).toBe(true);
+    expect(has(two, 'tomorrowDeep')).toBe(true);
+
+    const named = await asUser<{ event_id: string }>(ME, `select * from recommend_events(20, 'nyc', 60, 2, $1::date)`, [tomorrow]);
+    expect(has(named, 'tomorrowDeep')).toBe(true);
+    expect(has(named, 'tonightDeep')).toBe(false);
+
+    // the window has to be computed in the city's clock: the UTC current_date is what lost tonight after 8pm ET
+    const src = await query<{ def: string }>(`select pg_get_functiondef(p.oid) as def from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace where n.nspname='public' and p.proname='recommend_events'`);
+    expect(src.rows[0]!.def).not.toMatch(/current_date/);
+    expect(src.rows[0]!.def).toContain('night_date(now(), city.tz)');
+  });
+
+  it('returns the signals behind the score, so a client can label a pick without inventing a percentage', async () => {
+    type Sig = Record<'artist' | 'genre' | 'family' | 'vibe' | 'venue', number>;
+    const rows = await asUser<{ event_id: string; signals: Sig }>(ME, `select * from recommend_events(20, 'nyc', 60)`);
+    const a = rows.find((r) => r.event_id === ids.sameArtist)!.signals;
+    expect(Number(a.artist)).toBeGreaterThan(0);
+    const g = rows.find((r) => r.event_id === ids.sameGenre)!.signals;
+    expect(Number(g.genre)).toBeGreaterThan(0);
+    expect(Number(g.artist)).toBe(0);                    // the wildcard rule reads exactly this: genre 0, something else > 0
+    const v = rows.find((r) => r.event_id === ids.sameVenue)!.signals;
+    expect(Number(v.venue)).toBeGreaterThan(0);
+    expect(Number(v.genre)).toBe(0);
+    for (const s of [a, g, v]) for (const k of ['artist', 'genre', 'family', 'vibe', 'venue'] as const) {
+      expect(Number(s[k])).toBeGreaterThanOrEqual(0);
+      expect(Number(s[k])).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('door policy is not taste: 21+ neither admits a night nor explains one (0023)', async () => {
+    // a user whose only mark is a 21+ all-nighter in a genre nothing else here shares
+    await mkEventOn('polHist', 'Policy History', await nyNight(-3), ['hiphop.rap'], ['21_plus', 'all_nighter'], null, []);
+    await mkEventOn('polCand', 'Policy Candidate', await nyNight(2), ['trance.psy'], ['21_plus'], null, []);
+    await mkEventOn('moodCand', 'Mood Candidate', await nyNight(2), ['trance.psy'], ['21_plus', 'all_nighter'], null, []);
+    await query(`insert into going (user_id, event_id) values ($1, $2) on conflict do nothing`, [POL, ids.polHist]);
+
+    const rows = await asUser<{ event_id: string; reasons: { kind: string; detail: string }[] }>(
+      POL, `select * from recommend_events(20, 'nyc', 60)`);
+    const got = rows.map((r) => r.event_id);
+    expect(got).not.toContain(ids.polCand);              // 21+ alone is nothing in common
+    expect(got).toContain(ids.moodCand);                 // "All night" is
+    const why = rows.find((r) => r.event_id === ids.moodCand)!.reasons;
+    expect(why.some((r) => r.kind === 'vibe' && r.detail.includes('All night'))).toBe(true);
+    expect(rows.flatMap((r) => r.reasons).some((r) => /21\+/.test(r.detail))).toBe(false);
   });
 });

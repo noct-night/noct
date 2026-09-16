@@ -138,6 +138,14 @@ describe('dice: normalisation', () => {
     expect(l.startsAt).toBe('2026-09-13T19:00:00.000Z');
     expect(l.endsAt).toBe('2026-09-14T01:00:00.000Z');
     expect(l.hasTime).toBe(true);
+    expect(l.tz).toBe('America/New_York');
+    // the listing carries its city's clock: LA and Chicago DICE nights were printed three hours / one hour
+    // late for as long as this defaulted to New York (0023 backfilled the 100 rows that had it)
+    expect(normalizeEvent(e, 'la')).toMatchObject({ city: 'la', tz: 'America/Los_Angeles' });
+    expect(normalizeEvent(e, 'chi', 'America/Chicago').tz).toBe('America/Chicago');
+    // an evening in LA that is already the next date in New York stays on its own night
+    const late = normalizeEvent({ ...e, date: '2026-09-18T22:30:00-07:00' }, 'la');
+    expect(late.night).toBe('2026-09-18');
     expect(l.night).toBe('2026-09-13');
     expect(l.venueName).toBe('Public Records');
     expect(l.venueSourceId).toBe('2435');

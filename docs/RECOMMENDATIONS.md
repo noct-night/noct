@@ -46,8 +46,8 @@ carries it instead, three ways at once:
 
 - **Order** — a recommendation leads its night, then taste, then door time.
 - **A mark** — a dot and two words, on the list row and over the image-view title.
-- **A switch** — `All` / `For you` in the top row beside city and date, which *filters* both views. The
-  caption's "1 of 50" against "1 of 197" is what makes the change legible.
+- **A switch** — `All` / `For you` / `Picks` on its own line under city and date, which *filters* all three
+  views. The caption's "1 of 50" against "1 of 197" is what makes the change legible.
 
 `forMe()` admits a night when NOCT recommends it, or when one of your genres is among the event's **top two**
 (`genre_codes` is ordered by confidence). Two looser rules were tried and taken back out:
@@ -63,6 +63,45 @@ Primary genre only was measured too and is far too strict: 5 of 198.
 The reason a night was picked stays in the Saved list, which is the view you open to see recommendations; in
 the feed the mark is just a mark.
 
+## Picks: up to three for one night
+
+The compressed form of the same answer. RA makes you read thirty cards and judge; `Picks` is the judgment,
+for the **first night the feed loaded** (tonight by default; Friday under *This weekend*; a calendar date when
+one is picked), in a fixed order:
+
+| slot | rule (`assignSlots()` in `app.js`, pure) | its one-line note |
+| --- | --- | --- |
+| **Best match** | the top of `recommend_events(…, p_night)` | the first reason the recommender gave: *You saw Four Tet* |
+| **Safer choice** | of the rest, the most **evidence** that other people are going or a ticket can be bought: two or more ways in, an interested count, a ticketer's `on_sale`, a known price. Omitted when nothing has any | *On sale · 1,118 interested* |
+| **Wildcard** | of the rest, the highest-ranked night admitted **without** an exact genre or artist match (`signals.genre = 0`, `signals.artist = 0`): same family, same rooms, same kind of night, in a genre this person did not name | *Outside your genres · Afro House* |
+
+Sold-out nights never take a slot. Fewer than three when fewer qualify — a Tuesday in Chicago has one
+electronic night — and the slots are never padded, because padding is the one thing that would make the labels
+a lie. The picks are also *marked* in `All`: the card that is the Best match says so instead of "For you".
+
+Deliberately absent, and why: a **percentage** (the score is a weighted sum — the top fifty for a ten-genre
+account sit within 0.6 of each other — not a probability); a **BPM** (nothing NOCT ingests carries tempo);
+**minutes away** (no location is ever read; `Directions` opens Maps); **"tickets available"** unless a ticketer
+said so (`on_sale`), because `soldout = false` only means nobody said sold out.
+
+When the first load of a session has two or more picks, the app opens on them; `All` is one tap away and either
+choice holds for the session (`sessionStorage`).
+
+### 0023: the night is the city's
+
+`recommend_events()` used to window candidates from `current_date`, which on Supabase is **UTC**: from 20:00 in
+New York (17:00 in Los Angeles) "today" was already tomorrow and tonight's nights fell out of every
+recommendation for the rest of the evening. The window now starts at `night_date(now(), city.tz)` — the city's
+own night, with 01:00 still counting as the night before. `p_days = 0` means tonight only and `p_night` names
+one exact night, which is how the picks stay on the night the feed on screen is showing. The function also
+returns `signals` — the five overlap shares behind the score (`artist`, `genre`, `family`, `vibe`, `venue`,
+each 0..1) — so a client can explain a pick from the numbers rather than dressing the score up as one.
+
+The same migration stopped **door policy counting as taste**: `21+` sits on two nights in three citywide, so it
+matched everyone, admitted nights on that alone and headed almost every reason line (*Your nights are 21+*).
+Policy vibes are now ignored by the scorer except `phone_free` and `sober_friendly`, which describe a room's
+culture — exactly the set the feed shows (`moodVibes()`).
+
 ## The profile
 
 Built per request from the caller's own marks — `going` weighted **1.0**, `saved` **0.4** (a bookmark is not a
@@ -76,7 +115,7 @@ with fifty marks does not get larger scores than someone with three.
 | --- | --- | --- |
 | artist overlap | **3.0** | "a DJ you have seen is playing" is the most predictive thing NOCT knows, and the reason a person actually goes |
 | genre code | 1.5 | exact subgenre, e.g. `house.deep` |
-| vibe overlap | 0.8 | warehouse / day party / all-nighter / phone-free |
+| vibe overlap | 0.8 | warehouse / day party / all-nighter / phone-free — never door policy (`21+`, `free_rsvp`, …), see 0023 |
 | venue family | 0.7 | rooms roll up, so Elsewhere Rooftop matches Elsewhere |
 | genre family | 0.6 | partial credit: `techno.dub` for a `techno.peak` history |
 | scalar closeness | 1.0 | timing, price and underground-ness, only on the dimensions both sides have and only when at least two are shared |
@@ -135,7 +174,7 @@ thumb-width from the row, so a mis-tap must not permanently bury an event.
 ## Explanations
 
 Every recommendation returns `why`, the same provenance habit as the genre chips: `You saw MikeQ`,
-`You go to Deep House`, `You go to The Lot Radio`, `Your nights are 21+, Outdoors`. If NOCT cannot say why,
+`You go to Deep House`, `You go to The Lot Radio`, `Your nights are Warehouse, Outdoors`. If NOCT cannot say why,
 it does not recommend.
 
 ## Security

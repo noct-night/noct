@@ -32,6 +32,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       city: firstParam(req.query.city),
       days: firstParam(req.query.days),
       perVenue: firstParam(req.query.per_venue),
+      night: firstParam(req.query.night),
     });
     sendJson(res, 200, body, NO_STORE);
   } catch (err) {

@@ -24,8 +24,9 @@
       <button id="btnDate"><b id="dateLbl">Tonight</b><i>▼</i></button>
     </div>
     <div class="seg" id="btnFor" hidden role="group" aria-label="Which nights to show">
-      <button data-only="0" aria-pressed="true">All</button>
-      <button data-only="1" aria-pressed="false">For you</button>
+      <button data-sel="all" aria-pressed="true">All</button>
+      <button data-sel="you" aria-pressed="false" hidden>For you</button>
+      <button data-sel="picks" aria-pressed="false" hidden>Picks</button>
     </div>
     <div class="ctrl" id="backRow" hidden>
       <button onclick="goBack()"><i style="font-size:14px;opacity:1">←</i><b id="backLbl">Events</b></button>

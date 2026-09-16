@@ -14,7 +14,13 @@ import { shapeEvent, type FeedEvent, type FeedRow } from './shape.js';
 export { FeedParamError };
 
 export interface RecommendationReason { kind: 'artist' | 'genre' | 'venue' | 'vibe' | string; detail: string }
-export interface Recommendation extends FeedEvent { score: number; why: RecommendationReason[]; night: string }
+/**
+ * The five overlap shares behind the score (0..1 each, 0023): how much of the caller's history this night
+ * matches on artists, exact genres, genre families, vibes and venue. They let a client explain a pick from the
+ * numbers ("outside your genres" is genre = 0 with something else > 0) instead of dressing the score up as one.
+ */
+export interface RecommendationSignals { artist: number; genre: number; family: number; vibe: number; venue: number }
+export interface Recommendation extends FeedEvent { score: number; why: RecommendationReason[]; night: string; signals: RecommendationSignals }
 export interface RecommendResponse {
   generated_at: string;
   /** how many marks the profile is built from; 0 means "nothing to go on yet" */
@@ -22,7 +28,19 @@ export interface RecommendResponse {
   events: Recommendation[];
 }
 
-interface RpcRow { event_id: string; score: number; reasons: RecommendationReason[]; history_size: number }
+interface RpcRow { event_id: string; score: number; reasons: RecommendationReason[]; history_size: number; signals?: Partial<RecommendationSignals> | null }
+
+const SIGNAL_KEYS: (keyof RecommendationSignals)[] = ['artist', 'genre', 'family', 'vibe', 'venue'];
+function shapeSignals(s: RpcRow['signals']): RecommendationSignals {
+  const out = { artist: 0, genre: 0, family: 0, vibe: 0, venue: 0 };
+  for (const k of SIGNAL_KEYS) {
+    const v = Number(s?.[k]);
+    out[k] = Number.isFinite(v) ? Math.min(Math.max(v, 0), 1) : 0;
+  }
+  return out;
+}
+
+const NIGHT_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const DEFAULT_LIMIT = 12;
 const MAX_LIMIT = 50;
@@ -40,12 +58,16 @@ function intParam(v: string | undefined, dflt: number, min: number, max: number,
 
 export async function recommendationsFor(
   authHeader: string,
-  opts: { limit?: string; city?: string; days?: string; perVenue?: string } = {},
+  opts: { limit?: string; city?: string; days?: string; perVenue?: string; night?: string } = {},
 ): Promise<RecommendResponse> {
   const limit = intParam(opts.limit, DEFAULT_LIMIT, 1, MAX_LIMIT, 'limit');
-  const days = intParam(opts.days, DEFAULT_DAYS, 1, 60, 'days');
+  // days = 0 is tonight only; the window starts on the city's own night date inside the function (0023)
+  const days = intParam(opts.days, DEFAULT_DAYS, 0, 60, 'days');
   const perVenue = intParam(opts.perVenue, DEFAULT_PER_VENUE, 1, 10, 'per_venue');
   const city = opts.city && opts.city.trim() ? opts.city.trim() : null;
+  // one exact night, overriding days: the picks ask for the night the feed on screen is showing
+  const night = opts.night && opts.night.trim() ? opts.night.trim() : null;
+  if (night !== null && !NIGHT_RE.test(night)) throw new FeedParamError('night must be YYYY-MM-DD');
 
   const url = env('SUPABASE_URL');
   const key = env('SUPABASE_PUBLISHABLE_KEY');
@@ -54,7 +76,7 @@ export async function recommendationsFor(
   const res = await fetch(`${url.replace(/\/+$/, '')}/rest/v1/rpc/recommend_events`, {
     method: 'POST',
     headers: { apikey: key, authorization: authHeader, 'content-type': 'application/json' },
-    body: JSON.stringify({ p_limit: limit, p_city: city, p_days: days, p_per_venue: perVenue }),
+    body: JSON.stringify({ p_limit: limit, p_city: city, p_days: days, p_per_venue: perVenue, p_night: night }),
     signal: AbortSignal.timeout(15_000),
   });
   if (res.status === 401 || res.status === 403) throw new FeedParamError('that session is not valid any more; sign in again');
@@ -77,6 +99,7 @@ export async function recommendationsFor(
       night: row.night,                     // recommendations span many nights, so each card carries its own
       score: Math.round(Number(r.score) * 1000) / 1000,
       why: Array.isArray(r.reasons) ? r.reasons.filter((x) => x && x.detail) : [],
+      signals: shapeSignals(r.signals),
     });
   });
   return { generated_at, history_size: Number(rows[0]?.history_size ?? 0), events };

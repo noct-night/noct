@@ -257,7 +257,8 @@ export function dicePrices(e: DiceEvent): { prices: PriceTier[]; priceMin: numbe
   };
 }
 
-export function normalizeEvent(e: DiceEvent, city = 'nyc'): NormalizedListing {
+/** `tz` is the city's zone: listings carry it into `listing.tz`, and refresh_event() copies the winner's onto the event (0011/0023). */
+export function normalizeEvent(e: DiceEvent, city = 'nyc', tz: string = getCity(city).tz): NormalizedListing {
   const { spotify_tracks: _spotify, apple_music_tracks: _apple, images: _images, ...raw } = e;
   const hash = e.hash?.trim() || null;
   const sourceId = hash ?? e.id;
@@ -270,6 +271,7 @@ export function normalizeEvent(e: DiceEvent, city = 'nyc'): NormalizedListing {
   return baseListing({
     source: 'dice',
     city,
+    tz,
     sourceId,
     sourceUrl,
     raw,
@@ -277,7 +279,7 @@ export function normalizeEvent(e: DiceEvent, city = 'nyc'): NormalizedListing {
     startsAt: iso(start),
     endsAt: iso(end),
     hasTime: start !== null,
-    night: start ? nightDate(start) : null,
+    night: start ? nightDate(start, tz) : null,
     venueName: cleanText(venue0?.name) || cleanText(e.venue) || null,
     venueAddress: cleanText(e.address) || null,
     venueSourceId: venue0?.id === undefined || venue0.id === null ? null : String(venue0.id),
@@ -409,7 +411,7 @@ async function fetchCity(
     for (const k of Object.keys(dropped) as (keyof DropCounts)[]) dropped[k] += sel.dropped[k];
     // New events can shift pages while we walk them; keep the first copy of each hash.
     for (const e of sel.kept) {
-      const l = normalizeEvent(e, t.city);
+      const l = normalizeEvent(e, t.city, t.tz);
       if (!listings.has(l.sourceId)) listings.set(l.sourceId, l);
     }
     for (const e of events) {

@@ -181,6 +181,11 @@ a{color:inherit}
 .rfor{color:var(--chalk)}
 .rfor::before{content:'';display:inline-block;width:4px;height:4px;border-radius:50%;
   background:var(--chalk);vertical-align:middle;margin:-1px 6px 0 0}
+/* a pick's one-line justification ("You saw Four Tet", "On sale · 1,118 interested", "Outside your genres"):
+   a fifth row under the venue in the list, a line under the venue in the caption */
+.row .why{grid-column:1;grid-row:5;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.caption .meta.haswhy{margin-bottom:4px}
+.caption .why{margin:0 0 18px;color:var(--d1)}
 /* Onboarding. Two skippable questions using the chips and sheet the app already has, so it reads as the same
    product rather than a form bolted to the front of it. */
 .onbsub{font-size:15px;color:var(--d1);line-height:1.55;margin:-4px 0 26px}
