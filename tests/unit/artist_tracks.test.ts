@@ -36,6 +36,12 @@ describe('artist tracks: the pick rule (offline)', () => {
     expect(pickTrack('Nils Hoffmann', [song({ trackViewUrl: 'https://music.apple.com.evil.example/x' })])).toBeNull();
     expect(pickTrack('Nils Hoffmann', [song({ previewUrl: undefined })])).toBeNull();
     expect(pickTrack('X', [song({ artistName: 'X' })])).toBeNull();          // one letter is not a name to search
+    // a short name needs a dance genre too: "Eden" the alt-pop single is not Eden the DJ
+    expect(pickTrack('Eden', [song({ artistName: 'Eden', trackName: 'XO', primaryGenreName: 'Alternative' })])).toBeNull();
+    expect(pickTrack('Eden', [song({ artistName: 'Eden', trackName: 'XO', primaryGenreName: 'Alternative' }), song({ artistName: 'Eden', trackName: 'Drift', primaryGenreName: 'House' })])?.title).toBe('Drift');
+    expect(pickTrack('Âme', [song({ artistName: 'Âme', trackName: 'Asa', primaryGenreName: 'House' })])?.title).toBe('Asa');
+    expect(pickTrack('Zayd', [song({ artistName: 'Zayd', primaryGenreName: 'Metal' })])).toBeNull();
+    expect(pickTrack('Erol Alkan', [song({ artistName: 'Erol Alkan', trackName: 'A Hold On Love', primaryGenreName: 'Alternative' })])?.title).toBe('A Hold On Love');
     expect(pickTrack('Nils Hoffmann', null)).toBeNull();
   });
   it('asks Apple for songs in the US store, ten at a time', () => {

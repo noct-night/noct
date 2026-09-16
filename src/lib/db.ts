@@ -21,6 +21,12 @@ export function getPool(): pg.Pool {
     ssl: local ? undefined : { rejectUnauthorized: false },
     application_name: 'noct',
   });
+  // An idle client the pooler drops (a long CLI run, a Supavisor restart) surfaces as an 'error' event on the
+  // pool; with no listener Node treats it as fatal and the process dies mid-run. Log it; the next query
+  // checks out a fresh client.
+  pool.on('error', (err) => {
+    console.warn(JSON.stringify({ level: 'warn', scope: 'db', msg: 'idle client error', error: err.message }));
+  });
   return pool;
 }
 

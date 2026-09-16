@@ -46,11 +46,29 @@ const NOT_A_DJ_GENRE = new Set([
   'classical', 'opera', 'christian & gospel', 'children\'s music', 'kids & family', 'soundtrack', 'comedy', 'spoken word',
   'audiobooks', 'podcasts', 'holiday', 'country', 'bluegrass', 'enka', 'karaoke', 'marching bands', 'anime', 'fitness & workout',
   'new age', 'easy listening', 'vocal', 'brazilian', 'j-pop', 'k-pop', 'c-pop', 'kayokyoku',
+  'metal', 'heavy metal', 'hard rock', 'punk', 'hardcore punk', 'death metal', 'black metal',
 ]);
+/**
+ * A short name ("Eden", "Hugo", "AP") is shared by too many acts for an exact-name match to mean anything on
+ * its own: the first 1,188 lookups matched "Eden" to an alt-pop single and "Zayd" to a metal band. For names
+ * of four characters or fewer the genre has to be one dance music is filed under as well.
+ */
+export const SHORT_NAME_MAX = 4;
+const DANCE_GENRE = new Set([
+  'dance', 'electronic', 'house', 'techno', 'trance', 'breakbeat', 'electronica', 'hardcore', 'ambient', 'idm/experimental',
+  'drum & bass', 'dubstep', 'garage', 'jungle', 'bass', 'downtempo', 'dj mix', 'disco', 'afrobeats', 'amapiano', 'afro house',
+  'dancehall', 'reggae', 'grime', 'uk garage', 'deep house', 'tech house', 'minimal', 'progressive house', 'electro',
+]);
+export function genreAllowed(name: string, genre: string | null | undefined): boolean {
+  const g = (genre ?? '').toLowerCase();
+  if (NOT_A_DJ_GENRE.has(g)) return false;
+  if (foldName(name).replace(/ /g, '').length <= SHORT_NAME_MAX) return DANCE_GENRE.has(g);
+  return true;
+}
 
 /** norm_text() from 0002, in JS: lower-case, accents folded, everything but letters and digits to one space. */
 export function foldName(s: string): string {
-  return s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return s.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
 const PREVIEW_HOST = /^(audio-ssl\.itunes\.apple\.com|[a-z0-9-]+\.mzstatic\.com)$/i;
@@ -71,7 +89,7 @@ export function pickTrack(name: string, results: ItunesSong[] | null | undefined
     if (r.wrapperType && r.wrapperType !== 'track') continue;
     if (r.kind && r.kind !== 'song') continue;
     if (foldName(r.artistName ?? '') !== want) continue;
-    if (NOT_A_DJ_GENRE.has((r.primaryGenreName ?? '').toLowerCase())) continue;
+    if (!genreAllowed(name, r.primaryGenreName)) continue;
     const ph = host(r.previewUrl);
     const uh = host(r.trackViewUrl);
     if (!ph || !PREVIEW_HOST.test(ph) || !uh || !TRACK_HOST.test(uh)) continue;
