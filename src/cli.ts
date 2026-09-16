@@ -8,6 +8,7 @@
  *   npm run ingest -- all
  *   npm run enrich -- --limit 50            # genre/vibe pass over events needing it
  *   npm run noct -- tracks --limit 400      # representative tracks for artists on upcoming nights (iTunes Search)
+ *   npm run noct -- traffic [--days 30]     # visits, sources, funnel from NOCT's own visit/action rows (0030)
  *   npm run clip -- night.mov --len 30 --title "SACRO"   # cut a reel, queue it in the studio
  */
 import { parseArgs } from 'node:util';
@@ -42,7 +43,7 @@ async function main(argv: string[]): Promise<number> {
   });
   const [cmd, ...rest] = positionals;
   if (!cmd || values.help) {
-    console.log('usage: noct <fetch|ingest|enrich|tracks|clip> [sources...] [--limit N] [--days N] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--json] [--raw] [--force]');
+    console.log('usage: noct <fetch|ingest|enrich|tracks|traffic|clip> [sources...] [--limit N] [--days N] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--json] [--raw] [--force]');
     return cmd ? 0 : 1;
   }
   const limit = values.limit ? Number(values.limit) : undefined;
@@ -98,6 +99,15 @@ async function main(argv: string[]): Promise<number> {
     const { closePool } = await import('./lib/db.js');
     await closePool();
     return summary.errors ? 2 : 0;
+  }
+
+  if (cmd === 'traffic') {
+    const { trafficReport, formatTraffic } = await import('./ops/traffic.js');
+    const report = await trafficReport(values.days ? Number(values.days) : undefined);
+    console.log(values.json ? JSON.stringify(report, null, 2) : formatTraffic(report));
+    const { closePool } = await import('./lib/db.js');
+    await closePool();
+    return 0;
   }
 
   if (cmd === 'enrich') {

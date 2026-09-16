@@ -242,6 +242,34 @@ Identity options when a durable, cross-device account is wanted, in order of lea
 2. Facebook Login for Business with `instagram_basic` through a small Vercel function. Meta app review required.
 3. Handle-only pseudo-identity — rejected: guest lists would be trivially spoofable.
 
+## Measurement, first-party (2026-09-16)
+
+Traffic is counted in NOCT's own tables, not by a script from somewhere else — the page still loads nothing
+third-party. Two insert-only tables (0030):
+
+- **`visit`** — one row when a session starts, written by `logVisit()` after the first feed lands (a visit is a
+  session that saw the calendar; the sample weekend writes nothing). A session is this tab with less than
+  thirty minutes of quiet (`sessionStorage`, refreshed by every counted tap), so a reload is not a second
+  visit. The row carries the **referrer host** (`app.instagram` / `app.facebook` when the in-app browser sent
+  no referrer but the user agent says so; nothing when the referrer is NOCT itself), **utm_source / medium /
+  campaign** if the link had them, **entry** — `home`, `event` for a shared `?e=` link, `group` for a `?g=`
+  plan link — **phone or desktop**, whether it runs from the **home screen**, the **time zone** and
+  **language**. No IP, no user agent string, no page-by-page trail.
+- **`action`** — one row per tap no other table records, through `act(kind, uuid)`: `event_open` (not on
+  back/forward replay), `track_play`, `share`, `directions`, `calendar`, `map`, `search`, `picks`,
+  `night_next`, `group_link`. Saves, going, the taste profile, plans and votes are already in `saved`,
+  `going`, `profile`, `group_session`, `group_vote`; together they make the funnel.
+
+Both are written with the anonymous session through `sbRest()` (`Prefer: return=minimal`) and are readable by
+nobody from the browser: `authenticated` holds `INSERT` and no policy grants `SELECT`. The owner reads
+aggregates only — `/api/health` carries a `traffic` block and `npm run noct -- traffic` prints the same report
+(`src/ops/traffic.ts`): visits and distinct devices for 30 days with a 7-day slice, new devices, the share
+seen on two or more days, a 14-day series in New York days, sources (utm_source as written, otherwise the
+referrer folded — `instagram`, `direct`, `google`, an unknown host as itself), entry, city, device, language,
+campaigns, action counts, and the funnel visited → opened a night → saved or going → set a taste → made or
+joined a plan, in distinct devices. "Devices" is the honest word for distinct anonymous accounts: one per
+browser, not one per person.
+
 ## Security model of the read models
 
 - Every table has RLS on (0004/0005/0007). `anon`/`authenticated` are revoked from everything, then granted

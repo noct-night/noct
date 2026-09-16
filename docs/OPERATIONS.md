@@ -157,6 +157,26 @@ where jobname like 'noct-%' order by start_time desc limit 20;
 select id, created, status_code, error_msg from net._http_response order by created desc limit 20;
 ```
 
+Traffic (0030, first-party — see FRONTEND.md "Measurement"). The same report `/api/health` carries under
+`traffic`, as a terminal page:
+
+```bash
+npm run noct -- traffic            # last 30 days, 7-day slice in brackets, 14-day series, sources, funnel
+npm run noct -- traffic --days 7 --json
+```
+
+```sql
+-- visits and devices by New York day
+select (at at time zone 'America/New_York')::date as day, count(*) visits, count(distinct user_id) devices
+from visit where at > now() - interval '14 days' group by 1 order by 1;
+-- where they came from (raw referrer host; the report folds these)
+select coalesce(nullif(utm_source, ''), ref, 'direct') src, count(*) from visit
+where at > now() - interval '30 days' group by 1 order by 2 desc;
+-- the nights people open most
+select e.title, e.night, count(*) from action a join event e using (event_id)
+where a.kind = 'event_open' and a.at > now() - interval '7 days' group by 1, 2 order by 3 desc limit 20;
+```
+
 ## Environment variables
 
 | Variable | Used by | Notes |

@@ -227,6 +227,7 @@ const SEL_KEY='noct.sel';
 function setSel(v){
   if(S.sel===v)return;
   S.sel=v;
+  if(v==='picks')act('picks');
   if(v!=='all')S.sortTaste=true;         /* filtering by taste while ignoring it in the order is incoherent */
   try{sessionStorage.setItem(SEL_KEY,v)}catch(e){}   /* an explicit choice holds for the session */
   S.i=0;buildAll();render();renderOnlyBtn();
@@ -702,6 +703,7 @@ function openDet(eid){
   const e=EV.find(x=>x.id===eid);
   if(!e)return;
   if(!DET_EV||DET_EV.uuid!==e.uuid)stopTrack();  /* a different night: whatever was playing belongs to the last one */
+  if(!NAV_REPLAY&&(!DET_EV||DET_EV.uuid!==e.uuid))act('event_open',e.uuid);
   DET_EV=e;
   const p=prices(e),gap=p.length>1?Math.round((Math.max(...p)-Math.min(...p))*100)/100:0;   /* cents, not float dust */
   const crowd=crowdOf(e.id),vis=visibleTo(e.id),hidden=crowd.length-vis.length,me=isGoing(e.id);
@@ -745,8 +747,8 @@ function openDet(eid){
     ${e.note?`<div class="grp"><h3>About</h3><p class="prose">${e.note}</p></div>`:''}
     <div class="dacts">
       <button class="lnk" onclick="toggleSave(${e.id});openDet(${e.id})">${isSaved(e.id)?'Saved':'Save'}</button>
-      ${directionsUrl(e.venue)?`<a class="lnk" href="${directionsUrl(e.venue)}" target="_blank" rel="noopener">Directions</a>`:''}
-      ${e.uuid?`<a class="lnk" href="${API_BASE}/api/ics?e=${encodeURIComponent(e.uuid)}" rel="noopener">Add to calendar</a>`:''}
+      ${directionsUrl(e.venue)?`<a class="lnk" href="${directionsUrl(e.venue)}" target="_blank" rel="noopener" onclick="act('directions','${e.uuid||''}')">Directions</a>`:''}
+      ${e.uuid?`<a class="lnk" href="${API_BASE}/api/ics?e=${encodeURIComponent(e.uuid)}" rel="noopener" onclick="act('calendar','${e.uuid}')">Add to calendar</a>`:''}
       <button class="lnk" onclick="shareEvent(${e.id})">Share</button>
     </div>
   </div>`;
@@ -844,6 +846,7 @@ function toggleTrack(key){
   const e=DET_EV,t=trackOf(key);if(!e||!t)return;
   if(playingKey()===key){stopTrack();return}
   stopTrack();                                   /* one clip at a time: a second row stops the first */
+  act('track_play',e.uuid);
   if(!AUDIO){
     AUDIO=new Audio();AUDIO.preload='none';
     AUDIO.addEventListener('ended',stopTrack);
@@ -892,14 +895,14 @@ async function loadNext(e){
         return `<div class="nx"><button class="nxmain" onclick="openNext('${esc(n.uuid)}','${esc(n.night)}')">`
           +`<div class="nxv">${n.venue}${n.room?' · '+n.room:''}</div><div class="nxh">${n.head}</div>`
           +`<div class="nxs">${n.door}${n.close?'–'+n.close:''}${far?' · '+far:''}</div></button>`
-          +(dir?`<a class="lnk" href="${dir}" target="_blank" rel="noopener">Directions</a>`:'')+`</div>`;
+          +(dir?`<a class="lnk" href="${dir}" target="_blank" rel="noopener" onclick="act('directions')">Directions</a>`:'')+`</div>`;
       }).join('');
     }
     NEXT_DONE={uuid:e.uuid,html};
     el.innerHTML=html;el.hidden=!html;
   }catch(err){}
 }
-function openNext(uuid,night){const ev=EV.find(x=>x.uuid===uuid);if(ev){openDet(ev.id);return}openNightAt(uuid,S.city,night)}
+function openNext(uuid,night){act('night_next',uuid);const ev=EV.find(x=>x.uuid===uuid);if(ev){openDet(ev.id);return}openNightAt(uuid,S.city,night)}
 /* origin and destination as coordinates: Maps starts the route at this door, walking when it is close */
 const dirBetween=(o,d,walk)=>`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(o.lat+','+o.lng)}&destination=${encodeURIComponent(d.lat+','+d.lng)}&travelmode=${walk?'walking':'transit'}`;
 
@@ -1047,10 +1050,11 @@ async function ensureGroup(){
 async function shareGroupLink(){
   const url=groupLink();
   if(navigator.share){
-    try{await navigator.share({title:'Swipe with friends on NOCT',url});return 'shared'}
+    try{await navigator.share({title:'Swipe with friends on NOCT',url});act('group_link');return 'shared'}
     catch(err){if(err&&err.name==='AbortError')return 'cancelled'}
   }
   const ok=await copyText(url);
+  if(ok)act('group_link');
   toast(ok?'Link copied — paste it to your friends':'Could not copy — '+url,4000);
   return ok?'copied':'failed';
 }
@@ -1177,6 +1181,7 @@ function shareEvent(id){
   const q=new URLSearchParams({e:e.uuid||'',city:S.city||'nyc'});
   if(date){q.set('from',date);q.set('to',date)}
   const url=`${location.origin}${location.pathname}?${q}`;
+  act('share',e.uuid);
   copyText(url).then(ok=>toast(ok?'Link copied':'Could not copy — '+url));
 }
 /** Clipboard API needs https and a gesture; the textarea path covers the browsers that refuse it. */
@@ -1215,6 +1220,7 @@ function openShared(){
    routes. An artist opens its own sheet rather than a dead row -- that is the point of listing artists at all. */
 let SRCH={q:'',hits:[],busy:false,seq:0};
 function openSearch(){
+  act('search');
   closeAll();$('#srch').classList.add('open');
   const i=$('#srchIn');if(i){i.value=SRCH.q;setTimeout(()=>i.focus(),120)}
   renderSearch();
@@ -1361,7 +1367,7 @@ function openVenue(v){
     </div>
     <div class="grp"><h3>Go there</h3>
       <div class="links">
-        ${directionsUrl(v)?`<a href="${directionsUrl(v)}" target="_blank" rel="noopener">Directions<span>${(i.lat&&i.lng)?'Google Maps':(i.addr?'By address':'Search')}</span></a>`:`<div class="mini">Location not announced yet.</div>`}
+        ${directionsUrl(v)?`<a href="${directionsUrl(v)}" target="_blank" rel="noopener" onclick="act('directions')">Directions<span>${(i.lat&&i.lng)?'Google Maps':(i.addr?'By address':'Search')}</span></a>`:`<div class="mini">Location not announced yet.</div>`}
         <a href="${ig}" target="_blank" rel="noopener">Instagram<span>${i.ig?'@'+i.ig:'Search'}</span></a>
         ${i.site?`<a href="${i.site}" target="_blank" rel="noopener">Website<span>Door policy</span></a>`:''}
       </div>
@@ -1518,6 +1524,7 @@ function goHome(){
   $('#topscrim').classList.remove('on');
 }
 function setView(v){
+  if(v==='map'&&S.view!=='map'&&!NAV_REPLAY)act('map');
   if(LIVE&&!S.recs.loading&&!S.recs.loaded)loadRecs();
   if(LIVE&&!S.picks.loading&&!S.picks.loaded)loadPicks();
   const primary=(v==='image'||v==='list'||v==='map');
@@ -1727,6 +1734,48 @@ async function syncMine(){
   }catch(e){}
 }
 
+/* ---------- Measurement, first-party ----------
+   Two insert-only tables (0030). A `visit` when a session starts: where the link came from, how it arrived
+   (home, a shared night, a plan link), phone or desktop, home screen or not, time zone, language. An `action`
+   for the taps no other table records: opening a night, playing a preview, sharing, directions, the calendar
+   file, the map, search, picks, "after this". No query text, no page trail, no third-party script; the
+   anonymous account is the only identity, and nothing is readable back from here. A session is this tab with
+   less than thirty minutes of quiet. */
+const VISIT_KEY='noct_seen',VISIT_GAP=30*60*1000;
+function refHost(){
+  try{
+    if(!document.referrer){                          /* in-app browsers send none; the user agent says which app */
+      const ua=navigator.userAgent||'';
+      return /Instagram/i.test(ua)?'app.instagram':/FBAN|FBAV|FB_IAB/.test(ua)?'app.facebook':null;
+    }
+    const h=new URL(document.referrer).hostname.toLowerCase();
+    return h===location.hostname?null:h.slice(0,120);
+  }catch(e){return null}
+}
+function logVisit(){
+  if(!LIVE)return;
+  let last=0;try{last=Number(sessionStorage.getItem(VISIT_KEY)||0)}catch(e){}
+  const now=Date.now();
+  try{sessionStorage.setItem(VISIT_KEY,String(now))}catch(e){}
+  if(last&&now-last<VISIT_GAP)return;                /* the same session, back from a reload or a link */
+  const q=new URLSearchParams(location.search),clip=(v,n)=>v?String(v).slice(0,n):null;
+  let tz=null;try{tz=clip(Intl.DateTimeFormat().resolvedOptions().timeZone,64)}catch(e){}
+  const mq=s=>{try{return !!(window.matchMedia&&matchMedia(s).matches)}catch(e){return false}};
+  const row={city:clip(S.city||'nyc',16),ref:refHost(),
+    utm_source:clip(q.get('utm_source'),80),utm_medium:clip(q.get('utm_medium'),80),utm_campaign:clip(q.get('utm_campaign'),80),
+    entry:q.get('g')?'group':q.get('e')?'event':'home',
+    device:(mq('(pointer:coarse)')||innerWidth<768)?'phone':'desktop',
+    standalone:mq('(display-mode: standalone)')||navigator.standalone===true,
+    tz,lang:clip(navigator.language,16)};
+  try{sbRest('POST','/visit',row,'return=minimal').catch(()=>{})}catch(e){}
+}
+/** One counted tap. Fire and forget: nothing waits on it and nothing is shown if it fails. */
+function act(kind,uuid){
+  if(!LIVE)return;
+  try{sessionStorage.setItem(VISIT_KEY,String(Date.now()))}catch(e){}
+  try{sbRest('POST','/action',{kind,event_id:uuid||null,city:(S.city||'nyc').slice(0,16)},'return=minimal').catch(()=>{})}catch(e){}
+}
+
 /* ---------- When: range presets + month calendar ----------
    Plain YYYY-MM-DD strings all the way through (UTC parsing only, so no local-midnight drift). A preset asks
    the API for that window; the calendar asks for counts only (~1 KB a month instead of ~320 KB of records)
@@ -1894,6 +1943,7 @@ async function loadFeed(range){
        both exactly once (they used to be requested twice per load) */
     invalidateRecs();
     applyFeed(feed);
+    if(first)logVisit();             /* a visit is a session that saw the calendar */
     liveNote('');
     syncMine();                      /* restore this account's going/saved; renders again when it lands */
     if(tasteRestore()){S.sortTaste=TASTE.length>0;render()}else{maybeOnboard()}
