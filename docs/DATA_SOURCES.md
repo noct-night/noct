@@ -75,6 +75,42 @@ Angeles are ingested in production.
 - **Posh (posh.vip)** — event pages carry inline state but no JSON-LD or documented API; RA already lists most promoter parties that also live on Posh. Revisit if a partnership appears.
 - **Shotgun, Tixr, AXS, Knockdown Center's site** — bot challenges (Vercel checkpoint / DataDome / Cloudflare); NOCT does not work around them.
 
+## One night, one card (0028)
+
+The cross-platform layer is the merge: nine adapters, scored entity resolution (`score_listing_event()`), a
+priority-based canonical record (`refresh_event()`). Three seams still showed one night as two cards on
+2026-09-15 and were closed in `0028_cross_source_dedup.sql`:
+
+- **A placeholder venue kept an identical night apart.** RA files a night at "TBA" while 19hz or DICE name the
+  room; the venue term for a placeholder is 0.4, so an exact title on the same night stalled at 0.73, under the
+  0.78 auto threshold. Now exact title + same night + one side a placeholder clears it (`features.placeholder`
+  on the candidate row says so).
+- **A short venue name never found the long one.** `resolve_venue()`'s trigram branch only measured how well the
+  existing name's words appear in the incoming one, so "El Rey" spawned a provisional row beside "El Rey
+  Theatre". Both directions count now (the reverse only for names of six characters or more).
+- **Nothing ever moved a listing after the fact.** `rematch_listing(listing_id)` re-resolves one live listing
+  against every event but its own and moves it when a better match clears the threshold; an event left with no
+  live listing is marked `merged_into` the survivor — the first honest use of the column — and its `going`,
+  `saved` and `rec_feedback` rows travel with it. `merge_venue(from, into)` folds a venue **under** another as a
+  room of its family (the row stays, so its unmerged nights read "Radius · Cermak Hall"), repoints its names and
+  external ids, moves and rematches its listings. Two merges were seeded from the data's own evidence: Cermak
+  Hall → Radius (RA files "Indo Warehouse at Cermak Hall" under Radius, 640 W Cermak Rd) and El Rey → El Rey
+  Theatre. Undo: clear the room's `parent_venue_id`, drop the alias, rematch its listings.
+
+**Counting the layer honestly.** `platform_host(source_key, url)` names the ticketing platform behind a listing
+by URL host — DICE's listing and SILO's dice.fm link are one platform, a 19hz row is whatever it links to (RA,
+Ticketmaster, Posh, Flite…). `/api/health` reports `coverage[]` per city: upcoming nights (30) and how many are
+listed on two or more hosts. Baseline 2026-09-16 by host: Chicago 19%, Los Angeles 12%, New York 14% (by
+adapter it read 34 / 27 / 14, which double-counted 19hz's RA links). The event sheet's "N ways in" collapses
+ticket offers the same way (`collapseOffersByHost()`), so it counts places to buy, not places NOCT read. No
+card names a platform — commit 859a524 stands.
+
+What the layer does *not* include yet, and why: Shotgun's only API is organizer-scoped (a token per promoter);
+Posh and Partiful forbid scraping and publish no API; Instagram's Graph API reads only accounts that authorise
+the app. Those are partnership conversations, not adapters. Eventbrite (organizer/venue-scoped reads with an
+owner token) and a newsletter inbox (a NOCT address subscribed to venue mailing lists, parsed by the enrich
+chain) are the two buildable next sources.
+
 ## Open items for the owner
 
 - **Ask RA in writing.** Terms §4.4(a) explicitly contemplates “a written agreement with us”. RA has done

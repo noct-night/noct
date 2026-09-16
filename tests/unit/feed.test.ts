@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildFeed, FeedParamError, resolveParams } from '../../src/feed/query.js';
 import {
-  ageLabel, buildDays, feedCacheHeaders, genreDisplay, genreFilterList, moodVibes, shapeEvent, shapeSource, shapeTrack,
+  ageLabel, buildDays, collapseOffersByHost, feedCacheHeaders, genreDisplay, genreFilterList, moodVibes, offerHost, shapeEvent, shapeSource, shapeTrack,
   sortOffers, texOf,
   type FeedRow, type OfferRow,
 } from '../../src/feed/shape.js';
@@ -133,6 +133,20 @@ describe('shapeEvent (offline)', () => {
     expect(odd?.url).not.toMatch(/["'<>\\\s]/);
     expect(shapeEvent(cannedRow()).track).toBeNull();
     expect(shapeEvent(cannedRow({ track: sp })).track?.title).toBe('Rich Medina - Can\'t Hold Back');
+  });
+  it('"ways in" counts places to buy, not adapters: offers collapse by ticketing host (0028)', () => {
+    const dice = (tier: string, price: number): OfferRow => ({ platform: 'dice', platform_name: 'DICE', platform_priority: 80, source_url: 'https://dice.fm/event/abc', tier, price, fees_included: true, available: true, note: null, sold_out: false });
+    const silo: OfferRow = { platform: 'silo', platform_name: 'DICE · SILO', platform_priority: 75, source_url: 'https://link.dice.fm/abc', tier: 'GA', price: 25, fees_included: true, available: true, note: null, sold_out: false };
+    const ra: OfferRow = { platform: 'ra', platform_name: 'Resident Advisor', platform_priority: 90, source_url: 'https://ra.co/events/1', tier: 'GA', price: 27, fees_included: true, available: true, note: null, sold_out: false };
+    expect(offerHost(silo)).toBe('dice.fm');
+    expect(offerHost(dice('GA', 25))).toBe('dice.fm');
+    expect(offerHost(ra)).toBe('ra.co');
+    // DICE beats SILO on the same host, and keeps every one of its tiers; RA is another host and stays
+    const kept = collapseOffersByHost([silo, dice('Early bird', 20), dice('GA', 25), ra]);
+    expect(kept.map((o) => [o.platform, o.tier])).toEqual([['dice', 'Early bird'], ['dice', 'GA'], ['ra', 'GA']]);
+    // SILO alone is the way in
+    expect(collapseOffersByHost([silo, ra]).map((o) => o.platform)).toEqual(['silo', 'ra']);
+    expect(shapeEvent(cannedRow({ offers: [silo, dice('GA', 25), ra] })).srcs.map((s) => s[0])).toEqual(['DICE', 'Resident Advisor']);
   });
   it('on_sale is a ticketer\'s positive word, not the absence of "sold out"', () => {
     // the canned row: one RA tier unavailable, GA on sale -> a ticket can be bought
@@ -332,7 +346,9 @@ describe.skipIf(!process.env.DATABASE_URL)('buildFeed against Postgres', () => {
     expect(bsmt).toMatchObject({ d: 1, venue: 'BASEMENT', door: '23:00', soldout: false });
     expect(bsmt.srcs).toEqual([['Resident Advisor', 20, 'Early bird · No longer on sale', 'https://ra.co/events/feedtest2']]);
     expect(sig).toMatchObject({ d: 1, venue: 'Signal', door: '22:00', soldout: true });
-    expect(sig.srcs).toEqual([['DICE', 30, 'Sold out', 'https://dice.fm/event/feedtest2'], ['DICE · SILO', 30, 'Sold out', 'https://www.silobrooklyn.com/events/feedtest2']]);
+    // DICE and SILO both sell this on dice.fm: one platform, one set of rows (0028 collapses by host)
+    expect(sig.srcs).toEqual([['DICE', 30, 'Sold out', 'https://dice.fm/event/feedtest2']]);
+    expect(sig.platforms).toEqual(expect.arrayContaining(['DICE', 'DICE · SILO']));   // both still read the night
     expect(a).toMatchObject({ d: 0, venue: 'Nowadays', room: null, door: '23:00', close: '06:00', age: '21+', interested: 321, full: true, soldout: false, status: 'scheduled', note: 'A test night.', image: 'https://images.example/feed.png' });
     expect(a.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(a.lineup).toEqual(['Feed Tester', 'DJ Alpha b2b DJ Beta']);

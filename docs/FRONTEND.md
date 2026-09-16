@@ -121,6 +121,12 @@ database except to them (RLS + a SECURITY DEFINER aggregate). No percentages, no
 no push. Identity is the anonymous account, so a link opened in an in-app browser and again in Safari counts as
 two people until accounts can be linked.
 
+`srcs` (the ticket rows, "N ways in") are collapsed by ticketing host before they are shaped (0028,
+`collapseOffersByHost()` in shape.ts): when DICE's API and SILO's page both sell a night on dice.fm, only the
+higher-priority adapter's tiers are listed, every tier of it. `platforms` still names every adapter that read
+the night. `/api/health` carries `coverage[]` — per city, upcoming nights on two or more ticketing hosts — the
+cross-platform KPI counted by host, not by adapter.
+
 `on_sale` is the positive claim `soldout` cannot make: true only when a ticketer's live offer says `available`
 (event_offer is ticketers only, 0019). `soldout = false` means nobody said sold out, which is also true of a
 door-price night on a community board — so the **Availability → On sale** filter uses `on_sale`, and a night with

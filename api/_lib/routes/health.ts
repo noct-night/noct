@@ -61,6 +61,29 @@ const EVENTS_SQL = `
 
 const REVIEW_SQL = `select count(*) as n from match_candidate where decision = 'pending'`;
 
+interface CoverageRow { city: string; nights: string; multi: string; platforms: string[] }
+/**
+ * The cross-platform KPI, counted honestly: per city, upcoming nights (30) and how many are listed on two or
+ * more ticketing HOSTS (platform_host(), 0028) -- DICE's listing and SILO's dice.fm link are one platform, a
+ * 19hz row counts as whatever it links to. Baseline 2026-09-16 by host: chi 19%, la 12%, nyc 14%.
+ */
+const COVERAGE_SQL = `
+  select e.city, count(*) as nights, count(*) filter (where h.n >= 2) as multi,
+         (select array_agg(x.host order by x.k desc) from (
+            select platform_host(l.source_key, l.source_url) as host, count(*) as k
+            from listing l join event ee on ee.event_id = l.event_id
+            where ee.city = e.city and ee.merged_into is null and ee.status = 'scheduled' and l.gone_at is null
+              and ee.night between night_date(now()) and night_date(now()) + 29
+            group by 1 order by 2 desc limit 8) x) as platforms
+  from event e
+  join lateral (
+    select count(distinct platform_host(l.source_key, l.source_url)) as n
+    from listing l where l.event_id = e.event_id and l.gone_at is null
+  ) h on true
+  where e.merged_into is null and e.status = 'scheduled'
+    and e.night between night_date(now()) and night_date(now()) + 29
+  group by e.city order by e.city`;
+
 const CACHE = { 'cache-control': 'public, s-maxage=60, stale-while-revalidate=300' };
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -70,11 +93,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
   const log = createLogger('api:health');
   try {
-    const [sources, listings, events, review] = await Promise.all([
+    const [sources, listings, events, review, coverage] = await Promise.all([
       query<SourceRow>(SOURCES_SQL),
       query<ListingRow>(LISTINGS_SQL),
       query<CountRow>(EVENTS_SQL),
       query<CountRow>(REVIEW_SQL),
+      query<CoverageRow>(COVERAGE_SQL),
     ]);
     const rows = sources.rows;
     sendJson(
@@ -110,6 +134,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         ),
         events: { next7Nights: Number(events.rows[0]?.n ?? 0) },
         review: { pendingCandidates: Number(review.rows[0]?.n ?? 0) },
+        // "the layer that includes RA", as a number: nights listed on two or more ticketing hosts, next 30 nights
+        coverage: coverage.rows.map((r) => ({
+          city: r.city,
+          nights: Number(r.nights),
+          onTwoOrMorePlatforms: Number(r.multi),
+          share: Number(r.nights) ? Math.round((Number(r.multi) / Number(r.nights)) * 1000) / 10 : 0,
+          platforms: r.platforms ?? [],
+        })),
         attention: {
           blocked: rows.filter((r) => r.error?.startsWith('BLOCKED:')).map((r) => r.source_key),
           failed: rows.filter((r) => r.status === 'failed').map((r) => r.source_key),

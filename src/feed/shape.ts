@@ -407,8 +407,32 @@ export function sortOffers(offers: OfferRow[]): OfferRow[] {
 
 const MAX_SRCS = 8;
 
+/** The ticketing platform an offer really sells through: DICE's rows and SILO's dice.fm link are one platform. */
+export function offerHost(o: Pick<OfferRow, 'platform' | 'source_url'>): string {
+  const m = /^https?:\/\/(?:www\.)?([^/?#]+)/i.exec(o.source_url ?? '');
+  const host = (m?.[1] ?? '').toLowerCase();
+  if (/(^|\.)dice\.fm$/.test(host) || o.platform === 'dice' || o.platform === 'silo') return 'dice.fm';
+  if (/(^|\.)ra\.co$/.test(host) || o.platform === 'ra') return 'ra.co';
+  return host || o.platform;
+}
+
+/**
+ * One platform, one set of rows: when two adapters carry the same ticketing host (SILO's page and DICE's API
+ * both sell on dice.fm), only the higher-priority adapter's tiers are kept, so "N ways in" counts places to buy,
+ * not places NOCT read. Every tier of the winning adapter survives.
+ */
+export function collapseOffersByHost(offers: OfferRow[]): OfferRow[] {
+  const best = new Map<string, number>();
+  for (const o of offers) {
+    const h = offerHost(o);
+    const p = o.platform_priority ?? 0;
+    if (!best.has(h) || p > (best.get(h) as number)) best.set(h, p);
+  }
+  return offers.filter((o) => (o.platform_priority ?? 0) === best.get(offerHost(o)));
+}
+
 function shapeSrcs(row: FeedRow): FeedSrc[] {
-  const offers = sortOffers(row.offers ?? []).slice(0, MAX_SRCS);
+  const offers = sortOffers(collapseOffersByHost(row.offers ?? [])).slice(0, MAX_SRCS);
   if (offers.length) return offers.map((o) => [o.platform_name, num(o.price), offerNote(o), o.source_url]);
   // no ticketing source yet (a venue page or aggregator only): still give the UI one "way in" per source
   return (row.sources ?? []).slice(0, MAX_SRCS).map((s) => [s.name, null, 'See listing', s.url]);
