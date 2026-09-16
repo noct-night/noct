@@ -144,14 +144,27 @@ group and deals the night on screen. The event sheet's action row is *Save · Di
 Share* — one line; *Open listing* went, since every ticket row already opens the listing, and *Venues* left the
 menu, since the map does that.
 The deck is the image view: `results()` returns the deck's cards in dealt order, the seg hides, the swipe pill
-reads *Pass ← · → Like*, a swipe or the two text buttons write one `group_vote` row (upsert), and the last vote
-opens the plan sheet `#group`. A link holder lands on the night (the link carries the range), `openGroupLink()`
+reads *← Pass · Like →* and **its arrows do exactly that** (`arrow()`; they used to page through the deck like
+the feed's arrows, so a tap on "→" showed card 2, 3 … 7, 1, 2 — the "repeating cards" report), a swipe or the
+two text buttons write one `group_vote` row (upsert), and the last vote opens the plan sheet `#group`. The
+picture's edge zones still move — back to change a vote, forward — but a deck is finite: nothing wraps, and
+past the last card, once everything is voted, is the plan. A link holder lands on the night (the link carries the range), `openGroupLink()`
 reads `group_result(p_session)` and starts them at their first unvoted card, or straight at the plan when they
 are done or the night has passed. The plan sheet says it in words only — heading *`m` of `m` liked* when the
 top card was liked by everyone who voted, else *Most liked: `n` of `m`*; sub-line *`k` of `m` finished*; one
 `.frow` per card with *`likes` of `m`* — polls `group_result` every 4 s while open and visible (ten minutes at
 most; nothing says "live"), keeps *Send the link* under its heading, and offers *Keep swiping* or *Back to the
-night* at the foot. `m` counts people
+night* at the foot. Its sub-line says what happens next in each state: alone and not sent — *Now send the link
+— friends swipe the same 7 cards, and the count decides*; alone and sent (`GRP.sent`, set when the share sheet
+completes or the copy succeeds) — *Link sent. Counts fill in here as friends swipe — this page stays under
+Menu → Swipe with friends whenever you come back*; others in — *k of m finished · Fri Sep 18. Updates while
+open; find it again under Menu → Swipe with friends*. **The plan outlives the tab** (`noct.plan` in
+localStorage: id, city, night, sent, owner; written by `ensureGroup()` and `openGroupLink()`, so a friend's
+device remembers it too; dropped by *Start another* or once the night has passed): `planRestore()` runs on the
+first feed, the menu line reads *3 voted · Fri Sep 18* and opens the counts, loading the plan's night first if
+the feed is elsewhere. While a plan is live and its sheet is closed, `watchPlan()` looks once a minute (tab
+visible) and toasts *2 people have voted on your plan — Menu → Swipe with friends* when the count grows; the
+counts themselves stay on the sheet. `m` counts people
 who voted on at least one card, never people who merely opened the link; a person's own votes never leave the
 database except to them (RLS + a SECURITY DEFINER aggregate). No percentages, no "match", no group-taste deck,
 no push. Identity is the anonymous account, so a link opened in an in-app browser and again in Safari counts as

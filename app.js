@@ -293,7 +293,18 @@ function captionIn(){
   if(typeof gsap==='undefined')return;
   gsap.fromTo('#caption > *',{y:9,opacity:0},{y:0,opacity:1,duration:.5,stagger:.045,ease:'power3.out',overwrite:true});
 }
-function step(n){const l=results();if(!l.length)return;S.i=(S.i+n+l.length)%l.length;filmCut();renderImage();captionIn()}
+function step(n){
+  const l=results();if(!l.length)return;
+  if(GRP.active){                                  /* a deck is finite: the edges of the picture move, nothing wraps, and past the last card is the plan */
+    const j=S.i+n;
+    if(j>=l.length){if(!unvotedLeft())openGroupResult();return}
+    if(j<0)return;
+    S.i=j;
+  }else S.i=(S.i+n+l.length)%l.length;
+  filmCut();renderImage();captionIn();
+}
+/* the pill's arrows: in a deck they read "← Pass · Like →" and do exactly that; elsewhere they page */
+function arrow(n){if(GRP.active)vote(n>0);else step(n)}
 
 /* ---------- Map ----------
    The same nights the other two views show -- results(), so filters and For-you apply -- placed on the venues
@@ -913,7 +924,36 @@ const dirBetween=(o,d,walk)=>`https://www.google.com/maps/dir/?api=1&origin=${en
    words -- "3 of 4 liked", "2 of 4 finished". Never a percentage, never "everyone" unless it is everyone who
    voted, and nobody's individual votes leave the database except their own (0025 group_result). */
 const DECK_SIZE=7;
-let GRP={id:'',city:'',night:'',deck:[],mine:{},active:false,result:null,owner:false,poll:null,since:0};
+let GRP={id:'',city:'',night:'',deck:[],mine:{},active:false,result:null,owner:false,poll:null,since:0,sent:false};
+/* The plan this device is part of outlives the tab: id, city, night, whether the link went out. Restored on the
+   first feed (planRestore), so the menu says "3 voted · Fri" tomorrow morning and opens the counts; dropped
+   when the night has passed or another plan starts. */
+const PLAN_KEY='noct.plan';
+function planRemember(){try{if(GRP.id)localStorage.setItem(PLAN_KEY,JSON.stringify({id:GRP.id,city:GRP.city,night:GRP.night,sent:!!GRP.sent,owner:!!GRP.owner}))}catch(e){}}
+function planForget(){try{localStorage.removeItem(PLAN_KEY)}catch(e){}}
+function planRestore(){
+  if(GRP.id)return;
+  let p=null;try{p=JSON.parse(localStorage.getItem(PLAN_KEY)||'null')}catch(e){}
+  if(!p||!/^[0-9a-f-]{36}$/i.test(p.id||'')||!p.night)return;
+  if(p.night<cityDate(0)){planForget();return}          /* the night has passed: nothing to come back to */
+  GRP.id=p.id;GRP.city=p.city||S.city||'nyc';GRP.night=p.night;GRP.sent=!!p.sent;GRP.owner=!!p.owner;
+  refreshGroup().then(watchPlan);                      /* the counts, for the menu line; then a quiet watch */
+}
+/* While a plan is live and its sheet is closed, look once a minute (tab visible) and say when a new person has
+   voted; the counts themselves stay on the plan sheet. */
+let PLAN_WATCH=null;
+function watchPlan(){
+  if(PLAN_WATCH||!GRP.id)return;
+  let seen=GRP.result?Number(GRP.result.members)||0:0;
+  PLAN_WATCH=setInterval(async()=>{
+    if(!GRP.id){clearInterval(PLAN_WATCH);PLAN_WATCH=null;return}
+    if(document.visibilityState!=='visible'||$('#group').classList.contains('open')||GRP.active)return;
+    const j=await loadGroup(GRP.id);if(!j||GRP.id!==clean(j.session.id))return;
+    applyGroup(j);
+    const m=Number(j.members)||0;
+    if(m>seen){seen=m;toast(`${m} ${m===1?'person has':'people have'} voted on your plan — Menu → Swipe with friends`,6000)}
+  },60000);
+}
 /* The hand for one night, dealt from what the owner can see there. Neutral on purpose -- friends have
    different tastes, so the owner's ranking would only reproduce "she hates techno": flyers first, then how
    many people are interested, one card per venue, at most seven. The owner narrows it with the chips instead:
@@ -1049,22 +1089,24 @@ async function ensureGroup(){
     if(r&&r.ok){const rows=await r.json();sid=(Array.isArray(rows)&&rows[0]&&rows[0].session_id)||''}
   }catch(err){}
   if(!sid){toast('Could not start — check your connection',4000);return false}
-  GRP={id:sid,city:S.city||'nyc',night:d.night,deck:d.deck,mine:{},active:false,result:null,owner:true,poll:null,since:Date.now()};
+  GRP={id:sid,city:S.city||'nyc',night:d.night,deck:d.deck,mine:{},active:false,result:null,owner:true,poll:null,since:Date.now(),sent:false};
+  planRemember();watchPlan();
   return true;
 }
 /* the phone's own share sheet where there is one (Messages, WhatsApp, Kakao, AirDrop); the clipboard otherwise */
 async function shareGroupLink(){
   const url=groupLink();
   if(navigator.share){
-    try{await navigator.share({title:'Swipe with friends on NOCT',url});act('group_link');return 'shared'}
+    try{await navigator.share({title:'Swipe with friends on NOCT',url});act('group_link');planSent();return 'shared'}
     catch(err){if(err&&err.name==='AbortError')return 'cancelled'}
   }
   const ok=await copyText(url);
-  if(ok)act('group_link');
+  if(ok){act('group_link');planSent()}
   toast(ok?'Link copied — paste it to your friends':'Could not copy — '+url,4000);
   return ok?'copied':'failed';
 }
 async function groupStart(){if(await ensureGroup())startDeck()}
+function planSent(){GRP.sent=true;planRemember();if($('#group').classList.contains('open'))renderGroup()}
 /* the deck takes over the image view; the seg hides, the swipe pill says what a swipe now means */
 function startDeck(){
   closeAll();closePage('det');closePage('ven');
@@ -1119,22 +1161,24 @@ async function openGroupLink(){
   if(!/^[0-9a-f-]{36}$/i.test(g)){toast('That plan is no longer available',4000);return}
   const j=await loadGroup(g);
   if(!j){toast('That plan is no longer available',4000);return}
-  applyGroup(j);
+  applyGroup(j);planRemember();watchPlan();
   if(GRP.night&&GRP.night!==((DAYS[0]||[])[3]||'')){await loadFeed({from:GRP.night,to:GRP.night})}
   const past=GRP.night&&GRP.night<cityDate(0);
   const left=GRP.deck.some(u=>GRP.mine[u]===undefined&&EV.some(e=>e.uuid===u));
   if(past||!left){GRP.active=true;openGroupResult();if(past)liveNote('That night has passed')}
   else startDeck();
 }
-function openGroupResult(){
+async function openGroupResult(){
   if(!GRP.id)return;
   closeAll();closePage('det');closePage('ven');
   renderGroup();$('#group').classList.add('open');$('#group').scrollTop=0;
+  /* back from another day (a restored plan, a night browsed since): the rows are cards, so load the plan's night */
+  if(GRP.night&&!DAYS.some(x=>x[3]===GRP.night)){await loadFeed({from:GRP.night,to:GRP.night});renderGroup()}
   refreshGroup();startPoll();
 }
 function closeGroup(){stopPoll();closeAll();if(GRP.active&&!unvotedLeft())exitDeck()}
 /* the group stays reachable by its link; this device just stops following it */
-function newGroup(){stopPoll();GRP={id:'',city:'',night:'',deck:[],mine:{},active:false,result:null,owner:false,poll:null,since:0};closeAll();S.i=0;setView(S.mode);planNight()}
+function newGroup(){stopPoll();planForget();GRP={id:'',city:'',night:'',deck:[],mine:{},active:false,result:null,owner:false,poll:null,since:0,sent:false};closeAll();S.i=0;setView(S.mode);planNight()}
 async function refreshGroup(){
   if(!GRP.id)return;
   const j=await loadGroup(GRP.id);
@@ -1162,8 +1206,11 @@ function renderGroup(){
     :(top&&top.likes===m?`${m} of ${m} liked`:`Most liked: ${top?top.likes:0} of ${m}`);
   const left=unvotedLeft();
   const alone=!!j&&m<=1&&(m===0||Object.keys(GRP.mine).length>0);      /* nobody but this device has voted */
-  const sub=!j?'':alone?`Now send the link — friends swipe the same ${rows.length||GRP.deck.length} cards, and the count decides.`
-    :`${fin} of ${m} finished${GRP.night?` · ${nightLabel(GRP.night)}`:''}`;
+  const n=rows.length||GRP.deck.length;
+  const sub=!j?''
+    :alone&&!GRP.sent?`Now send the link — friends swipe the same ${n} cards, and the count decides.`
+    :alone?`Link sent. Counts fill in here as friends swipe — this page stays under Menu → Swipe with friends whenever you come back.`
+    :`${fin} of ${m} finished${GRP.night?` · ${nightLabel(GRP.night)}`:''}. Updates while open; find it again under Menu → Swipe with friends.`;
   b.innerHTML=`<button class="sx" onclick="closeGroup()" aria-label="Close">✕</button>`
     +`<div class="sh2">${head}</div>`
     +`<div class="gsub">${sub}</div>`
@@ -1948,7 +1995,7 @@ async function loadFeed(range){
        both exactly once (they used to be requested twice per load) */
     invalidateRecs();
     applyFeed(feed);
-    if(first)logVisit();             /* a visit is a session that saw the calendar */
+    if(first){logVisit();planRestore()}   /* a visit is a session that saw the calendar; a plan from before comes back */
     liveNote('');
     syncMine();                      /* restore this account's going/saved; renders again when it lands */
     if(tasteRestore()){S.sortTaste=TASTE.length>0;render()}else{maybeOnboard()}
