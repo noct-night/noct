@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  daysUntilExpiry, MIN_TOKEN_AGE_MS, REFRESH_WINDOW_MS, shouldRefresh, type StoredToken,
+  daysUntilExpiry, MIN_TOKEN_AGE_MS, needsReseed, normaliseSeed, REFRESH_WINDOW_MS, seedFingerprint,
+  shouldRefresh, type StoredToken,
 } from '../../src/post/token.js';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -77,5 +78,55 @@ describe('daysUntilExpiry', () => {
   it('goes negative once lapsed, so the caller can tell "expired" from "unknown"', () => {
     expect(daysUntilExpiry(token({ expiresAt: new Date(NOW.getTime() - 2 * DAY) }), NOW)).toBeLessThan(0);
     expect(daysUntilExpiry(token({ expiresAt: null }), NOW)).toBeNull();
+  });
+});
+
+describe('normaliseSeed', () => {
+  it('strips the whitespace a dashboard paste picks up', () => {
+    // A trailing newline or space makes Instagram answer "Failed to decrypt", which says nothing about why.
+    expect(normaliseSeed('IGAAtoken\n')).toBe('IGAAtoken');
+    expect(normaliseSeed('  IGAAtoken  ')).toBe('IGAAtoken');
+  });
+
+  it('strips the quotes a value was copied out of', () => {
+    expect(normaliseSeed('"IGAAtoken"')).toBe('IGAAtoken');
+    expect(normaliseSeed("'IGAAtoken'")).toBe('IGAAtoken');
+    expect(normaliseSeed(' "IGAAtoken" \n')).toBe('IGAAtoken');
+  });
+
+  it('leaves a clean token alone, including quote characters that are not wrapping it', () => {
+    expect(normaliseSeed('IGAAtoken')).toBe('IGAAtoken');
+    expect(normaliseSeed('"IGAAtoken')).toBe('"IGAAtoken');
+  });
+
+  it('treats empty as unset', () => {
+    expect(normaliseSeed(undefined)).toBeUndefined();
+    expect(normaliseSeed('   ')).toBeUndefined();
+    expect(normaliseSeed('""')).toBeUndefined();
+  });
+});
+
+describe('needsReseed', () => {
+  it('takes a seed the database has never stored', () => {
+    expect(needsReseed('IGAAone', null)).toBe(true);
+  });
+
+  it('keeps using the stored token while the env var is unchanged, even after refreshes', () => {
+    // A refreshed token differs from the seed, which is why the fingerprint is of the seed, not the token.
+    expect(needsReseed('IGAAone', seedFingerprint('IGAAone'))).toBe(false);
+  });
+
+  it('replaces the stored token when the env var changes, so fixing a bad token actually fixes it', () => {
+    expect(needsReseed('IGAAtwo', seedFingerprint('IGAAone'))).toBe(true);
+  });
+
+  it('keeps the stored token when the env var is removed', () => {
+    expect(needsReseed(undefined, seedFingerprint('IGAAone'))).toBe(false);
+  });
+
+  it('fingerprints without storing the token itself', () => {
+    const fp = seedFingerprint('IGAAsecret');
+    expect(fp).toHaveLength(16);
+    expect(fp).not.toContain('IGAA');
   });
 });
