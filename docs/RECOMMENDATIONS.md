@@ -20,8 +20,15 @@ score later without changing the interface.
 Recommendations used to need a history, so a new account saw nothing until it had marked something. Onboarding
 asks two questions instead, both skippable, neither of them typing:
 
-1. **Genres** — chips drawn from `/api/taste`, which only offers codes with **8 or more** upcoming nights in
-   that city, capped at 24. Every option therefore leads somewhere, and the whole set fits one screen.
+1. **Genres** — chips drawn from `/api/taste`, which offers the codes with **4 or more** nights in the next
+   45 days in that city (one every week and a half), capped at 40 with the rarest cut first. Every option
+   therefore leads somewhere. The chips are arranged like a menu rather than a leaderboard: one family at a
+   time, the family holding most of the city's calendar first, siblings in the taxonomy's own order — so
+   UK Garage sits with the other house and Jungle next to Breaks — and they wear the name people look for
+   ("House", "Techno", "UK Garage", "Disco"; `CHIP_LABELS` in `src/feed/taste.ts`) rather than the exact
+   taxonomy label the cards use. On 2026-09-16 that is 40 chips for NYC, 37 for LA and 23 for Chicago; the
+   old rule (8 nights, 24 chips, by count) gave 24 / 23 / 11 and left NYC without Jungle, Breaks, Amapiano,
+   Footwork or R&B.
 2. **Nights** — eight real flyers from `/api/taste?picks=1`, narrowed to the genres just picked, one per venue.
    A tap writes an ordinary `saved` row, so nothing downstream needs a special case.
 
