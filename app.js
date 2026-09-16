@@ -330,21 +330,31 @@ function renderMap(){
   const list=results();
   /* group by venue name (what the venue sheet keys on); coordinates come from the venue record */
   const groups=new Map();
-  let placed=0,unplaced=0;
+  let placed=0,unplaced=0;const missing=[];
   list.forEach(e=>{
     const i=vInfo(e.venue);
     const lat=Number(i.lat),lng=Number(i.lng);
-    if(!isFinite(lat)||!isFinite(lng)||!lat||!lng){unplaced++;return}
+    if(!isFinite(lat)||!isFinite(lng)||!lat||!lng){unplaced++;const pk=pickFor(e);if(pk)missing.push(pk.slot);return}
     placed++;
-    const g=groups.get(e.venue)||{lat,lng,n:0,you:false,events:[]};
-    g.n++;g.events.push(e);if(forMe(e))g.you=true;
+    const g=groups.get(e.venue)||{lat,lng,n:0,you:false,slots:[],events:[]};
+    g.n++;g.events.push(e);
+    /* a pick fills the dot like a For-you night does, and says which pick it is beside it: a filled dot alone
+       cannot tell Best match from Wildcard, and on a map there is no row to carry the word */
+    const pk=pickFor(e);
+    if(pk){g.you=true;if(!g.slots.includes(pk.slot))g.slots.push(pk.slot)}
+    else if(forMe(e))g.you=true;
     groups.set(e.venue,g);
   });
-  const pts=[];
+  const pts=[],order=Object.values(SLOT);
   groups.forEach((g,name)=>{
     const size=Math.min(16+g.n*4,40);
     const icon=L.divIcon({className:'',html:`<div class="vdot ${g.you?'you':''}" style="width:${size}px;height:${size}px">${g.n>1?g.n:''}</div>`,iconSize:[size,size],iconAnchor:[size/2,size/2]});
-    L.marker([g.lat,g.lng],{icon,title:name,keyboard:true}).on('click',()=>openVenue(name)).addTo(MAP_LAYER);
+    const mk=L.marker([g.lat,g.lng],{icon,title:name,keyboard:true}).on('click',()=>openVenue(name));
+    if(g.slots.length){
+      g.slots.sort((a,b)=>order.indexOf(a)-order.indexOf(b));
+      mk.bindTooltip(g.slots.join(' · '),{permanent:true,direction:'right',offset:[size/2+4,0],className:'vlbl',interactive:false});
+    }
+    mk.addTo(MAP_LAYER);
     pts.push([g.lat,g.lng]);
   });
   if(pts.length&&!renderMap.fitted){
@@ -356,8 +366,11 @@ function renderMap(){
     m.fitBounds(near.length>=3?near:pts,{padding:[40,40],maxZoom:14});renderMap.fitted=true;
   }
   const note=$('#mapNote');
+  /* a pick at a secret location is a fact about the night, not a gap in the map: say which pick it is */
+  const secret=missing.sort((a,b)=>order.indexOf(a)-order.indexOf(b));
   if(!list.length){note.textContent='Nothing matches.';note.hidden=false}
-  else if(unplaced){note.textContent=`${placed} on the map · ${unplaced} without a location yet`;note.hidden=false}
+  else if(S.sel==='picks'&&secret.length&&unplaced===secret.length){note.textContent=`${secret.join(' and ')}: location not announced yet`;note.hidden=false}
+  else if(unplaced){note.textContent=`${placed} on the map · ${unplaced} without a location yet${secret.length?` (${secret.join(', ')})`:''}`;note.hidden=false}
   else note.hidden=true;
   setTimeout(()=>m.invalidateSize(),50);   /* the container was display:none a moment ago */
 }
@@ -1143,7 +1156,7 @@ function openVenue(v){
     <div class="dsup">${i.addr||(i.hood?i.hood+(i.boro?', '+i.boro:''):'Address not on file')}</div>
     <div class="grp"><h3>${ev.length?`${ev.length===1?'One night':ev.length+' nights'} ${dateLabel().toLowerCase()==='tonight'?'tonight':'in '+dateLabel().toLowerCase()}`:'Nothing listed '+dateLabel().toLowerCase()}</h3>
       ${ev.map(e=>`<div class="row" style="padding-left:0;padding-right:0" role="button" tabindex="0" onclick="openDet(${e.id})">
-        <div class="rt">${recFor(e)?`<span class="rfor">For you</span> · `:''}${dayFull(e.d)}${e.door?' · '+e.door:''}</div>
+        <div class="rt">${pickFor(e)?`<span class="rfor">${pickFor(e).slot}</span> · `:recFor(e)?`<span class="rfor">For you</span> · `:''}${dayFull(e.d)}${e.door?' · '+e.door:''}</div>
         <div class="rn">${e.head}</div>
         <div class="rg">${tagLine(e)}</div>
         <div class="rv">${e.room||''}</div>

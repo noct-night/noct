@@ -301,6 +301,10 @@ a{color:inherit}
   border:2px solid var(--ink);box-shadow:0 0 0 1px rgba(255,255,255,.35)}
 .vdot.you{background:var(--ink);color:var(--chalk);border-color:var(--chalk)}   /* a For-you night lives here */
 .vdot.dim{opacity:.55}
+/* the pick's name beside its dot ("Best match", "Wildcard"): Leaflet's tooltip, restyled to the palette, no arrow */
+#map .leaflet-tooltip.vlbl{background:var(--ink);color:var(--chalk);border:.7px solid var(--hair);border-radius:2px;
+  padding:3px 7px;font:inherit;font-size:12px;line-height:1.3;box-shadow:none;white-space:nowrap;opacity:1}
+#map .leaflet-tooltip.vlbl::before{display:none}
 .mapnote{position:absolute;left:var(--pad);right:var(--pad);bottom:calc(150px + env(safe-area-inset-bottom));
   z-index:16;font-size:12.5px;color:var(--d2);pointer-events:none}
 .mapnote[hidden]{display:none}
