@@ -1,4 +1,4 @@
--- NOCT 0024: the Instagram posts.
+-- NOCT 0026: the Instagram posts.
 --
 -- One row per post, not per slide: a carousel publishes as a single unit and is approved as a single unit,
 -- so the slides ride along as jsonb. They are display data (a headline, a venue, a flyer URL), never the
