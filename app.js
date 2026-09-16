@@ -327,7 +327,7 @@ async function maybeOnboard(){
     if(!r.ok)return;                              /* no options, no onboarding: never block the app */
     ONB.opts=(await r.json()).genres||[];
     if(ONB.opts.length<4)return;
-    ONB.step=1;renderOnb();$('#onb').classList.add('open');
+    ONB.step=1;ONB.editing=false;renderOnb();$('#onb').classList.add('open');
   }catch(e){}
 }
 function closeOnb(){$('#onb').classList.remove('open')}
@@ -337,8 +337,11 @@ function renderOnb(){
     b.innerHTML=`<div class="sh2">What do you play loud?</div>`
       +`<div class="onbsub">Pick whatever fits. It only sorts your feed — you can change it any time.</div>`
       +`<div class="opts">`+ONB.opts.map((g,i)=>`<button aria-pressed="${ONB.genres.has(g.code)}" onclick="onbGenre(${i})">${clean(g.label)}</button>`).join('')+`</div>`
-      +`<div class="onbfoot"><button class="lnk" style="color:var(--d2)" onclick="onbSkip()">Skip</button>`
-      +`<button class="lnk" onclick="onbNext()">${ONB.genres.size?'Next →':'Not sure yet →'}</button></div>`;
+      +(ONB.editing
+        ? `<div class="onbfoot"><button class="lnk" style="color:var(--d2)" onclick="closeOnb()">Cancel</button>`
+          +`<button class="lnk" onclick="onbSaveEdit()">Done</button></div>`
+        : `<div class="onbfoot"><button class="lnk" style="color:var(--d2)" onclick="onbSkip()">Skip</button>`
+          +`<button class="lnk" onclick="onbNext()">${ONB.genres.size?'Next →':'Not sure yet →'}</button></div>`);
     return;
   }
   b.innerHTML=`<div class="sh2">Would you go?</div>`
@@ -375,6 +378,12 @@ function onbPick(i){const e=ONB.cards[i];if(!e)return;
   renderOnb();persist('saved',e.uuid,on);
 }
 function onbSkip(){TASTE=[];tasteRemember();closeOnb();persistTaste()}
+/* Editing saves the genres and stops there: someone changing a genre does not need the flyers again. */
+function onbSaveEdit(){
+  TASTE=[...ONB.genres];tasteRemember();closeOnb();applyTaste();
+  persistTaste();invalidateRecs();loadRecs();render();
+  toast(TASTE.length?'Taste updated':'Taste cleared');
+}
 function onbDone(){
   tasteRemember();closeOnb();applyTaste();
   persistTaste();invalidateRecs();loadRecs();render();
@@ -402,11 +411,20 @@ function genreLabel(code){
   for(const e of EV){const t=(e.tags||[]).find(t=>t.code===code);if(t&&t.label)return t.label}
   return code.split('.').pop().replace(/_/g,' ');
 }
-/* "change it any time": the same first question, reopened from the menu with the current answer filled in. */
-function editTaste(){
+/* "change it any time": the same first question, reopened from the menu with the current answer filled in.
+   The options are fetched here if onboarding never ran on this device -- maybeOnboard() cannot be reused for
+   that, because it returns early the moment a taste exists, which is exactly the person who wants to edit. */
+async function editTaste(){
   closeAll();
-  if(!ONB.opts.length){maybeOnboard();return}
-  ONB.step=1;ONB.genres=new Set(TASTE);renderOnb();$('#onb').classList.add('open');
+  if(!ONB.opts.length){
+    try{
+      const r=await fetch(`${API_BASE}/api/taste?city=${encodeURIComponent(S.city||'nyc')}`,{headers:{accept:'application/json'}});
+      if(r.ok)ONB.opts=(await r.json()).genres||[];
+    }catch(e){}
+    if(!ONB.opts.length){toast('Could not load genres right now');return}
+  }
+  ONB.step=1;ONB.genres=new Set(TASTE);ONB.picks=new Set();ONB.editing=true;
+  renderOnb();const sh=$('#onb');sh.classList.add('open');sh.scrollTop=0;
 }
 /* A recommendation that also falls inside the loaded nights, by uuid: the rail and the feed are two views of
    one answer, so a card can carry the reason the recommender already worked out. */
@@ -649,7 +667,6 @@ function listenLinks(name){
     ['YouTube',    `https://www.youtube.com/results?search_query=${set}`],
     ['SoundCloud', `https://soundcloud.com/search/sets?q=${set}`],
     ['Spotify',    `https://open.spotify.com/search/${q}`],
-    ['RA',         `https://ra.co/search?searchTerm=${q}`],
   ];
 }
 let ART={id:'',name:'',events:[],busy:false};

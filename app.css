@@ -131,6 +131,7 @@ a{color:inherit}
 .sheet.down.open{transform:translateY(0)}
 /* Sheets that can be opened while a page (#det 54, #ven 56) is up have to clear it, or they open behind it
    and the tap reads as "nothing happened" — which is exactly what tapping a line-up name did. */
+#onb{z-index:60}
 #srch{z-index:60}
 #artist{z-index:62}
 #signSheet{z-index:64}

@@ -173,6 +173,23 @@ async function sweep(runId: number): Promise<number> {
  * Resolve canonical line-ups into artist rows (0013). Only events whose line-up changed are revisited, so this
  * is cheap after the first pass; a failure here must not fail the ingest, since the listings are already stored.
  */
+/**
+ * Copy coordinates up from listings to venues that lack them (0022). A listing that resolves to an existing
+ * venue never passed its own lat/lng along, which left Bossa Nova and SILO unplaceable while DICE and RA knew
+ * exactly where they were. Majority vote across sources, because RA had SILO at the wrong address.
+ */
+async function backfillVenueCoords(log: Logger): Promise<number> {
+  try {
+    const r = await query<{ n: number }>('select backfill_venue_coords() as n');
+    const n = Number(r.rows[0]?.n ?? 0);
+    if (n) log.info('venue coordinates filled from listings', { venues: n });
+    return n;
+  } catch (err) {
+    log.warn('venue coordinate backfill failed; listings are unaffected', { error: err instanceof Error ? err.message : String(err) });
+    return 0;
+  }
+}
+
 async function linkArtists(log: Logger): Promise<number> {
   try {
     const r = await query<{ n: number }>('select link_pending_artists($1) as n', [ARTIST_LINK_CHUNK]);
@@ -206,6 +223,7 @@ async function runOne(
     }
     const pending = await resolvePending(adapter.key, deadline);
     await linkArtists(log);
+    await backfillVenueCoords(log);
     const warnings = [...result.warnings, ...persisted.warnings, ...pending.warnings];
 
     // A window authorises tombstoning everything in it that this run did not see, so it is only honoured when the
