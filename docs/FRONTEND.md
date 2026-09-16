@@ -120,14 +120,18 @@ venue · title · door–close · *walkable* or whole km · Directions (origin =
 `walk`) — remembers the answer across Save / I'm going re-renders, and shows nothing at all when `next` is empty.
 No routing, no minutes, no "afters", no plan wording.
 
-**Group Mode** (0025, `GRP` in app.js). On an event sheet, *Swipe with friends* opens a small sheet that says the
-three steps once — "Send the link. Everyone who opens it swipes the same 12 cards. The count decides." — with
+**Group Mode** (0025, `GRP` in app.js). *Swipe with friends* lives in the menu (its sub-line names the night it
+would deal, or the group's state once one exists) and opens a small sheet that says the three steps once —
+"Send the link. Everyone who opens it swipes the same 12 cards. The count decides." — with
 *Send the link* (the phone's own share sheet via `navigator.share`, the clipboard where there is none; a
 completed share drops the owner straight into the deck) and *Start swiping*. The deck is dealt from the top of
-the owner's own list for that night (`deckFor()`: flyers first, `rank()` then interested, one card per venue,
-the night in hand leading); the `group_session` row is inserted through PostgREST only when a step is taken
+the owner's own list for the first night loaded — Tonight, the Friday of a weekend, or the calendar date picked
+(`deckFor()`: flyers first, `rank()` then interested, one card per venue); the `group_session` row is inserted through PostgREST only when a step is taken
 (`ensureGroup()`; `Prefer: return=representation` gives back the id), and the link is `?g=<session>&city&from&to`.
-Once a group exists the button reads *Group picks* and opens the votes.
+Once a group exists the menu entry opens the votes; *Start another* on the result sheet drops this device's
+group and deals the night on screen. The event sheet's action row is *Save · Directions · Add to calendar ·
+Share* — one line; *Open listing* went, since every ticket row already opens the listing, and *Venues* left the
+menu, since the map does that.
 The deck is the image view: `results()` returns the deck's cards in dealt order, the seg hides, the swipe pill
 reads *Pass ← · → Like*, a swipe or the two text buttons write one `group_vote` row (upsert), and the last vote
 opens the plan sheet `#group`. A link holder lands on the night (the link carries the range), `openGroupLink()`

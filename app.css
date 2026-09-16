@@ -257,7 +257,7 @@ a{color:inherit}
 .ro .t{font-size:13.5px;color:var(--d2)}
 .ro .who{font-size:16px;line-height:1.35}
 .prose{font-size:15.5px;line-height:1.6;color:var(--d1)}
-.dacts{display:flex;gap:24px;margin-top:34px;flex-wrap:wrap}
+.dacts{display:flex;justify-content:space-between;gap:12px 18px;margin-top:34px;flex-wrap:wrap}   /* four actions, one line */
 .dacts button[aria-pressed="true"]{color:#fff}
 .empty{padding:40px var(--pad);font-size:15.5px;color:var(--d1);line-height:1.6}
 .crowd{display:flex;flex-wrap:wrap;gap:9px 15px;font-size:15px;color:var(--d1)}
