@@ -612,7 +612,7 @@ function openDet(eid){
       <button class="lnk" onclick="toggleSave(${e.id});openDet(${e.id})">${isSaved(e.id)?'Saved':'Save'}</button>
       ${directionsUrl(e.venue)?`<a class="lnk" href="${directionsUrl(e.venue)}" target="_blank" rel="noopener">Directions</a>`:''}
       <a class="lnk" href="${e.ra||e.dice||e.url||'#'}" target="_blank" rel="noopener">Open listing</a>
-      <button class="lnk">Add to calendar</button>
+      ${e.uuid?`<a class="lnk" href="${API_BASE}/api/ics?e=${encodeURIComponent(e.uuid)}" rel="noopener">Add to calendar</a>`:''}
       <button class="lnk" onclick="shareEvent(${e.id})">Share</button>
     </div>
   </div>`;
