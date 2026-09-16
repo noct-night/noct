@@ -210,7 +210,7 @@ function setOnly(on){
 function renderOnlyBtn(){
   const b=$('#btnFor');
   if(!b)return;
-  const show=canFilterForMe()&&(S.view==='image'||S.view==='list');
+  const show=canFilterForMe()&&(S.view==='image'||S.view==='list'||S.view==='map');
   b.hidden=!show;
   b.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String((x.dataset.only==='1')===S.only)));
 }
@@ -257,6 +257,69 @@ function captionIn(){
 }
 function step(n){const l=results();if(!l.length)return;S.i=(S.i+n+l.length)%l.length;filmCut();renderImage();captionIn()}
 
+/* ---------- Map ----------
+   The same nights the other two views show -- results(), so filters and For-you apply -- placed on the venues
+   that hold them. One dot per venue family, sized by count, filled when a For-you night is there. Tapping a
+   dot opens the venue sheet, which already lists that room's nights; no new list UI.
+   New York only for now: it is the one city with seeded venues, and the one the team can check by eye. */
+const MAP_CITIES=new Set(['nyc']);
+const CITY_CENTRE={nyc:[40.716,-73.955],la:[34.05,-118.30],chi:[41.89,-87.66]};
+let MAP=null,MAP_LAYER=null;
+function renderMapOption(){
+  const b=$('#modeMap');if(!b)return;
+  const ok=MAP_CITIES.has(S.city||'nyc');
+  b.hidden=!ok;
+  if(!ok&&S.view==='map')setView('image');   /* switched to a city without a map while on it */
+}
+function ensureMap(){
+  if(MAP||typeof L==='undefined')return MAP;
+  MAP=L.map('map',{zoomControl:false,attributionControl:true,zoomSnap:.5});
+  L.control.zoom({position:'bottomright'}).addTo(MAP);          /* top-left is where the NO sits */
+  /* OpenStreetMap's own tiles, inverted and desaturated in CSS into the app's palette. CARTO's dark basemap
+     would have matched out of the box but now wants an API key. */
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    maxZoom:19,
+    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  }).addTo(MAP);
+  MAP_LAYER=L.layerGroup().addTo(MAP);
+  MAP.setView(CITY_CENTRE[S.city]||CITY_CENTRE.nyc,12);
+  return MAP;
+}
+function renderMap(){
+  if(typeof L==='undefined'){$('#mapNote').textContent='Map is loading…';$('#mapNote').hidden=false;setTimeout(()=>{if(S.view==='map')renderMap()},400);return}
+  const m=ensureMap();if(!m)return;
+  MAP_LAYER.clearLayers();
+  const list=results();
+  /* group by venue name (what the venue sheet keys on); coordinates come from the venue record */
+  const groups=new Map();
+  let placed=0,unplaced=0;
+  list.forEach(e=>{
+    const i=vInfo(e.venue);
+    const lat=Number(i.lat),lng=Number(i.lng);
+    if(!isFinite(lat)||!isFinite(lng)||!lat||!lng){unplaced++;return}
+    placed++;
+    const g=groups.get(e.venue)||{lat,lng,n:0,you:false,events:[]};
+    g.n++;g.events.push(e);if(forMe(e))g.you=true;
+    groups.set(e.venue,g);
+  });
+  const pts=[];
+  groups.forEach((g,name)=>{
+    const size=Math.min(16+g.n*4,40);
+    const icon=L.divIcon({className:'',html:`<div class="vdot ${g.you?'you':''}" style="width:${size}px;height:${size}px">${g.n>1?g.n:''}</div>`,iconSize:[size,size],iconAnchor:[size/2,size/2]});
+    L.marker([g.lat,g.lng],{icon,title:name,keyboard:true}).on('click',()=>openVenue(name)).addTo(MAP_LAYER);
+    pts.push([g.lat,g.lng]);
+  });
+  if(pts.length&&!renderMap.fitted){
+    const c=CITY_CENTRE[S.city]||CITY_CENTRE.nyc;
+    const near=pts.filter(p=>Math.abs(p[0]-c[0])<.35&&Math.abs(p[1]-c[1])<.45);   /* ~35 km: the metro, not the region */
+    m.fitBounds(near.length?near:pts,{padding:[40,40],maxZoom:14});renderMap.fitted=true;
+  }
+  const note=$('#mapNote');
+  if(!list.length){note.textContent='Nothing matches.';note.hidden=false}
+  else if(unplaced){note.textContent=`${placed} on the map · ${unplaced} without a location yet`;note.hidden=false}
+  else note.hidden=true;
+  setTimeout(()=>m.invalidateSize(),50);   /* the container was display:none a moment ago */
+}
 function renderList(){
   const list=results();
   renderFbar();
@@ -843,7 +906,7 @@ function opt(el,items,isOn,onPick){
   });
 }
 function buildAll(){
-  opt($('#oCity'),CITIES.map(c=>[c[0],c[2]?c[1]:c[1]+' (soon)']),v=>S.city===v,v=>{const c=CITIES.find(x=>x[0]===v);if(c&&c[2]&&S.city!==v){S.city=v;S.area='All';closeAll();loadFeed();}});
+  opt($('#oCity'),CITIES.map(c=>[c[0],c[2]?c[1]:c[1]+' (soon)']),v=>S.city===v,v=>{const c=CITIES.find(x=>x[0]===v);if(c&&c[2]&&S.city!==v){S.city=v;S.area='All';renderMap.fitted=false;if(MAP)MAP.setView(CITY_CENTRE[v]||CITY_CENTRE.nyc,12);closeAll();loadFeed();}});
   opt($('#oArea'),AREAS,v=>S.area===v,v=>S.area=v);
   opt($('#oPreset'),PRESETS,v=>S.preset===v,v=>pickRange(v));
   $('#gSort').hidden=!TASTE.length;                 /* nothing to sort by until a taste exists */
@@ -898,21 +961,23 @@ function goHome(){
 }
 function setView(v){
   if(LIVE&&!S.recs.loading&&!S.recs.loaded)loadRecs();
-  S.view=v;if(v==='image'||v==='list')S.mode=v;
+  const primary=(v==='image'||v==='list'||v==='map');
+  S.view=v;if(primary)S.mode=v;
   const secondary=(v==='saved'||v==='venues'||v==='profile');
   $('#ctrlRow').hidden=secondary;
   $('#backRow').hidden=!secondary;
-  $('#backLbl').textContent=S.mode==='list'?'List view':'Events';
-  $('#imageView').hidden=v!=='image';$('#listView').hidden=v!=='list';
+  $('#backLbl').textContent=S.mode==='list'?'List view':S.mode==='map'?'Map view':'Events';
+  $('#imageView').hidden=v!=='image';$('#listView').hidden=v!=='list';$('#mapView').hidden=v!=='map';
   $('#savedView').hidden=v!=='saved';$('#venuesView').hidden=v!=='venues';$('#profileView').hidden=v!=='profile';
-  document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mode===S.mode&&(v==='image'||v==='list')));
+  document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mode===S.mode&&primary));
   const listy=(v==='list');
   const bar=$('#fbar');
   if(bar){bar.hidden=!listy; if(listy)renderFbar();}
   renderOnlyBtn();
+  renderMapOption();
   $('#listView').classList.toggle('withbar',listy);
-  $('#topscrim').classList.toggle('tall',listy);
-  $('#topscrim').classList.remove('on');
+  $('#topscrim').classList.toggle('tall',listy||v==='map');
+  $('#topscrim').classList.toggle('on',v==='map');       /* controls over map tiles need a ground; artwork does not */
   $('#botscrim').classList.toggle('on',v!=='image');
   render();
 }
@@ -944,6 +1009,7 @@ function render(){
   $('#dateLbl').textContent=dateLabel();
   if(S.view==='image')renderImage();
   if(S.view==='list')renderList();
+  if(S.view==='map')renderMap();
   if(S.view==='saved')renderSaved();
   if(S.view==='venues')renderVenues();
   if(S.view==='profile')renderProfile();
@@ -1154,7 +1220,8 @@ function applyFeed(f){
   }));
   const vs={};
   Object.keys(f.venues||{}).forEach(k=>{const v=f.venues[k]||{};vs[clean(k)]={addr:clean(v.addr),hood:clean(v.hood),boro:clean(v.boro),
-    ig:clean(v.ig).replace(/[^\w.]/g,''),site:cleanUrl(v.site),ra:cleanUrl(v.ra),dice:cleanUrl(v.dice),verified:!!v.verified,tones:tonesOf(k)}});
+    ig:clean(v.ig).replace(/[^\w.]/g,''),site:cleanUrl(v.site),ra:cleanUrl(v.ra),dice:cleanUrl(v.dice),verified:!!v.verified,tones:tonesOf(k),
+    lat:typeof v.lat==='number'?v.lat:null,lng:typeof v.lng==='number'?v.lng:null}});
   VENUES=vs;
   GENRES=(f.genres||[]).map(clean);
   AREAS=['All',...new Set(EV.map(e=>vInfo(e.venue).boro).filter(Boolean))];

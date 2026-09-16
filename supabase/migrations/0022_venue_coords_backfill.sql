@@ -10,6 +10,16 @@
 -- already are. Curated coordinates are never overwritten -- only nulls are filled.
 set search_path = public, extensions;
 
+create or replace function venue_is_placeholder(p_name text) returns boolean
+language sql immutable parallel safe as $$
+  select coalesce(p_name ~* '\m(tba|tbc)\M|to be announced|secret location|location tba|undisclosed|venue tba', false)
+$$;
+comment on function venue_is_placeholder(text) is 'A venue name that stands for "we do not know where": never geocoded, never mapped.';
+
+-- and take the coordinates back off the ones that already have them
+update venue set lat = null, lng = null, geocode_source = null
+ where lat is not null and venue_is_placeholder(name);
+
 create or replace function backfill_venue_coords() returns int
 language plpgsql as $$
 declare n int;
@@ -30,8 +40,14 @@ begin
     join listing l on l.event_id = e.event_id and l.gone_at is null
     left join centre c on c.city = v.city
     where (v.lat is null or coalesce(v.geocode_source, '') like 'listing:%')   -- fill nulls, re-judge our own
+      -- "Location TBA", "Secret location", "TBA": a placeholder is not a place. DICE geocodes these to the
+      -- middle of the borough, and 14 unlocated nights then show up as the busiest dot on the map.
+      and not venue_is_placeholder(v.name)
       and l.venue_lat_raw is not null and l.venue_lng_raw is not null
       and abs(l.venue_lat_raw) > 1 and abs(l.venue_lng_raw) > 1
+      -- 37.09, -95.71 is the geographic centre of the United States: what a geocoder returns for "USA" when
+      -- it has no idea. RA sent it for a room called Ssshhh, and it put a dot in Kansas on the New York map.
+      and not (round(l.venue_lat_raw::numeric, 1) = 37.1 and round(l.venue_lng_raw::numeric, 1) = -95.7)
       and (c.lat is null or (abs(l.venue_lat_raw - c.lat) < 0.75 and abs(l.venue_lng_raw - c.lng) < 0.75))
   ),
   -- Sources disagree about where a room is, and the highest-priority source is not the best geocoder: RA had

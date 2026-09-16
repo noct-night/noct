@@ -250,3 +250,29 @@ keep their own section, because they need the time column.
 A line-up entry is a string, not an id, so the sheet opens immediately on the name (the links need nothing
 else) and resolves the artist in the background for the dates. The match must be **exact**: a fuzzy one would
 file someone else's tour under this name.
+
+## Map view (New York)
+
+A third way of looking at the same nights — `results()`, so filters and For you apply — placed on the venues
+that hold them. One dot per venue, sized by how many nights it holds in the loaded range, drawn hollow when a
+For-you night is there. Tapping a dot opens the venue sheet, which already lists that room's nights, so the map
+added no list UI of its own.
+
+**Tiles.** OpenStreetMap's own, inverted and desaturated in CSS into the app's palette. CARTO's dark basemap
+would have matched out of the box but now requires an API key — the first render said so across every tile.
+
+**What is not on the map, and why.** Three things had to be taken off before it could ship:
+
+- **Placeholder venues.** "Location TBA – New York" had DICE-supplied coordinates for the middle of the borough,
+  so 14 unlocated nights were the busiest dot on the map. `venue_is_placeholder()` keeps TBA / Secret location
+  / Undisclosed off it; they count toward "N without a location yet" instead.
+- **The centre of the United States.** RA geocoded a room called Ssshhh to 37.09, −95.71 — Kansas, what a
+  geocoder returns for "USA" when it has nothing — which put a dot in the Midwest and zoomed the map out to
+  the whole country.
+- **Rooms that really are far away.** The Avalon Lounge is a real venue two hours upstate that RA files under
+  New York. It stays on the map but does not drive the zoom: the initial fit uses only points within ~35 km of
+  the city centre.
+
+**Coverage.** Only 38% of a NYC night had coordinates before `backfill_venue_coords()` (0022), which copies
+them up from listings by majority vote across sources. 82% now; the rest is placeholders and rooms no source
+geocodes. New York only for the moment — the one city with seeded venues and the one the team can check by eye.

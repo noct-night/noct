@@ -275,3 +275,25 @@ a{color:inherit}
 .mini{font-size:13px;color:var(--d2);margin-top:12px;line-height:1.5}
 .flag{font-size:12.5px;color:var(--d2);line-height:1.5;padding:0 var(--pad);margin-top:-6px;margin-bottom:18px}
 @media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important}}
+
+/* ---------- Map view ----------
+   CARTO's dark basemap is the one map that already looks like this app: near-black ground, hairline roads,
+   no colour. Venues are dots sized by how many nights they hold in the loaded range; tapping one opens the
+   venue sheet, which already lists them. */
+#map{position:absolute;inset:0;background:var(--ink);z-index:1}
+#map .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) saturate(0) brightness(.78) contrast(1.15)}
+#map .leaflet-control-attribution{background:rgba(11,11,11,.7);color:var(--d2);font:inherit;font-size:10px;padding:2px 6px}
+#map .leaflet-control-attribution a{color:var(--d1)}
+#map .leaflet-control-zoom{border:0;box-shadow:none;margin:0 var(--pad) calc(170px + env(safe-area-inset-bottom)) 0}
+#map .leaflet-bottom.leaflet-left .leaflet-control-attribution{margin-bottom:calc(150px + env(safe-area-inset-bottom))}
+#map .leaflet-control-zoom a{background:rgba(11,11,11,.78);color:var(--chalk);border:.7px solid var(--hair);width:34px;height:34px;line-height:32px;font-weight:400}
+#map .leaflet-control-zoom a:first-child{border-radius:3px 3px 0 0}
+#map .leaflet-control-zoom a:last-child{border-radius:0 0 3px 3px;border-top:0}
+.vdot{display:flex;align-items:center;justify-content:center;border-radius:50%;
+  background:var(--chalk);color:var(--ink);font-size:12px;font-weight:600;letter-spacing:-.02em;
+  border:2px solid var(--ink);box-shadow:0 0 0 1px rgba(255,255,255,.35)}
+.vdot.you{background:var(--ink);color:var(--chalk);border-color:var(--chalk)}   /* a For-you night lives here */
+.vdot.dim{opacity:.55}
+.mapnote{position:absolute;left:var(--pad);right:var(--pad);bottom:calc(150px + env(safe-area-inset-bottom));
+  z-index:16;font-size:12.5px;color:var(--d2);pointer-events:none}
+.mapnote[hidden]{display:none}
