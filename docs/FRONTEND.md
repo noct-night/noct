@@ -121,10 +121,16 @@ venue · title · door–close · *walkable* or whole km · Directions (origin =
 No routing, no minutes, no "afters", no plan wording.
 
 **Group Mode** (0025, `GRP` in app.js). *Swipe with friends* lives in the menu (its sub-line names the night it
-would deal, or the group's state once one exists) and opens a small sheet that says the three steps once —
-"Send the link. Everyone who opens it swipes the same 7 cards. The count decides." — with
-*Send the link* (the phone's own share sheet via `navigator.share`, the clipboard where there is none; a
-completed share drops the owner straight into the deck) and *Start swiping*. The sheet is a small deck builder:
+would deal, or the group's state once one exists) and opens a small sheet with **one order and one button**:
+"*7 cards for Fri Sep 18.* You swipe them first, then send the link — friends swipe the same 7 cards, and the
+count decides." and *Start swiping →*. (It used to offer *Send the link* and *Start swiping* side by side, and
+nobody could tell which came first; and when the chips left too few cards, "widen a chip" was a footnote under
+a paragraph about a Send button that was not there. Now too few cards is the loud line — "*Only 1 night on Fri
+matches these chips.* Pick another genre or area, or All, to get at least 3 cards" — and nothing else.) The
+link goes out from the plan sheet that opens after the last card: while nobody else has voted its sub-line
+reads "Now send the link — friends swipe the same 7 cards, and the count decides" with *Send the link* directly
+under it (the phone's own share sheet via `navigator.share`, the clipboard where there is none). The sheet is
+a small deck builder:
 **Night** (Tonight, Tomorrow and the coming Fri/Sat/Sun on one line; a night with fewer than three events is
 greyed out, from the same counts the calendar uses; picking a night that is not loaded loads it, so the feed
 moves to the night the group is about), **Genre** (All, *Your taste* when a taste is set, then the night's ten
@@ -144,7 +150,8 @@ reads `group_result(p_session)` and starts them at their first unvoted card, or 
 are done or the night has passed. The plan sheet says it in words only — heading *`m` of `m` liked* when the
 top card was liked by everyone who voted, else *Most liked: `n` of `m`*; sub-line *`k` of `m` finished*; one
 `.frow` per card with *`likes` of `m`* — polls `group_result` every 4 s while open and visible (ten minutes at
-most; nothing says "live"), and offers *Send the link*, *Keep swiping* or *Back to the night*. `m` counts people
+most; nothing says "live"), keeps *Send the link* under its heading, and offers *Keep swiping* or *Back to the
+night* at the foot. `m` counts people
 who voted on at least one card, never people who merely opened the link; a person's own votes never leave the
 database except to them (RLS + a SECURITY DEFINER aggregate). No percentages, no "match", no group-taste deck,
 no push. Identity is the anonymous account, so a link opened in an in-app browser and again in Safari counts as

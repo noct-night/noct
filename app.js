@@ -483,7 +483,7 @@ async function onbNext(){
   ONB.step=2;ONB.cards=[];renderOnb();const sh=$('#onb');if(sh)sh.scrollTop=0;
   try{
     const q=TASTE.length?`&genres=${encodeURIComponent(TASTE.join(','))}`:'';
-    const r=await fetch(`${API_BASE}/api/taste?picks=1&limit=8&city=${encodeURIComponent(S.city||'nyc')}${q}`,{headers:{accept:'application/json'}});
+    const r=await fetch(`${API_BASE}/api/taste?picks=1&limit=16&city=${encodeURIComponent(S.city||'nyc')}${q}`,{headers:{accept:'application/json'}});
     if(r.ok)ONB.cards=((await r.json()).events||[]).filter(e=>e.image).map(e=>({uuid:e.id,head:clean(e.head),
       venue:clean(e.venue),night_label:nightLabel(e.night),image:cleanUrl(e.image)}));
   }catch(e){}
@@ -908,8 +908,8 @@ const dirBetween=(o,d,walk)=>`https://www.google.com/maps/dir/?api=1&origin=${en
 
 /* ---------- Group Mode ----------
    One link, everyone swipes, the count decides. The owner taps "Swipe with friends" in the menu: NOCT deals a
-   deck of up to twelve cards from the top of the owner's own list for that night, copies a link, and the
-   owner swipes first. Everyone who opens the link swipes the same deck; the result is a count per card, in
+   deck of up to seven cards for that night (the chips narrow it), the owner swipes them first, then sends the
+   link. Everyone who opens the link swipes the same deck; the result is a count per card, in
    words -- "3 of 4 liked", "2 of 4 finished". Never a percentage, never "everyone" unless it is everyone who
    voted, and nobody's individual votes leave the database except their own (0025 group_result). */
 const DECK_SIZE=7;
@@ -947,8 +947,10 @@ function deckAreas(d){
 }
 const groupLink=()=>`${location.origin}${location.pathname}?${new URLSearchParams({g:GRP.id,city:GRP.city||S.city||'nyc',from:GRP.night,to:GRP.night})}`;
 /* Tapping "Swipe with friends" used to copy a link and drop you into the deck with a toast -- nothing said that
-   the link had to be SENT, or that the friends would swipe the same cards. Now a small sheet says the three
-   steps once, and the session is created only when a step is taken, so a look costs nothing. */
+   the link had to be SENT, or that the friends would swipe the same cards. Then the sheet offered "Send the
+   link" and "Start swiping" side by side, and nobody could tell which came first. Now it says one order --
+   you swipe, then you send -- and has one button; the plan sheet after the last card is where the link goes
+   out. The session is created only when swiping starts, so a look costs nothing. */
 let GRP_DRAFT=null;
 /* From the menu, so it is about the night on screen, not one card: the first night loaded (Tonight, or the
    Friday of a weekend, or the calendar date picked), dealt from the top of the owner's own list. */
@@ -993,15 +995,19 @@ function renderGroupIntro(){
   const areaOpts=deckAreas(d.d);
   const areas=areaOpts.length?`<button aria-pressed="${anyArea}" onclick="groupArea('')">All</button>`
     +areaOpts.map(a=>`<button aria-pressed="${d.areas.has(a)}" onclick="groupArea('${esc(a)}')">${a}</button>`).join(''):'';
-  const enough=d.deck.length>=3;
+  const n=d.deck.length,enough=n>=3,when=nightLabel(d.night);
+  /* One order, said once: you swipe, then you send. Too few cards is the loud line, not a footnote under a
+     paragraph about a button that is not there. */
+  const tail=d.busy?`<div class="gintro">Loading that night…</div>`
+    :enough?`<div class="gintro"><em>${n} cards for ${when}.</em> You swipe them first, then send the link — friends swipe the same ${n} cards, and the count decides.</div>`
+      +`<div class="foot"><button class="lnk" onclick="groupStart()">Start swiping →</button></div>`
+    :`<div class="gintro"><em>${n===0?'Nothing':n===1?'Only 1 night':`Only ${n} nights`} on ${when} match${n===1?'es':''} these chips.</em> Pick another genre or area, or All, to get at least 3 cards.</div>`;
   b.innerHTML=`<button class="sx" onclick="closeAll()" aria-label="Close">✕</button>`
     +`<div class="sh2">Swipe with friends</div>`
     +`<div class="gpick"><h3>Night</h3><div class="opts gnights">${nights}</div></div>`
     +(d.busy?'':`<div class="gpick"><h3>Genre</h3><div class="opts">${genres}</div></div>`
       +(areas?`<div class="gpick"><h3>Area</h3><div class="opts">${areas}</div></div>`:''))
-    +`<div class="gsub">${d.busy?'Loading that night…':enough?`${d.deck.length} card${d.deck.length===1?'':'s'} for ${nightLabel(d.night)}`:`Not enough for ${nightLabel(d.night)} with these — widen a chip`}</div>`
-    +`<div class="gintro">Send the link. Everyone who opens it swipes the same ${enough?d.deck.length+' ':''}cards. The count decides.</div>`
-    +(enough&&!d.busy?`<div class="foot"><button class="lnk" onclick="groupSend()">Send the link</button><button class="lnk" onclick="groupStart()">Start swiping</button></div>`:'');
+    +tail;
 }
 /* chips: '' is All, '*' is Your taste, anything else a lead genre; several may be on at once */
 function groupGenre(g){
@@ -1057,11 +1063,6 @@ async function shareGroupLink(){
   if(ok)act('group_link');
   toast(ok?'Link copied — paste it to your friends':'Could not copy — '+url,4000);
   return ok?'copied':'failed';
-}
-async function groupSend(){
-  if(!(await ensureGroup()))return;
-  const how=await shareGroupLink();
-  if(how==='shared')startDeck();                  /* sent from the share sheet: their turn is coming, take yours */
 }
 async function groupStart(){if(await ensureGroup())startDeck()}
 /* the deck takes over the image view; the seg hides, the swipe pill says what a swipe now means */
@@ -1160,13 +1161,17 @@ function renderGroup(){
     :m===1?(Object.keys(GRP.mine).length?'Only you so far':'One person so far')
     :(top&&top.likes===m?`${m} of ${m} liked`:`Most liked: ${top?top.likes:0} of ${m}`);
   const left=unvotedLeft();
+  const alone=!!j&&m<=1&&(m===0||Object.keys(GRP.mine).length>0);      /* nobody but this device has voted */
+  const sub=!j?'':alone?`Now send the link — friends swipe the same ${rows.length||GRP.deck.length} cards, and the count decides.`
+    :`${fin} of ${m} finished${GRP.night?` · ${nightLabel(GRP.night)}`:''}`;
   b.innerHTML=`<button class="sx" onclick="closeGroup()" aria-label="Close">✕</button>`
     +`<div class="sh2">${head}</div>`
-    +`<div class="gsub">${m?`${fin} of ${m} finished`:'Send the link'}${GRP.night?` · ${nightLabel(GRP.night)}`:''}</div>`
+    +`<div class="gsub">${sub}</div>`
+    +(j?`<div class="foot gsend"><button class="lnk" onclick="shareGroupLink()">Send the link</button></div>`:'')
     +rows.map(x=>`<button class="frow" onclick="closeAll();openDet(${x.e.id})"><div><div class="fn">${x.e.head}</div>`
       +`<div class="fm">${x.e.venue}${x.e.door?' · '+x.e.door:''}${GRP.mine[x.e.uuid]===true?' · You liked this':GRP.mine[x.e.uuid]===false?' · You passed':''}</div></div>`
       +`<span class="gcount ${m&&x.likes===m?'all':''}">${m?`${x.likes} of ${m}`:'—'}</span></button>`).join('')
-    +`<div class="foot"><button class="lnk" onclick="shareGroupLink()">Send the link</button>`
+    +`<div class="foot">`
     +(left?`<button class="lnk" onclick="closeAll();startDeck()">Keep swiping</button>`:`<button class="lnk" style="color:var(--d2)" onclick="exitDeck()">Back to the night</button>`)
     +`<button class="lnk" style="color:var(--d2)" onclick="newGroup()">Start another</button></div>`;
 }

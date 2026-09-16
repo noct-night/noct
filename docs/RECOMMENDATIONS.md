@@ -30,7 +30,9 @@ asks two questions instead, both skippable, neither of them typing:
    taxonomy label the cards use. On 2026-09-16 that is 40 chips for NYC, 37 for LA and 23 for Chicago; the
    old rule (8 nights, 24 chips, by count) gave 24 / 23 / 11 and left NYC without Jungle, Breaks, Amapiano,
    Footwork or R&B.
-2. **Nights** — eight real flyers from `/api/taste?picks=1`, narrowed to the genres just picked, one per venue.
+2. **Nights** — sixteen real flyers from `/api/taste?picks=1` (eight until 2026-09-16), narrowed to the genres
+   just picked, one per venue first and then the rest; the sheet's footer is sticky, so *Done · n saved* stays
+   in view while the flyers scroll.
    A tap writes an ordinary `saved` row, so nothing downstream needs a special case.
 
 Step 2 is the stronger half: a tap on a night carries its artists, venue, vibes, price and timing all at once.
