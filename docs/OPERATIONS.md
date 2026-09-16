@@ -157,6 +157,24 @@ where jobname like 'noct-%' order by start_time desc limit 20;
 select id, created, status_code, error_msg from net._http_response order by created desc limit 20;
 ```
 
+Venue guesses (0031). Live listings sitting on a room their label disagrees with, and no alias or source id to
+say they belong there — each row is either a guess to check or a missing alias:
+
+```sql
+select l.city, l.source_key, l.venue_name_raw, v.name, v.kind, count(*)
+from listing l join venue v on v.venue_id = l.venue_id
+where l.gone_at is null and l.night >= current_date
+  and norm_text(l.venue_name_raw) is distinct from v.name_norm and not venue_names_agree(l.venue_name_raw, v.name)
+  and not exists (select 1 from venue_alias a where a.alias_norm = norm_text(l.venue_name_raw) and a.venue_id = v.venue_id)
+group by 1, 2, 3, 4, 5 order by 6 desc;
+-- a learned label that disagrees with its venue (the shape 0031 cleaned up); should stay empty
+select a.source_key, a.alias, v.name from venue_alias a join venue v using (venue_id)
+where a.kind = 'source_label' and a.alias_norm is distinct from v.name_norm and not venue_names_agree(a.alias_norm, v.name);
+-- fix one by hand: drop the learned rows, then resolve its listings again
+-- delete from venue_alias where alias_norm = norm_text('<label>') and kind = 'source_label';
+-- select reresolve_listing_venue(listing_id) from listing where norm_text(venue_name_raw) = norm_text('<label>') and gone_at is null;
+```
+
 Traffic (0030, first-party — see FRONTEND.md "Measurement"). The same report `/api/health` carries under
 `traffic`, as a terminal page:
 

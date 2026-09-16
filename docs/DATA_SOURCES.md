@@ -97,6 +97,37 @@ priority-based canonical record (`refresh_event()`). Three seams still showed on
   Hall → Radius (RA files "Indo Warehouse at Cermak Hall" under Radius, 640 W Cermak Rd) and El Rey → El Rey
   Theatre. Undo: clear the room's `parent_venue_id`, drop the alias, rematch its listings.
 
+**A guess that cannot wander (0031).** One card gave it away — DICE said Indo Warehouse was at Pacha New York,
+NOCT said Avant Gardner (the same 140 Stewart Ave complex; Pacha Group operates it under that name in 2026, and
+the venue row now says so, with "Avant Gardner" as the former name). Looking at that family found the real bug:
+the trigram branch's `word_similarity` scored "brooklyn mirage" 0.59 *inside* "the brooklyn monarch", so The
+Brooklyn Monarch (23 Meadow St) resolved to the Mirage, `learn_venue_ref()` stored RA 188422, DICE 5080 and the
+label as the Mirage's, every later listing hit that alias exactly, and 0022 adopted the Monarch's coordinates as
+the Mirage's. The same shape had put "Hollywood Bowl" on W Hollywood, "Sound Nightclub" on Spin, "Westlight
+Rooftop at The William Vale" on Elsewhere Rooftop, "Rooftop at Arlo Williamsburg", "Marquee New York" and "1
+Hotel Brooklyn Bridge" on *Location TBA – New York*: 54 learned labels, 148 listings, on 2026-09-16.
+`0031_pacha_and_monarch.sql` adds three rules to `resolve_venue()` and cleans up after the old one:
+
+- **The same words.** `venue_names_agree(a, b)`: drop the place words (`nyc`, `brooklyn`, `hollywood`, `the`,
+  …; `venue_tokens()`), then every distinctive word of one name must have its word in the other — the same word,
+  a typo of it (five letters or more, half the trigrams shared: "nowdays" / "nowadays") or a stem ("break" /
+  "breakpoint"). "El Rey" in "El Rey Theatre" and "Nowadays NYC" / "Nowadays" pass; "Brooklyn Storehouse" /
+  "Brooklyn Steel" and "EOS Lounge" / "Zero Lounge" do not.
+- **Never a placeholder, and within reach.** A `tba` / `secret` row is never a trigram candidate, and a guess is
+  vetoed when the listing's own coordinates are more than 500 m from the venue's — or, for a room without
+  coordinates, its family's. `upsert_listing()` passes the coordinates through.
+- **Never learned.** Only an exact-id or exact-name match becomes an alias; a guess is judged again on every run.
+
+Then the data: every learned label the rules would not produce today is unlearned (with the source ids learned
+beside it), so is every learned reference whose listings sit far from the venue, and their listings are resolved
+again through `reresolve_listing_venue(listing_id)` (new venue → `rematch_listing()` → `refresh_event()`), in
+passes until nothing moves. Most became rooms of their own with the source's address and coordinates (60 rows,
+33 with coordinates); a room whose coordinates came from a mis-filed listing and sit more than 500 m from its
+family's takes the family's (the Mirage, the Sound Room at Public Records, Elsewhere Rooftop). The Brooklyn
+Monarch has its own row with The Meadows (17 Meadow St) as its second room; Sound Nightclub (Hollywood) and
+Wicker Park (the park) are seeded because the word rule alone cannot tell them from The Sound (Del Mar) and the
+arcade bar named after the park. The audit that finds the next one is in OPERATIONS.md.
+
 **Counting the layer honestly.** `platform_host(source_key, url)` names the ticketing platform behind a listing
 by URL host — DICE's listing and SILO's dice.fm link are one platform, a 19hz row is whatever it links to (RA,
 Ticketmaster, Posh, Flite…). `/api/health` reports `coverage[]` per city: upcoming nights (30) and how many are

@@ -46,8 +46,9 @@ describe.skipIf(!process.env.DATABASE_URL)('cross-source dedup (0028)', () => {
     // un-merged, which would put it back under the dupe guard next to the survivor that took its title
     await query(`delete from event where merged_into is not null and (event_id = any($1::uuid[]) or (night = $2::date and title = any($3::text[])))`, [ids, NIGHT, TITLES]);
     await query(`delete from event where event_id = any($1::uuid[]) or (night = $2::date and title = any($3::text[]))`, [ids, NIGHT, TITLES]);
-    await query(`delete from venue_alias where alias like $1`, [`${V}%`]);
-    await query(`delete from venue where name like $1`, [`${V}%`]);
+    await query(`delete from venue_alias where alias like $1 or alias like $2`, [`${V}%`, `The ${V}%`]);
+    await query(`delete from venue_external_id where source_id like $1`, [`${TAG}%`]);
+    await query(`delete from venue where name like $1 or name like $2`, [`${V}%`, `The ${V}%`]);
     await query(`delete from ingest_run where trigger = 'deduptest'`);
   }
 
@@ -116,6 +117,72 @@ describe.skipIf(!process.env.DATABASE_URL)('cross-source dedup (0028)', () => {
     await mkVenue('bar', 'Bar Lubitsch', 'la');
     const bar = await query(`select * from resolve_venue('19hz', null, 'Bar', 'la')`);
     expect(bar.rows).toEqual([]);
+  });
+
+  it('0031: a guess needs the same words, is vetoed 500 m away, and is never learned (the Brooklyn Monarch case)', async () => {
+    // an invented pair with the real pair's shape (the real Monarch has its own row since 0031, and the real
+    // Mirage's one distinctive word would claim any "... Mirage ..." here): "Zq Harbor Lantern" at Stewart Ave;
+    // an incoming "The Zq Harbor Monarch" sits about 0.6 inside it by word_similarity
+    const mirage = await mkVenue('mirage', 'Harbor Lantern', 'nyc');
+    await query(`update venue set lat = 40.710662, lng = -73.926258 where venue_id = $1`, [mirage]);
+    // the words disagree (monarch is not mirage): no match, with or without coordinates
+    for (const coords of ['', ', 40.71098, -73.936304']) {
+      const r = await query(`select * from resolve_venue('ra', null, $1, 'nyc'${coords})`, [`The ${V}Harbor Monarch`]);
+      expect(r.rows, coords).toEqual([]);
+    }
+    // the words agree ("terrace" is an extra word on the incoming side): a guess, and the guess stands blind
+    const name = `${V}Harbor Lantern Terrace`;
+    const blind = await query<{ venue_id: string; method: string }>(`select * from resolve_venue('ra', null, $1, 'nyc')`, [name]);
+    expect(blind.rows[0]).toMatchObject({ venue_id: mirage, method: 'trgm' });
+    // with the listing's own coordinates 850 m away on Meadow St, it does not
+    const far = await query(`select * from resolve_venue('ra', null, $1, 'nyc', 40.71098, -73.936304)`, [name]);
+    expect(far.rows).toEqual([]);
+    // 200 m away it still does: same block, different door
+    const near = await query<{ method: string }>(`select * from resolve_venue('ra', null, $1, 'nyc', 40.7118, -73.9250)`, [name]);
+    expect(near.rows[0]).toMatchObject({ venue_id: mirage, method: 'trgm' });
+    // a room without coordinates borrows its family's for the veto
+    const room = await mkVenue('mroom', 'Lantern Terrace', 'nyc', 'room');
+    await query(`update venue set parent_venue_id = $1 where venue_id = $2`, [mirage, room]);
+    const roomFar = await query(`select * from resolve_venue('ra', null, $1, 'nyc', 40.71098, -73.936304)`, [`${V}Lantern Terrace Harbor`]);
+    expect(roomFar.rows.map((r: { venue_id: string }) => r.venue_id)).not.toContain(room);
+    // a placeholder is never a guess, whatever the words
+    const tba = await mkVenue('tbaharbor', 'TBA Harbor', 'nyc', 'tba');
+    const ph = await query(`select * from resolve_venue('ra', null, $1, 'nyc')`, [`${V}TBA Harbor Rooftop`]);
+    expect(ph.rows.map((r: { venue_id: string }) => r.venue_id)).not.toContain(tba);
+
+    // ingest: a listing that only trigram-matches (no coordinates) is filed there for now, but nothing is learned
+    const l = await upsert(baseListing({
+      source: 'ra', sourceId: `${TAG}ra-monarch`, sourceUrl: 'https://ra.co/events/deduptest9', raw: { id: 9 },
+      title: 'Indo Warehouse', hasTime: true, night: NIGHT, startsAt: '2031-07-05T02:00:00.000Z',
+      venueName: name, venueSourceId: 'deduptest-188422',
+    }));
+    expect(l.event_id).toBeTruthy();
+    expect((await query(`select venue_id from listing where listing_id = $1`, [l.listing_id])).rows[0]).toEqual({ venue_id: mirage });
+    const learned = await query(`select 1 from venue_alias where alias_norm = norm_text($1) union all select 1 from venue_external_id where source_key = 'ra' and source_id = 'deduptest-188422'`, [name]);
+    expect(learned.rows).toEqual([]);
+    // once the listing carries coordinates, reresolve_listing_venue() moves it off the Mirage to a row of its own
+    await query(`update listing set venue_lat_raw = 40.71098, venue_lng_raw = -73.936304, venue_addr_raw = '23 Meadow St, Brooklyn, NY 11206' where listing_id = $1`, [l.listing_id]);
+    const v = await query<{ reresolve_listing_venue: string }>(`select reresolve_listing_venue($1)`, [l.listing_id]);
+    expect(v.rows[0]!.reresolve_listing_venue).not.toBe(mirage);
+    const made = await query<{ name: string; kind: string; borough: string | null }>(`select name, kind, borough from venue where venue_id = $1`, [v.rows[0]!.reresolve_listing_venue]);
+    expect(made.rows[0]).toMatchObject({ name, kind: 'venue', borough: 'Brooklyn' });
+    const ev = await query<{ venue_id: string }>(`select venue_id from event where event_id = $1`, [l.event_id]);
+    expect(ev.rows[0]!.venue_id).toBe(v.rows[0]!.reresolve_listing_venue);
+  });
+
+  it('0031: venue_names_agree() -- the same distinctive words, typos and stems included, place words not counted', async () => {
+    const pairs: [string, string, boolean][] = [
+      ['El Rey', 'El Rey Theatre', true], ['Nowadays NYC', 'Nowadays', true], ['Nowdays', 'Nowadays', true],
+      ['Pacha New York - The Great Hall', 'The Great Hall', true], ['Knockdown Center - Basement', 'BASEMENT', true],
+      ['Ramova Theater', 'Ramova Theatre', true], ['Circle Line Sightseeing Cruises', 'Circle Line Cruises', true],
+      ['The Brooklyn Monarch', 'Brooklyn Mirage', false], ['Hollywood Bowl', 'W Hollywood', false], ['Sound Nightclub', 'Spin', false],
+      ['Westlight Rooftop at The William Vale', 'Elsewhere Rooftop', false], ['EOS Lounge', 'Zero Lounge', false],
+      ['Brooklyn Storehouse', 'Brooklyn Steel', false], ['Brooklyn', 'Brooklyn Bowl', false],
+    ];
+    for (const [a, b, want] of pairs) {
+      const r = await query<{ ok: boolean }>(`select venue_names_agree($1, $2) as ok`, [a, b]);
+      expect(r.rows[0]!.ok, `${a} ~ ${b}`).toBe(want);
+    }
   });
 
   it('rematch_listing moves a listing to a better event, marks the emptied one merged_into it, and carries the marks', async () => {
