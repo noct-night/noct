@@ -124,9 +124,11 @@ No routing, no minutes, no "afters", no plan wording.
 would deal, or the group's state once one exists) and opens a small sheet that says the three steps once —
 "Send the link. Everyone who opens it swipes the same 12 cards. The count decides." — with
 *Send the link* (the phone's own share sheet via `navigator.share`, the clipboard where there is none; a
-completed share drops the owner straight into the deck) and *Start swiping*. The deck is dealt from the top of
-the owner's own list for the first night loaded — Tonight, the Friday of a weekend, or the calendar date picked
-(`deckFor()`: flyers first, `rank()` then interested, one card per venue); the `group_session` row is inserted through PostgREST only when a step is taken
+completed share drops the owner straight into the deck) and *Start swiping*. The sheet offers the week ahead as
+chips (Tonight, Tomorrow, then dates; a night with fewer than three events is greyed out, from the same counts
+the calendar uses) and starts on the first night loaded; picking a night that is not loaded loads it, so the
+feed moves to the night the group is about. The deck is dealt from the top of the owner's own list for that
+night (`deckFor()`: flyers first, `rank()` then interested, one card per venue); the `group_session` row is inserted through PostgREST only when a step is taken
 (`ensureGroup()`; `Prefer: return=representation` gives back the id), and the link is `?g=<session>&city&from&to`.
 Once a group exists the menu entry opens the votes; *Start another* on the result sheet drops this device's
 group and deals the night on screen. The event sheet's action row is *Save · Directions · Add to calendar ·

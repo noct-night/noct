@@ -931,19 +931,57 @@ let GRP_DRAFT=null;
    Friday of a weekend, or the calendar date picked), dealt from the top of the owner's own list. */
 function planNight(){
   if(!LIVE||!DAYS.length)return;
-  const d=S.from||0,deck=deckFor(d);
-  if(deck.length<3){toast(`Not enough on ${dayFull(d)} to swipe through`);return}
-  GRP_DRAFT={d,night:(DAYS[d]||[])[3]||'',deck};
+  const d=S.from||0;
+  GRP_DRAFT={d,night:(DAYS[d]||[])[3]||'',deck:deckFor(d),busy:false};
   closeAll();closePage('det');closePage('ven');
   renderGroupIntro();$('#group').classList.add('open');$('#group').scrollTop=0;
+  ensureNightCounts(nextNights()).then(renderGroupIntro);   /* the chips grey out nights with too little on */
+}
+/* the week ahead, in the city's own calendar: what the intro offers to swipe */
+const nextNights=()=>Array.from({length:7},(_,i)=>cityDate(i));
+const nightChip=(date,i)=>i===0?'Tonight':i===1?'Tomorrow':nightLabel(date);
+/* per-night counts for the chips, from the same counts endpoint the calendar uses; cached in S.counts */
+async function ensureNightCounts(dates){
+  const months=[...new Set(dates.filter(d=>S.counts[d]===undefined).map(dMonth))];
+  for(const m of months){
+    try{
+      const qs=new URLSearchParams({city:S.city||'nyc',from:monthStart(m),to:monthEnd(m),counts:'1'});
+      const r=await fetch(`${API_BASE}/api/feed?${qs}`,{headers:{accept:'application/json'}});
+      if(r.ok)((await r.json()).days||[]).forEach(d=>{S.counts[d.date]=d.events|0});
+    }catch(e){}
+  }
 }
 function renderGroupIntro(){
   const b=$('#groupBody'),d=GRP_DRAFT;if(!b||!d)return;
+  const dates=nextNights();
+  const chips=dates.map((date,i)=>{
+    const n=S.counts[date];const thin=n!==undefined&&n<3;
+    return `<button aria-pressed="${date===d.night}" ${thin?'disabled':''} onclick="groupPickNight('${date}')">${nightChip(date,i)}</button>`;
+  }).join('');
+  const enough=d.deck.length>=3;
   b.innerHTML=`<button class="sx" onclick="closeAll()" aria-label="Close">✕</button>`
     +`<div class="sh2">Swipe with friends</div>`
-    +`<div class="gsub">${d.deck.length} nights on ${nightLabel(d.night)}</div>`
-    +`<div class="gintro">Send the link. Everyone who opens it swipes the same ${d.deck.length} cards. The count decides.</div>`
-    +`<div class="foot"><button class="lnk" onclick="groupSend()">Send the link</button><button class="lnk" onclick="groupStart()">Start swiping</button></div>`;
+    +`<div class="opts gnights">${chips}</div>`
+    +`<div class="gsub">${d.busy?'Loading that night…':enough?`${d.deck.length} nights on ${nightLabel(d.night)}`:`Not enough on ${nightLabel(d.night)} to swipe through`}</div>`
+    +`<div class="gintro">Send the link. Everyone who opens it swipes the same ${enough?d.deck.length:''} cards. The count decides.</div>`
+    +(enough&&!d.busy?`<div class="foot"><button class="lnk" onclick="groupSend()">Send the link</button><button class="lnk" onclick="groupStart()">Start swiping</button></div>`:'');
+}
+/* A night already loaded is dealt from what is on screen; any other night is loaded first -- the feed moves to
+   it, which is right: the group is about that night, and the deck should be what the owner would see there. */
+async function groupPickNight(date){
+  const d=GRP_DRAFT;if(!d||d.busy)return;
+  let idx=DAYS.findIndex(x=>x[3]===date);
+  if(idx<0){
+    d.busy=true;d.night=date;renderGroupIntro();
+    S.preset='';S.rangeLabel='';S.picked=date;S.dayList='';
+    await loadFeed({from:date,to:date});
+    if(!GRP_DRAFT||GRP_DRAFT!==d)return;            /* the sheet moved on meanwhile */
+    idx=DAYS.findIndex(x=>x[3]===date);
+    d.busy=false;
+  }
+  if(idx<0){d.deck=[];renderGroupIntro();return}
+  d.d=idx;d.night=date;d.deck=deckFor(idx);
+  renderGroupIntro();
 }
 /* the session exists from the first step on, not from the look */
 async function ensureGroup(){

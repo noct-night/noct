@@ -339,5 +339,6 @@ a{color:inherit}
 .gvote button[aria-pressed="true"]{color:var(--chalk)}
 .gsub{font-size:14px;color:var(--d2);margin:-4px 0 22px;line-height:1.5}
 .gintro{font-size:17px;line-height:1.5;color:var(--d1);margin:0 0 30px;max-width:30ch}
+.gnights{margin:0 0 20px}
 .gcount{font-size:14px;color:var(--d2);white-space:nowrap}
 .gcount.all{color:var(--chalk)}
