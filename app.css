@@ -224,8 +224,6 @@ a{color:inherit}
 .alisten a:active{background:var(--chalk);color:var(--ink);border-color:var(--chalk)}
 /* a bare name with an arrow reads like the venue link above it, so the heading says what the tap does */
 .hint{color:var(--d2);font-weight:400}
-.lineup .hint{display:block;font-size:12.5px;margin-top:8px}
-.lineup .sep2{color:var(--d2)}
 /* the night's cards inside the When sheet: the sheet already pads the sides, so the rows only need a rule */
 #calList .row{padding-left:0;padding-right:0;border-top:.7px solid var(--hair)}
 .field{display:flex;align-items:baseline;gap:8px;border-bottom:.7px solid var(--hair);padding:12px 0}
@@ -307,18 +305,21 @@ a{color:inherit}
 .mapnote[hidden]{display:none}
 /* The promoter's track: a text control, the title, the platform it plays from. No meter and no progress bar --
    either would imply a chosen segment, and the clip is the platform's, not ours. */
-.trk{display:flex;flex-direction:column;gap:5px}
-.trk .trkt{color:var(--chalk)}
-.trk .by{color:var(--d1)}
-.trk .trkc{display:flex;flex-wrap:wrap;gap:3px 18px;align-items:baseline;font-size:13.5px;color:var(--d2)}   /* no dot between: it dangled when the two wrapped */
-.trk .trkc .go{color:var(--d1)}
-.trk .trkc .go[aria-pressed="true"]{color:var(--chalk)}
-.trk .trkc .go[disabled]{color:var(--d2);text-decoration:none;cursor:default}
-.trk .trkc a{color:var(--d1);text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
-/* "Who's Coco Maria? →": the tap explained as the question it answers, under the line-up and under a title that is the act */
-.who{display:block;margin-top:8px;font-size:13.5px;color:var(--d1);text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
-.dwho{margin-top:10px}
-.dwho .who{margin-top:0;font-size:15px}
+/* Line-up section: one row per name, the whole row is the tap; the night's track hangs under its artist */
+.lu{display:flex;justify-content:space-between;align-items:baseline;gap:16px;width:100%;padding:12px 0;border-bottom:.7px solid var(--hair)}
+.lu.has{border-bottom:0;padding-bottom:4px}
+.lu:last-child{border-bottom:0}
+.lun{font-size:17px;min-width:0}
+.luh{font-size:12px;color:var(--d2);margin-left:10px;white-space:nowrap}
+.luset{font-size:13.5px;color:var(--d1);white-space:nowrap;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
+.lu:active .luset{color:var(--chalk)}
+.tkr{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:0 0 12px;border-bottom:.7px solid var(--hair);font-size:13.5px}
+.tkr:last-child{border-bottom:0}
+.tkp{color:var(--d1);text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px;text-align:left;min-width:0}
+.tkp[aria-pressed="true"]{color:var(--chalk)}
+.tkp[disabled]{color:var(--d2);text-decoration:none;cursor:default}
+.nw{white-space:nowrap}
+.tkr a{color:var(--d2);white-space:nowrap;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
 /* After this, nearby: one room per row, the way to it on the right */
 .nx{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:baseline;padding:12px 0;border-bottom:.7px solid var(--hair)}
 .nx:last-child{border-bottom:0}

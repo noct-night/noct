@@ -85,12 +85,19 @@ through verbatim) and do not by themselves make the event "Sold out".
 
 `track` (0024) is the track on the live DICE (or SILO) listing — `{platform: 'spotify'|'apple', title, url,
 preview}` — or null. `preview` is the platform's own 30-second clip; both URLs are admitted only from the
-platforms' own hosts and emitted WHATWG-normalised with no userinfo (`shapeTrack()`). The event sheet renders it
-as a **Track** row: a Play/Stop text control on one shared `<audio>` (never autoplay; the tap answers at once,
-a Stop before the clip starts is not a failure; stops when the sheet closes or another night opens), the title
-as DICE sends it, and the platform's name linked to the track. The platform is named on purpose — the credit the
-platforms ask of their own integrations — and this is not the "no source names" decision, which is about
-listings. See docs/DATA_SOURCES.md for what is and is not confirmed about the terms.
+platforms' own hosts and emitted WHATWG-normalised with no userinfo (`shapeTrack()`).
+
+The event sheet shows people in a **Line-up** section (`lineupSection()`), after the specs table: one row per
+name, the whole row a tap to the artist sheet, the right edge reading *Set →* (what that sheet answers: the
+searches for their sets, their other nights), the first row marked *Headliner* when there are several (billing
+order is all any source gives). The night's track hangs under the artist it belongs to — `trackWho()`: a line-up
+name inside the track title, else the only name on the bill; two or more names and no match puts it last,
+unattributed — with the artist's name dropped from the front of the title (*Me veo volar*, not *Coco Maria - Me
+veo volar*). The title is the play control (*Afterglow · Play 30 s* / *· Stop* / *· Unavailable*) on one shared
+`<audio>` (never autoplay; a Stop before the clip starts is not a failure; stops when the sheet closes or
+another night opens), and *Play full (Spotify)* links to the whole track. The platform is named on purpose —
+the credit the platforms ask of their own integrations — and this is not the "no source names" decision,
+which is about listings. See docs/DATA_SOURCES.md for what is and is not confirmed about the terms.
 
 `GET /api/night?e=<uuid>[&radius_km=4][&limit=3]` → `{generated_at, radius_km, main, next[]}`: the event and up to
 three other rooms nearby that stay open later (`src/feed/night.ts`: different venue family, same city, this night

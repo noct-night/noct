@@ -719,21 +719,19 @@ function openDet(eid){
   <div class="dhero"><div class="tex ${e.tex}"${art(e)}></div><button class="dx" onclick="closePage('det')" aria-label="Close">✕</button></div>
   <div class="dbody">
     <div class="dname">${e.head}</div>
-    ${titleIsTheAct(e)?`<div class="dwho"><button class="who" onclick="openArtistByName('${esc(titleIsTheAct(e))}')">Who's ${titleIsTheAct(e)}? →</button></div>`:''}
     <div class="dsup">${dayFull(e.d)}${e.door?` · ${e.door}${e.close?' to '+e.close:''}`:''} · ${e.venue}${e.room?' · '+e.room:''}</div>
     <div class="specs">
       <div class="k">Genre</div><div>${e.genre.length
         ?genOf(e)
         :`<span style="color:var(--d2)">No genre yet.</span> <button class="go" onclick="suggestGenre(${e.id})">Suggest one</button>`}</div>
       ${e.sound?`<div class="k">Sound</div><div>${e.sound}</div>`:''}
-      ${e.track?trackRow(e):''}
       ${(e.vibes||[]).length?`<div class="k">Vibe</div><div>${e.vibes.map(v=>v.label).join(' · ')}</div>`:''}
-      ${!e.set&&!titleIsTheAct(e)&&(e.lineup.length||e.act)?`<div class="k">Line-up</div><div class="lineup">${(e.lineup.length?e.lineup:[e.act]).map(a=>`<button class="go" onclick="openArtistByName('${esc(a)}')">${a}</button>`).join('<span class="sep2"> · </span>')}<button class="who" onclick="openArtistByName('${esc((e.lineup.length?e.lineup:[e.act])[0])}')">Who's ${(e.lineup.length?e.lineup:[e.act])[0]}? →</button></div>`:''}
       <div class="k">Venue</div><div><button class="go" onclick="openVenue('${esc(e.venue)}')">${e.venue} →</button></div>
       ${vInfo(e.venue).hood?`<div class="k">Area</div><div>${vInfo(e.venue).hood}${vInfo(e.venue).boro?', '+vInfo(e.venue).boro:''}</div>`:''}
       ${e.age?`<div class="k">Ages</div><div>${e.age}</div>`:''}
       ${e.interested?`<div class="k">Interested</div><div>${e.interested.toLocaleString()}</div>`:''}
     </div>
+    ${lineupSection(e)}
     <div class="grp"><h3>Going on NOCT · ${goCount(e.id)}</h3>${guest}
       <div class="foot" style="margin-top:18px"><button class="lnk" aria-pressed="${me}" onclick="toggleGoing(${e.id})">${me?"You're going":"I'm going"}</button></div>
     </div>
@@ -765,31 +763,49 @@ function openDet(eid){
    where the whole track lives. */
 let AUDIO=null,TRK={uuid:''};
 const trackPlaying=e=>!!(e&&AUDIO&&!AUDIO.paused&&TRK.uuid===e.uuid);
-const PLAY_LBL='Play 30-second clip';
+/* the track's own words: its title is the control, the state rides after it. Under the artist's own row the
+   artist's name is dropped from the front of the title ("Coco Maria - Me veo volar" -> "Me veo volar"). */
+function trackTitle(e){
+  const t=String(e.track.title),who=trackWho(e);
+  if(!who)return t;
+  const m=new RegExp('^'+who.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*[-–—:]\\s*','i');
+  const cut=t.replace(m,'');
+  return cut.length>=2?cut:t;
+}
+const trackLabel=(e,state)=>`${trackTitle(e)} · <span class="nw">${state==='stop'?'Stop':state==='gone'?'Unavailable':'Play 30&nbsp;s'}</span>`;
 /* Whose track this is, when the data says so: a line-up name inside the title ("Caiiro - Ndisize"), else the
    only name on the bill ("Afterglow" on a Nils Hoffmann night -- DICE drops the artist when it is the
-   headliner). Two or more names and no match: the title stands alone rather than guess. */
+   headliner). Two or more names and no match: the track stands alone at the end of the list. */
 function trackWho(e){
   const names=(e.lineup&&e.lineup.length?e.lineup:(e.act?[e.act]:[])).filter(Boolean);
   const t=String(e.track.title).toLowerCase();
   const inTitle=names.find(n=>n.length>=3&&t.includes(n.toLowerCase()));
-  if(inTitle)return {name:inTitle,inTitle:true};
-  if(names.length===1)return {name:names[0],inTitle:false};
-  return null;
+  if(inTitle)return inTitle;
+  return names.length===1?names[0]:null;
 }
-/* "Play · Afterglow · Spotify" was three words with no sentence between them. Now: the track and whose it
-   is, then what the control does and where the whole thing lives. */
-function trackRow(e){
-  const w=trackWho(e),plat=e.track.platform==='apple'?'Apple Music':'Spotify',on=trackPlaying(e);
-  return `<div class="k">Track</div><div class="trk">`
-    +`<div class="trkt">${e.track.title}${w&&!w.inTitle?` <span class="by">by <button class="go" onclick="openArtistByName('${esc(w.name)}')">${w.name}</button></span>`:''}</div>`
-    +`<div class="trkc"><button class="go" id="trkBtn" onclick="toggleTrack()" aria-pressed="${on}">${on?'Stop':PLAY_LBL}</button>`
-    +`<a href="${e.track.url}" target="_blank" rel="noopener">Full track on ${plat}</a></div></div>`;
+/* ---------- Line-up ----------
+   Its own section, one row per name, the first marked as the headliner when there are several (billing order
+   is what every source gives us). "Set →" is what the tap answers: the artist sheet, with the searches for
+   their sets and their other nights. The night's track hangs under the artist it belongs to -- the title is
+   the play control, the platform link plays the whole thing -- or closes the list when nobody can be named. */
+function lineupSection(e){
+  const names=(e.lineup&&e.lineup.length?e.lineup:(e.act?[e.act]:[])).filter(Boolean);
+  const t=e.track||null;
+  if(!names.length&&!t)return '';
+  const who=t?trackWho(e):null;
+  const plat=t?(t.platform==='apple'?'Apple Music':'Spotify'):'';
+  const trackRow=t?`<div class="tkr"><button class="tkp" id="trkBtn" onclick="toggleTrack()" aria-pressed="${trackPlaying(e)}">${trackLabel(e,trackPlaying(e)?'stop':'play')}</button><a href="${t.url}" target="_blank" rel="noopener">Play full (${plat})</a></div>`:'';
+  const rows=names.map((n,i)=>{
+    const has=t&&who===n;
+    return `<button class="lu ${has?'has':''}" onclick="openArtistByName('${esc(n)}')"><span class="lun">${n}${i===0&&names.length>1?`<span class="luh">Headliner</span>`:''}</span><span class="luset">Set →</span></button>`+(has?trackRow:'');
+  });
+  if(t&&!(who&&names.includes(who)))rows.push(trackRow);
+  return `<div class="grp"><h3>Line-up${names.length>1?` · ${names.length}`:''}</h3>${rows.join('')}</div>`;
 }
 function stopTrack(){
   if(AUDIO){AUDIO.pause();AUDIO.removeAttribute('src');AUDIO.load()}
   TRK={uuid:''};
-  const b=$('#trkBtn');if(b&&!b.disabled){b.textContent=PLAY_LBL;b.setAttribute('aria-pressed','false')}
+  const b=$('#trkBtn');if(b&&!b.disabled&&DET_EV&&DET_EV.track){b.innerHTML=trackLabel(DET_EV,'play');b.setAttribute('aria-pressed','false')}
 }
 function toggleTrack(){
   const e=DET_EV;if(!e||!e.track)return;
@@ -797,16 +813,16 @@ function toggleTrack(){
   if(!AUDIO){
     AUDIO=new Audio();AUDIO.preload='none';
     AUDIO.addEventListener('ended',stopTrack);
-    AUDIO.addEventListener('error',()=>{if(!TRK.uuid)return;TRK={uuid:''};const x=$('#trkBtn');if(x){x.textContent='Unavailable';x.disabled=true}});
+    AUDIO.addEventListener('error',()=>{if(!TRK.uuid)return;TRK={uuid:''};const x=$('#trkBtn');if(x&&DET_EV&&DET_EV.track){x.innerHTML=trackLabel(DET_EV,'gone');x.disabled=true}});
   }
   /* the tap answers at once; the clip follows when the platform has sent enough of it */
   const mine={uuid:e.uuid};TRK=mine;
-  const b=$('#trkBtn');if(b){b.textContent='Stop';b.setAttribute('aria-pressed','true')}
+  const b=$('#trkBtn');if(b){b.innerHTML=trackLabel(e,'stop');b.setAttribute('aria-pressed','true')}
   AUDIO.src=e.track.preview;
   AUDIO.play().catch(()=>{
     /* a Stop (or another sheet) before the clip started rejects play() too -- that is not a failure */
     if(TRK!==mine)return;
-    TRK={uuid:''};if(b){b.textContent='Unavailable';b.disabled=true}
+    TRK={uuid:''};if(b){b.innerHTML=trackLabel(e,'gone');b.disabled=true}
   });
 }
 
