@@ -30,8 +30,8 @@ is opened, the deck is reviewed, a button is pressed. That is the whole product.
 | `src/post/` | Templates, layers, treatments, drafting, the store, the Graph API client. |
 | `studio/page.{html,css,js}` | The studio's source, inlined into one gated response. |
 | `studio/gate.js` | The sign-in door's script, and the only one a stranger receives. |
-| `supabase/migrations/0019_ig_posts.sql` | `ig_post` and `ig_publish_run`. |
-| `supabase/migrations/0020_ig_token.sql` | `ig_token`, the one row holding the live credential. |
+| `supabase/migrations/0024_ig_posts.sql` | `ig_post` and `ig_publish_run`. |
+| `supabase/migrations/0025_ig_token.sql` | `ig_token`, the one row holding the live credential. |
 
 ## Why the studio lives here
 
@@ -177,7 +177,7 @@ words would be worse than leaving a mistake.
 
 ## Setting it up
 
-1. `supabase db push` (or `npm run db:local`) to apply `0019_ig_posts.sql` and `0020_ig_token.sql`.
+1. `supabase db push` (or `npm run db:local`) to apply `0024_ig_posts.sql` and `0025_ig_token.sql`.
 2. In the Meta app dashboard: **Use cases -> Customize -> Permissions and features**, add
    `instagram_business_basic` and `instagram_business_content_publish`. Both show *Ready for testing*,
    meaning they work in Development mode against an account holding the **Instagram Tester** role — so no
@@ -207,7 +207,7 @@ The carousel flow is identical between the two. What differs:
 | Needs a Facebook Page | no | yes |
 | Token lifetime | **60 days, refreshable** | does not expire |
 
-That last row is the one with consequences, and it is why `src/post/token.ts` and `0020_ig_token.sql`
+That last row is the one with consequences, and it is why `src/post/token.ts` and `0025_ig_token.sql`
 exist. A weekly post reading a token from the environment would work beautifully for two months and then
 fail on a Friday with nobody watching. So `IG_ACCESS_TOKEN` is a **seed**: the first publish copies it into
 `ig_token`, and every later run refreshes it once it is within 14 days of lapsing. A post a week keeps it
