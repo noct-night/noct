@@ -127,7 +127,9 @@ const titleIsTheAct=e=>{
   return one&&sameName(one,e.head)?one:null;
 };
 const vInfo=v=>VENUES[v]||{hood:'',boro:'',tones:['x1','x2','x3','x4'],verified:false};
-const vibesOf=e=>(e.vibes||[]).slice(0,2).map(v=>(v.glyph?v.glyph+' ':'')+v.label);
+/* Labels only. The taxonomy carries a glyph per vibe, but a row of emoji in a monochrome, editorial UI reads
+   as a different product; the words do the work. */
+const vibesOf=e=>(e.vibes||[]).slice(0,2).map(v=>v.label);
 /* enriched events lead with the primary genre and up to two vibe chips; untagged ones keep the raw source genres */
 const tagLine=e=>e.primary?[e.primary,...vibesOf(e)].join(' · '):genOf(e);
 /* image view: sound only. Free / RSVP / ages are logistics and belong on the event page. */
@@ -506,7 +508,7 @@ function openDet(eid){
         ?genOf(e)
         :`<span style="color:var(--d2)">No genre yet.</span> <button class="go" onclick="suggestGenre(${e.id})">Suggest one</button>`}</div>
       ${e.sound?`<div class="k">Sound</div><div>${e.sound}</div>`:''}
-      ${(e.vibes||[]).length?`<div class="k">Vibe</div><div>${e.vibes.map(v=>(v.glyph?v.glyph+' ':'')+v.label).join(' · ')}</div>`:''}
+      ${(e.vibes||[]).length?`<div class="k">Vibe</div><div>${e.vibes.map(v=>v.label).join(' · ')}</div>`:''}
       ${!e.set&&!titleIsTheAct(e)&&(e.lineup.length||e.act)?`<div class="k">Line-up</div><div class="lineup">${(e.lineup.length?e.lineup:[e.act]).map(a=>`<button class="go" onclick="openArtistByName('${esc(a)}')">${a}</button>`).join('<span class="sep2"> · </span>')}<div class="hint">Tap a name to hear their sets</div></div>`:''}
       <div class="k">Venue</div><div><button class="go" onclick="openVenue('${esc(e.venue)}')">${e.venue} →</button></div>
       ${vInfo(e.venue).hood?`<div class="k">Area</div><div>${vInfo(e.venue).hood}${vInfo(e.venue).boro?', '+vInfo(e.venue).boro:''}</div>`:''}
@@ -1125,7 +1127,7 @@ function applyFeed(f){
     door:clean(e.door),close:clean(e.close),genre:(e.genre||[]).map(clean),primary:e.primary?clean(e.primary):'',
     genre_codes:(e.genre_codes||[]).map(clean),tags:(e.tags||[]).map(t=>({code:clean(t.code),label:clean(t.label)})),
     genre_confidence:typeof e.genre_confidence==='number'?e.genre_confidence:null,
-    vibes:(e.vibes||[]).map(v=>({code:clean(v.code),label:clean(v.label),glyph:clean(v.glyph)})),
+    vibes:(e.vibes||[]).map(v=>({code:clean(v.code),label:clean(v.label)})),
     scalars:e.scalars||{},sound:clean(e.sound),age:clean(e.age),interested:e.interested||0,
     srcs:(e.srcs||[]).map(s=>[SHORT_PLAT[s[0]]||clean(s[0]),typeof s[1]==='number'?s[1]:null,clean(s[2]),cleanUrl(s[3])]),
     from:typeof e.from==='number'?e.from:null,

@@ -405,7 +405,9 @@ export function moodVibes(vibes: FeedVibe[] | null | undefined): FeedVibe[] {
     .filter((v) => (v.kind === 'policy' ? POLICY_KEEP.has(v.code ?? '') : true))
     .map((v, i) => ({ v, rank: (VIBE_ORDER[v.kind ?? ''] ?? 4) * 100 + i }))
     .sort((a, b) => a.rank - b.rank)
-    .map((x) => x.v);
+    // the taxonomy keeps a glyph per vibe for its own use; the feed does not carry it. A row of emoji in a
+    // monochrome, editorial UI reads as a different product, and the words do the work.
+    .map((x) => ({ ...x.v, glyph: null }));
 }
 
 export function shapeEvent(row: FeedRow, opts: { n?: number; d?: number; tz?: string } = {}): FeedEvent {
