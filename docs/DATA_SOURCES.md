@@ -140,9 +140,11 @@ chain) are the two buildable next sources.
   and stores the URLs — never the audio. Apple's published terms (performance-partners.apple.com/search-api):
   no key; "approximately 20 calls per minute"; cache the search results (hits and misses are kept 60 days);
   previews "streamed only, and not downloaded, saved, cached"; shown as promotion next to a link to the track
-  on Apple Music; credited "courtesy of" Apple. The event sheet streams from `audio-ssl.itunes.apple.com`, links
-  *Play full (Apple Music)* to `music.apple.com`, and prints *Previews courtesy of Apple Music* under the
-  line-up. About half of the names match (probe 2026-09-16: 6 of 14; first 135 lookups: 69). The daily
+  on Apple Music; credited "courtesy of" Apple. The event sheet streams from `audio-ssl.itunes.apple.com` and
+  links *Play full (Apple Music)* to `music.apple.com` beside every clip. **The visible "Previews courtesy of
+  Apple Music" line was removed on 2026-09-16 at the owner's request** — the platform name in the link beside
+  each clip is what remains of the attribution; Apple's wording asks for the courtesy line, so this is an open
+  item if Apple ever objects (one CSS/JS line to restore, `lineupSection()`). About half of the names match (probe 2026-09-16: 6 of 14; first 135 lookups: 69). The daily
   `/api/enrich` cron looks up what the classifier's time budget leaves (a few dozen a day); the backlog is
   `npm run noct -- tracks`. The night's own DICE track (0024) still takes precedence for the artist it names.
 - **EDMTrain:** apply truthfully or drop. Do not scrape edmtrain.com.

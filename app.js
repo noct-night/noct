@@ -790,8 +790,8 @@ function trackTitle(t,artist){
   const cut=title.replace(m,'');
   return cut.length>=2?cut:title;
 }
-/* one line: the title gives way (ellipsis) before the state word ever wraps */
-const trackLabel=(t,artist,state)=>`<span class="tkt">${trackTitle(t,artist)}</span><span class="nw"> · ${state==='stop'?'Stop':state==='gone'?'Unavailable':'Play 30&nbsp;s'}</span>`;
+/* the control's word: what a tap does next */
+const trackLabel=(t,artist,state)=>state==='stop'?'Stop':state==='gone'?'Unavailable':'Play 30&nbsp;s';
 const platName=t=>t.platform==='apple'?'Apple Music':'Spotify';
 /* Whose night-track this is, when the data says so: a line-up name inside the title ("Caiiro - Ndisize"),
    else the only name on the bill ("Afterglow" on a Nils Hoffmann night -- DICE drops the artist when it is
@@ -809,10 +809,14 @@ const foldName=s=>String(s||'').normalize('NFKD').replace(/[̀-ͯ]/g,'').toLower
    is what every source gives us). "Set →" is what the tap answers: the artist sheet, with the searches for
    their sets and their other nights. Under each artist, a track: the night's own when it is theirs, else
    their representative one -- the title is the play control, the platform link plays the whole thing. A
-   night-track nobody on the bill can be named for closes the list. Apple's previews carry Apple's credit. */
+   night-track nobody on the bill can be named for closes the list. */
+/* the song on one line, its two controls together on the next: the 30-second clip here, the whole track on
+   the platform, side by side so nobody has to work out which underline does what */
 function trackRow(key,t,artist){
   const st=playingKey()===key?'stop':'play';
-  return `<div class="tkr"><button class="tkp" id="trk-${key}" data-key="${key}" title="${t.title}" onclick="toggleTrack('${key}')" aria-pressed="${st==='stop'}">${trackLabel(t,artist,st)}</button><a href="${t.url}" target="_blank" rel="noopener">Play full (${platName(t)})</a></div>`;
+  return `<div class="tkr"><div class="tkt" title="${t.title}">${trackTitle(t,artist)}</div>`
+    +`<div class="tkc"><button class="tkp" id="trk-${key}" data-key="${key}" onclick="toggleTrack('${key}')" aria-pressed="${st==='stop'}">${trackLabel(t,artist,st)}</button>`
+    +`<span class="sep">·</span><a href="${t.url}" target="_blank" rel="noopener">Play full (${platName(t)})</a></div></div>`;
 }
 function lineupSection(e){
   const names=(e.lineup&&e.lineup.length?e.lineup:(e.act?[e.act]:[])).filter(Boolean);
@@ -821,16 +825,14 @@ function lineupSection(e){
   SHEET_TRACKS={};
   if(!names.length&&!night)return '';
   const who=night?trackWho(e):null;
-  let apple=false;
   const rows=names.map((n,i)=>{
     const t=(night&&who===n)?night:(byArtist.get(foldName(n))||null);
-    if(t){SHEET_TRACKS['a'+i]=t;if(t.platform==='apple')apple=true}
+    if(t)SHEET_TRACKS['a'+i]=t;
     return `<button class="lu ${t?'has':''}" onclick="openArtistByName('${esc(n)}')"><span class="lun">${n}${i===0&&names.length>1?`<span class="luh">Headliner</span>`:''}</span><span class="luset">Set →</span></button>`
       +(t?trackRow('a'+i,t,n):'');
   });
-  if(night&&!(who&&names.includes(who))){SHEET_TRACKS.n=night;if(night.platform==='apple')apple=true;rows.push(trackRow('n',night,null))}
-  return `<div class="grp"><h3>Line-up${names.length>1?` · ${names.length}`:''}</h3>${rows.join('')}`
-    +(apple?`<div class="credit">Previews courtesy of Apple Music</div>`:'')+`</div>`;
+  if(night&&!(who&&names.includes(who))){SHEET_TRACKS.n=night;rows.push(trackRow('n',night,null))}
+  return `<div class="grp"><h3>Line-up${names.length>1?` · ${names.length}`:''}</h3>${rows.join('')}</div>`;
 }
 function stopTrack(){
   if(AUDIO){AUDIO.pause();AUDIO.removeAttribute('src');AUDIO.load()}

@@ -314,19 +314,17 @@ a{color:inherit}
 .luh{font-size:12px;color:var(--d2);margin-left:10px;white-space:nowrap}
 .luset{font-size:13.5px;color:var(--d1);white-space:nowrap;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
 .lu:active .luset{color:var(--chalk)}
-.tkr{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:0 0 12px;border-bottom:.7px solid var(--hair);font-size:13.5px}
+.tkr{padding:0 0 12px;border-bottom:.7px solid var(--hair);font-size:13.5px}
 .tkr:last-child{border-bottom:0}
-/* one line, always: the title truncates, the state word and the platform link never wrap */
-.tkp{display:flex;align-items:baseline;flex:1 1 auto;min-width:0;color:var(--d1);text-align:left}
-.tkp .tkt,.tkp .nw{text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
-.tkp .tkt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.tkp .nw{flex:none;white-space:pre}
+/* the song on one line (truncated before it wraps), its two controls together on the next */
+.tkt{color:var(--d1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tkc{display:flex;align-items:baseline;gap:8px;margin-top:3px;color:var(--d2)}
+.tkc .sep{color:var(--d2)}
+.tkp{color:var(--d1);white-space:nowrap;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
 .tkp[aria-pressed="true"]{color:var(--chalk)}
-.tkp[disabled]{color:var(--d2);cursor:default}
-.tkp[disabled] .tkt,.tkp[disabled] .nw{text-decoration:none}
+.tkp[disabled]{color:var(--d2);text-decoration:none;cursor:default}
+.tkc a{color:var(--d2);white-space:nowrap;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
 .nw{white-space:nowrap}
-/* Apple's condition for its previews, said once and small */
-.credit{font-size:12px;color:var(--d2);margin-top:12px}
 .tkr a{flex:none;color:var(--d2);white-space:nowrap;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
 /* After this, nearby: one room per row, the way to it on the right */
 .nx{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:baseline;padding:12px 0;border-bottom:.7px solid var(--hair)}

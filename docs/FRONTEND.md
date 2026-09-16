@@ -96,13 +96,15 @@ name, the whole row a tap to the artist sheet, the right edge reading *Set →* 
 searches for their sets, their other nights), the first row marked *Headliner* when there are several (billing
 order is all any source gives). Under each artist, a track row when there is one: the night's own DICE track for
 the artist it names (`trackWho()`: a line-up name inside the track title, else the only name on the bill), else
-that artist's representative track; a night-track nobody can be named for closes the list. The artist's name is
-dropped from the front of a title (*Me veo volar*, not *Coco Maria - Me veo volar*). The title is the play control
-(*Afterglow · Play 30 s* / *· Stop* / *· Unavailable*), every row on one shared `<audio>` keyed per row
-(`SHEET_TRACKS`; starting one stops another; never autoplay; a Stop before the clip starts is not a failure;
-stops when the sheet closes or another night opens), and *Play full (Apple Music | Spotify)* links to the whole
-track. When any Apple preview is on the sheet the section ends with *Previews courtesy of Apple Music*, which
-Apple's terms require. The platform is named on purpose —
+that artist's representative track; a night-track nobody can be named for closes the list. The song is one
+line — the artist's name dropped from the front (*Me veo volar*, not *Coco Maria - Me veo volar*), the
+catalogue's decorations dropped too (`tidyTitle()`: *(feat. …)*, *[… Remix]*, *(Radio Edit)*, *- Extended Mix*;
+the full title stays as the tooltip), truncated before it wraps — and its two controls sit together on the next
+line: *Play 30 s* (→ *Stop* / *Unavailable*) on one shared `<audio>` keyed per row (`SHEET_TRACKS`; starting one
+stops another; never autoplay; a Stop before the clip starts is not a failure; stops when the sheet closes or
+another night opens) and *Play full (Apple Music | Spotify)* to the whole track. The platform name in that link
+is the only credit on the sheet: the *Previews courtesy of Apple Music* line was removed on 2026-09-16 by the
+owner's decision (see docs/DATA_SOURCES.md). The platform is named on purpose —
 the credit the platforms ask of their own integrations — and this is not the "no source names" decision,
 which is about listings. See docs/DATA_SOURCES.md for what is and is not confirmed about the terms.
 
