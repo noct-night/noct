@@ -5,7 +5,8 @@ one carrying the reason it was picked.
 
 Code: `supabase/migrations/0015_recommendations.sql` (`recommend_events()`) and
 `supabase/migrations/0016_rec_quality.sql` (class filter, venue cap, feedback), `src/feed/recommend.ts`,
-`api/recommend.ts`, the `#recList` block in `index.html`.
+`api/_lib/routes/recommend.ts` (served as `/api/recommend` through the `api/read/[fn].ts` dispatcher), the
+`#recList` block in `index.html`.
 
 ## Why content-based
 

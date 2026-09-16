@@ -19,7 +19,7 @@ Berlin ≈ 1,400 — London + Berlin together roughly triple the ingest time and
 | --- | --- | --- |
 | `runIngest()` | `src/ingest/run.ts` | For each adapter: open an `ingest_run` row, `fetch()`, `upsert_listing()` in batches of 50, `resolve_pending()`, close the row, `tombstone_sweep()` when the fetch enumerated a full date window. |
 | `/api/ingest/<source>` and `/api/ingest/all` | `api/ingest/` | Vercel functions (300 s) that call `runIngest()`. Bearer `CRON_SECRET`. |
-| `/api/health` | `api/health.ts` | Public read-only status: last run per source, live listing counts, events for the next 7 nights, review queue. |
+| `/api/health` | `api/_lib/routes/health.ts` via `api/read/[fn].ts` | Public read-only status: last run per source, live listing counts, events for the next 7 nights, review queue. |
 | `noct_call(path)` + `noct-*` jobs | `supabase/migrations/0008_cron.sql` | pg_cron on Supabase POSTs to the Vercel routes through pg_net every few hours. |
 | Vercel Cron | `vercel.json` | Daily fallback (`/api/ingest/all` 09:17 UTC, `/api/enrich` 09:47 UTC). Hobby plan allows once a day. |
 

@@ -10,6 +10,9 @@
     "api/feed.ts": {
       "maxDuration": 30
     },
+    "api/read/[fn].ts": {
+      "maxDuration": 30
+    },
     "api/render.ts": {
       "maxDuration": 60,
       "memory": 2048
@@ -99,6 +102,10 @@
     {
       "source": "/studio",
       "destination": "/api/studio"
+    },
+    {
+      "source": "/api/:fn(search|taste|night|ics|health|recommend)",
+      "destination": "/api/read/:fn"
     }
   ]
 }

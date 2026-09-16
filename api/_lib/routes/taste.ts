@@ -5,10 +5,10 @@
  * Public and identical for everybody, so it caches at the edge; nothing here depends on who is asking.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { tasteOptions, tastePicks } from '../src/feed/taste.js';
-import { FeedParamError } from '../src/feed/query.js';
-import { createLogger } from '../src/lib/log.js';
-import { firstParam, sendJson } from './_lib/respond.js';
+import { tasteOptions, tastePicks } from '../../../src/feed/taste.js';
+import { FeedParamError } from '../../../src/feed/query.js';
+import { createLogger } from '../../../src/lib/log.js';
+import { firstParam, sendJson } from '../respond.js';
 
 const CACHE = { 'cache-control': 'public, s-maxage=1800, stale-while-revalidate=3600' };
 

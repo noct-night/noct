@@ -6,10 +6,10 @@
  * behind tonight's ingest is worse than one that costs a query.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { artistEvents, search } from '../src/feed/search.js';
-import { FeedParamError } from '../src/feed/query.js';
-import { createLogger } from '../src/lib/log.js';
-import { firstParam, sendJson } from './_lib/respond.js';
+import { artistEvents, search } from '../../../src/feed/search.js';
+import { FeedParamError } from '../../../src/feed/query.js';
+import { createLogger } from '../../../src/lib/log.js';
+import { firstParam, sendJson } from '../respond.js';
 
 const CACHE = { 'cache-control': 'public, s-maxage=120, stale-while-revalidate=600' };
 

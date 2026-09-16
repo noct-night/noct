@@ -5,10 +5,10 @@
  * the calendar app imports. Public and cacheable: it is the same file for everybody.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { icsFor } from '../src/feed/ics.js';
-import { FeedParamError } from '../src/feed/query.js';
-import { createLogger } from '../src/lib/log.js';
-import { firstParam, sendJson } from './_lib/respond.js';
+import { icsFor } from '../../../src/feed/ics.js';
+import { FeedParamError } from '../../../src/feed/query.js';
+import { createLogger } from '../../../src/lib/log.js';
+import { firstParam, sendJson } from '../respond.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (req.method !== 'GET') {

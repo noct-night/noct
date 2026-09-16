@@ -3,9 +3,9 @@
  * pending review queue, and whether the database answered. Edge-cached for a minute so a dashboard can poll it.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { query } from '../src/lib/db.js';
-import { createLogger } from '../src/lib/log.js';
-import { sendJson } from './_lib/respond.js';
+import { query } from '../../../src/lib/db.js';
+import { createLogger } from '../../../src/lib/log.js';
+import { sendJson } from '../respond.js';
 
 interface SourceRow {
   source_key: string;

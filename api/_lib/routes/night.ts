@@ -5,9 +5,9 @@
  * not listed (or no longer is), 400 for a malformed id or range.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { nightFor, FeedParamError, NightNotFound } from '../src/feed/night.js';
-import { createLogger } from '../src/lib/log.js';
-import { firstParam, sendJson } from './_lib/respond.js';
+import { nightFor, FeedParamError, NightNotFound } from '../../../src/feed/night.js';
+import { createLogger } from '../../../src/lib/log.js';
+import { firstParam, sendJson } from '../respond.js';
 
 /* max-age so a browser reopening the same sheet within a couple of minutes does not ask again */
 const CACHE = { 'cache-control': 'public, max-age=120, s-maxage=300, stale-while-revalidate=900' };

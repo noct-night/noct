@@ -9,9 +9,9 @@
  * Private by definition: no caching.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { recommendationsFor, FeedParamError } from '../src/feed/recommend.js';
-import { createLogger } from '../src/lib/log.js';
-import { firstParam, sendJson } from './_lib/respond.js';
+import { recommendationsFor, FeedParamError } from '../../../src/feed/recommend.js';
+import { createLogger } from '../../../src/lib/log.js';
+import { firstParam, sendJson } from '../respond.js';
 
 const NO_STORE = { 'cache-control': 'private, no-store' };
 
