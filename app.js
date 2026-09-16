@@ -131,10 +131,18 @@ const vInfo=v=>VENUES[v]||{hood:'',boro:'',tones:['x1','x2','x3','x4'],verified:
 /* Labels only. The taxonomy carries a glyph per vibe, but a row of emoji in a monochrome, editorial UI reads
    as a different product; the words do the work. */
 const vibesOf=e=>(e.vibes||[]).slice(0,2).map(v=>v.label);
-/* enriched events lead with the primary genre and up to two vibe chips; untagged ones keep the raw source genres */
-const tagLine=e=>e.primary?[e.primary,...vibesOf(e)].join(' · '):genOf(e);
-/* image view: sound only. Free / RSVP / ages are logistics and belong on the event page. */
-const genreLine=e=>e.primary||(e.genre&&e.genre.length?e.genre.join(', '):'');
+/* Up to N genre words, lead first. The order is the classifier's ranking and the words are the whole "sound
+   profile" the data can stand behind: a bar per genre would imply a share of the night nobody measured (the
+   only per-genre number is classifier confidence, identical across genres on half the events). */
+const genreWords=(e,n)=>{
+  if(!e.primary)return e.genre&&e.genre.length?e.genre.slice(0,n):[];
+  const rest=(e.tags||[]).map(t=>t.label).filter(l=>l&&l!==e.primary);
+  return [e.primary,...rest].slice(0,n);
+};
+/* enriched events lead with two genre words and up to two vibe chips; untagged ones keep the raw source genres */
+const tagLine=e=>e.primary?[...genreWords(e,2),...vibesOf(e)].join(' · '):genOf(e);
+/* image view: sound only, up to three words. Free / RSVP / ages are logistics and belong on the event page. */
+const genreLine=e=>genreWords(e,3).join(' · ');
 const art=e=>e.image?` style="background:url(&quot;${e.image}&quot;) center/cover #0b0b0b"`:'';
 
 /* going, with reciprocity.
@@ -669,9 +677,13 @@ function renderVenues(){
   }).join('');
 }
 
+let DET_EV=null;                                   /* the event the sheet is showing; Track and After this key on it */
 function openDet(eid){
   const e=EV.find(x=>x.id===eid);
-  const p=prices(e),gap=p.length>1?Math.max(...p)-Math.min(...p):0;
+  if(!e)return;
+  if(!DET_EV||DET_EV.uuid!==e.uuid)stopTrack();  /* a different night: whatever was playing belongs to the last one */
+  DET_EV=e;
+  const p=prices(e),gap=p.length>1?Math.round((Math.max(...p)-Math.min(...p))*100)/100:0;   /* cents, not float dust */
   const crowd=crowdOf(e.id),vis=visibleTo(e.id),hidden=crowd.length-vis.length,me=isGoing(e.id);
   let guest;
   if(!S.signedIn){
@@ -693,6 +705,7 @@ function openDet(eid){
         ?genOf(e)
         :`<span style="color:var(--d2)">No genre yet.</span> <button class="go" onclick="suggestGenre(${e.id})">Suggest one</button>`}</div>
       ${e.sound?`<div class="k">Sound</div><div>${e.sound}</div>`:''}
+      ${e.track?`<div class="k">Track</div><div class="trk"><button class="go" id="trkBtn" onclick="toggleTrack()" aria-pressed="${trackPlaying(e)}">${trackPlaying(e)?'Stop':'Play'}</button><span class="trkt">${e.track.title}</span><a href="${e.track.url}" target="_blank" rel="noopener">${e.track.platform==='apple'?'Apple Music':'Spotify'}</a></div>`:''}
       ${(e.vibes||[]).length?`<div class="k">Vibe</div><div>${e.vibes.map(v=>v.label).join(' · ')}</div>`:''}
       ${!e.set&&!titleIsTheAct(e)&&(e.lineup.length||e.act)?`<div class="k">Line-up</div><div class="lineup">${(e.lineup.length?e.lineup:[e.act]).map(a=>`<button class="go" onclick="openArtistByName('${esc(a)}')">${a}</button>`).join('<span class="sep2"> · </span>')}<div class="hint">Tap a name to hear their sets</div></div>`:''}
       <div class="k">Venue</div><div><button class="go" onclick="openVenue('${esc(e.venue)}')">${e.venue} →</button></div>
@@ -709,6 +722,7 @@ function openDet(eid){
       ${gap>0?`<div class="gapnote">Two prices for the same night, $${gap} apart. The RSVP is cheaper but does not guarantee entry.</div>`:''}
       ${!e.full?`<div class="gapnote">Price and set times are not listed here yet. Open the listing for the full record.</div>`:''}
     </div>
+    <div class="grp" id="detNext" hidden></div>
     ${e.note?`<div class="grp"><h3>About</h3><p class="prose">${e.note}</p></div>`:''}
     <div class="dacts">
       <button class="lnk" onclick="toggleSave(${e.id});openDet(${e.id})">${isSaved(e.id)?'Saved':'Save'}</button>
@@ -719,7 +733,82 @@ function openDet(eid){
     </div>
   </div>`;
   $('#det').classList.add('open');$('#det').scrollTop=0;
+  loadNext(e);
 }
+
+/* ---------- Track ----------
+   The track on the DICE listing for the night, on the platform's own 30-second clip (DICE-backed nights only).
+   One <audio>, never autoplayed: Play starts it; Stop, the clip ending, or closing the sheet stops it. The
+   platform is named and linked next to it -- the credit the platforms ask of their own integrations, and it is
+   where the whole track lives. */
+let AUDIO=null,TRK={uuid:''};
+const trackPlaying=e=>!!(e&&AUDIO&&!AUDIO.paused&&TRK.uuid===e.uuid);
+function stopTrack(){
+  if(AUDIO){AUDIO.pause();AUDIO.removeAttribute('src');AUDIO.load()}
+  TRK={uuid:''};
+  const b=$('#trkBtn');if(b&&!b.disabled){b.textContent='Play';b.setAttribute('aria-pressed','false')}
+}
+function toggleTrack(){
+  const e=DET_EV;if(!e||!e.track)return;
+  if(trackPlaying(e)){stopTrack();return}
+  if(!AUDIO){
+    AUDIO=new Audio();AUDIO.preload='none';
+    AUDIO.addEventListener('ended',stopTrack);
+    AUDIO.addEventListener('error',()=>{if(!TRK.uuid)return;TRK={uuid:''};const x=$('#trkBtn');if(x){x.textContent='Unavailable';x.disabled=true}});
+  }
+  /* the tap answers at once; the clip follows when the platform has sent enough of it */
+  const mine={uuid:e.uuid};TRK=mine;
+  const b=$('#trkBtn');if(b){b.textContent='Stop';b.setAttribute('aria-pressed','true')}
+  AUDIO.src=e.track.preview;
+  AUDIO.play().catch(()=>{
+    /* a Stop (or another sheet) before the clip started rejects play() too -- that is not a failure */
+    if(TRK!==mine)return;
+    TRK={uuid:''};if(b){b.textContent='Unavailable';b.disabled=true}
+  });
+}
+
+/* ---------- After this, nearby ----------
+   The second stop the data can stand behind: rooms within 4 km whose listed close is two hours or more after
+   this one's (src/feed/night.ts). Absent when there is nothing to say -- no heading, no placeholder, no
+   "afters", no minutes. Directions starts the route at this door, on foot when it is close. */
+let NEXT_SEQ=0,NEXT_DONE={uuid:'',html:''};       /* the last answer, so Save / I'm going re-renders do not refetch or blank it */
+/* Straight-line distance said coarsely: the number is precise about a quantity nobody walks. Under the walking
+   threshold the row says so (and Directions asks for the walking route); beyond it, whole kilometres. */
+const kmLabel=(km,walk)=>km===null?'':(walk?'walkable':`${Math.max(1,Math.round(km))} km`);
+async function loadNext(e){
+  const el=$('#detNext');if(!el)return;
+  if(NEXT_DONE.uuid&&NEXT_DONE.uuid===e.uuid){el.innerHTML=NEXT_DONE.html;el.hidden=!NEXT_DONE.html;return}
+  el.hidden=true;el.innerHTML='';
+  /* no close time, or a night that is not happening: "after this" has no anchor */
+  if(!LIVE||!e.uuid||!e.door||!e.close||(e.status&&e.status!=='scheduled'))return;
+  const seq=++NEXT_SEQ;
+  try{
+    const r=await fetch(`${API_BASE}/api/night?e=${encodeURIComponent(e.uuid)}`,{headers:{accept:'application/json'}});
+    if(!r.ok)return;
+    const j=await r.json();
+    if(seq!==NEXT_SEQ||!DET_EV||DET_EV.uuid!==e.uuid)return;   /* the sheet moved on */
+    const next=(j.next||[]).map(n=>({uuid:clean(n.id),head:clean(n.head),venue:clean(n.venue),room:n.room?clean(n.room):'',
+      door:clean(n.door),close:clean(n.close),night:clean(n.night),km:typeof n.km==='number'?n.km:null,walk:!!n.walk,
+      lat:typeof n.lat==='number'?n.lat:null,lng:typeof n.lng==='number'?n.lng:null})).filter(n=>n.uuid&&n.venue);
+    let html='';
+    if(next.length){
+      const o=(j.main&&typeof j.main.lat==='number'&&typeof j.main.lng==='number')?{lat:j.main.lat,lng:j.main.lng}:null;
+      html=`<h3>After this, nearby</h3>`+next.map(n=>{
+        const dir=(o&&n.lat!==null&&n.lng!==null)?dirBetween(o,n,n.walk):directionsUrl(n.venue);
+        const far=kmLabel(n.km,n.walk);
+        return `<div class="nx"><button class="nxmain" onclick="openNext('${esc(n.uuid)}','${esc(n.night)}')">`
+          +`<div class="nxv">${n.venue}${n.room?' · '+n.room:''}</div><div class="nxh">${n.head}</div>`
+          +`<div class="nxs">${n.door}${n.close?'–'+n.close:''}${far?' · '+far:''}</div></button>`
+          +(dir?`<a class="lnk" href="${dir}" target="_blank" rel="noopener">Directions</a>`:'')+`</div>`;
+      }).join('');
+    }
+    NEXT_DONE={uuid:e.uuid,html};
+    el.innerHTML=html;el.hidden=!html;
+  }catch(err){}
+}
+function openNext(uuid,night){const ev=EV.find(x=>x.uuid===uuid);if(ev){openDet(ev.id);return}openNightAt(uuid,S.city,night)}
+/* origin and destination as coordinates: Maps starts the route at this door, walking when it is close */
+const dirBetween=(o,d,walk)=>`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(o.lat+','+o.lng)}&destination=${encodeURIComponent(d.lat+','+d.lng)}&travelmode=${walk?'walking':'transit'}`;
 
 /**
  * Share a night. NOCT has no per-event route, so the link carries the event's uuid AND its date: the recipient
@@ -923,7 +1012,7 @@ function openVenue(v){
   </div>`;
   $('#ven').classList.add('open');$('#ven').scrollTop=0;
 }
-function closePage(id){$('#'+id).classList.remove('open')}
+function closePage(id){$('#'+id).classList.remove('open');if(id==='det')stopTrack()}
 function suggestGenre(id){
   const e=EV.find(x=>x.id===id);
   const g=prompt(`No source tagged a genre for "${e.head}". What would you call it?`);
@@ -1129,6 +1218,16 @@ const TEX=['x1','x2','x3','x4','x5','x6'];
 /* source text lands in the innerHTML templates above unchanged, so markup is neutralised once here rather than in every template */
 const clean=s=>String(s==null?'':s).replace(/</g,'‹').replace(/>/g,'›').replace(/"/g,'”').replace(/\\/g,'');
 const cleanUrl=u=>{u=String(u==null?'':u).trim();return /^https?:\/\//i.test(u)?u.replace(/["'<>\\\s]/g,''):''};
+/* the platforms' own hosts only, checked again on this side: a preview URL is data until it is in an <audio> */
+const TRACK_HOST={spotify:/^p\.scdn\.co$/i,apple:/^(audio-ssl\.itunes\.apple\.com|[a-z0-9-]+\.mzstatic\.com)$/i};
+const TRACK_LINK={spotify:/^open\.spotify\.com$/i,apple:/^(music|itunes)\.apple\.com$/i};
+const hostOf=u=>{try{return /^https:\/\//i.test(u)?new URL(u).hostname:''}catch(e){return ''}};
+function cleanTrack(t){
+  if(!t||(t.platform!=='spotify'&&t.platform!=='apple'))return null;
+  const preview=cleanUrl(t.preview),url=cleanUrl(t.url),title=clean(t.title).slice(0,160);
+  if(!title||!TRACK_HOST[t.platform].test(hostOf(preview))||!TRACK_LINK[t.platform].test(hostOf(url)))return null;
+  return {platform:t.platform,title,url,preview};
+}
 const hashOf=s=>{let h=7;for(const c of String(s))h=(h*31+c.charCodeAt(0))>>>0;return h};
 const tonesOf=name=>{const h=hashOf(name);return [0,1,2,3].map(k=>TEX[(h+k*2)%TEX.length])};
 /* Today in the CITY's clock. "Tonight" asked from Los Angeles at 10pm used to be New York's tomorrow. The zones
@@ -1331,7 +1430,8 @@ function applyFeed(f){
     from:typeof e.from==='number'?e.from:null,
     ra:cleanUrl(e.ra),dice:cleanUrl(e.dice),eb:cleanUrl(e.eb),url:cleanUrl(e.url),tex:TEX.indexOf(e.tex)>=0?e.tex:'x1',
     full:!!e.full,soldout:!!e.soldout,on_sale:!!e.on_sale,note:clean(e.note),status:clean(e.status),image:cleanUrl(e.image),going_count:e.going_count||0,
-    act:e.act?clean(e.act):null
+    act:e.act?clean(e.act):null,
+    track:cleanTrack(e.track)
   }));
   const vs={};
   Object.keys(f.venues||{}).forEach(k=>{const v=f.venues[k]||{};vs[clean(k)]={addr:clean(v.addr),hood:clean(v.hood),boro:clean(v.boro),

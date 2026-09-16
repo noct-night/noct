@@ -302,3 +302,17 @@ a{color:inherit}
 .mapnote{position:absolute;left:var(--pad);right:var(--pad);bottom:calc(150px + env(safe-area-inset-bottom));
   z-index:16;font-size:12.5px;color:var(--d2);pointer-events:none}
 .mapnote[hidden]{display:none}
+/* The promoter's track: a text control, the title, the platform it plays from. No meter and no progress bar --
+   either would imply a chosen segment, and the clip is the platform's, not ours. */
+.trk{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
+.trk .go[aria-pressed="true"]{color:var(--chalk)}
+.trk .go[disabled]{color:var(--d2);text-decoration:none;cursor:default}
+.trk .trkt{color:var(--d1)}
+.trk a{color:var(--d2);font-size:13px;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:.7px}
+/* After this, nearby: one room per row, the way to it on the right */
+.nx{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:baseline;padding:12px 0;border-bottom:.7px solid var(--hair)}
+.nx:last-child{border-bottom:0}
+.nxmain{text-align:left;min-width:0;padding:0;width:100%}
+.nxv{font-size:17px}
+.nxh{font-size:13.5px;color:var(--d1);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nxs{font-size:13px;color:var(--d2);margin-top:3px}

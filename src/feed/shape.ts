@@ -87,6 +87,25 @@ export interface FeedRow {
   sources: FeedSourceLink[] | null;
   going_count: number | null;
   offers: OfferRow[] | null;
+  /** 0024: {platform, title, url, preview} from the live DICE listing, else null */
+  track?: FeedTrackRow | null;
+}
+
+export interface FeedTrackRow { platform?: string | null; title?: string | null; url?: string | null; preview?: string | null }
+
+/**
+ * The promoter's track for the night: one entry from DICE's spotify_tracks / apple_music_tracks, playable on the
+ * platform's own 30-second clip. `platform` is named on purpose — the platform's terms want its name and a link
+ * back next to its audio, and "no source names" was a decision about listings, not about whose clip is playing.
+ */
+export interface FeedTrack {
+  platform: 'spotify' | 'apple';
+  /** as DICE sends it, usually "Artist - Title" */
+  title: string;
+  /** the track on the platform (open.spotify.com/track/…, music.apple.com/…) */
+  url: string;
+  /** the platform's preview clip (p.scdn.co mp3, audio-ssl.itunes.apple.com m4a) */
+  preview: string;
 }
 
 export interface VenueRow {
@@ -197,6 +216,8 @@ export interface FeedEvent {
    * False for a door-price-only night, which is "listed", not "on sale".
    */
   on_sale: boolean;
+  /** the promoter's track on the platform's own clip, or null (DICE-backed nights only; 0024) */
+  track: FeedTrack | null;
   note: string;
   status: string;
   image: string;
@@ -395,6 +416,41 @@ function shapeSrcs(row: FeedRow): FeedSrc[] {
 
 const urlOf = (sources: FeedSourceLink[], pick: (s: FeedSourceLink) => boolean): string => sources.find((s) => s.url && pick(s))?.url ?? '';
 
+/**
+ * Only the platforms' own hosts may reach an <audio src> or a link: the values come from a third party's
+ * payload by way of a jsonb column, and a row is data until proven otherwise. Anything else -> no track.
+ */
+const PREVIEW_HOSTS: Record<FeedTrack['platform'], RegExp> = {
+  spotify: /^p\.scdn\.co$/i,
+  apple: /^(audio-ssl\.itunes\.apple\.com|[a-z0-9-]+\.mzstatic\.com)$/i,
+};
+const TRACK_HOSTS: Record<FeedTrack['platform'], RegExp> = {
+  spotify: /^open\.spotify\.com$/i,
+  apple: /^(music|itunes)\.apple\.com$/i,
+};
+/**
+ * An https URL on an allowed host, returned in its WHATWG-normalised form (the form the host check ran on:
+ * quotes and spaces percent-encoded, backslashes as slashes, host lower-cased) and never with userinfo, so
+ * "https://evil@p.scdn.co/" and "https://p.scdn.co\@evil/" both fail rather than pass on a technicality.
+ */
+function allowedUrl(u: unknown, hosts: RegExp): string | null {
+  if (typeof u !== 'string' || !/^https:\/\//i.test(u.trim())) return null;
+  let p: URL;
+  try { p = new URL(u.trim()); } catch { return null; }
+  if (p.protocol !== 'https:' || p.username || p.password || !hosts.test(p.hostname)) return null;
+  return p.href;
+}
+export function shapeTrack(t: FeedTrackRow | null | undefined): FeedTrack | null {
+  if (!t || (t.platform !== 'spotify' && t.platform !== 'apple')) return null;
+  const platform = t.platform;
+  const title = typeof t.title === 'string' ? t.title.replace(/\s+/g, ' ').trim().slice(0, 160) : '';
+  const preview = allowedUrl(t.preview, PREVIEW_HOSTS[platform]);
+  // the link back goes with the clip: without a valid one there is no track to show
+  const url = allowedUrl(t.url, TRACK_HOSTS[platform]);
+  if (!title || !preview || !url) return null;
+  return { platform, title, url, preview };
+}
+
 /** One event_feed row -> one prototype event. `n` is its 1-based position, `d` the index into days[]. */
 /**
  * "Vibe" has to answer what kind of night this is — underground, warehouse, mainstream, queer, listening —
@@ -465,6 +521,7 @@ export function shapeEvent(row: FeedRow, opts: { n?: number; d?: number; tz?: st
     full: hasTime && lineup.length > 0,
     soldout: row.sold_out === true,
     on_sale: row.sold_out !== true && (row.offers ?? []).some((o) => o.available === true),
+    track: shapeTrack(row.track),
     note: row.description ?? '',
     status: row.status,
     image: row.image_url ?? '',

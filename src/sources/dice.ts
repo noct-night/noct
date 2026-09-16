@@ -111,12 +111,17 @@ export interface DiceEvent {
   bundles?: { name?: string | null }[] | null;
   event_images?: { landscape?: string | null; square?: string | null } | null;
   checksum?: string | null;
-  /** stripped from `raw`: bulky and irrelevant to a listing */
-  spotify_tracks?: unknown;
-  apple_music_tracks?: unknown;
+  /**
+   * The promoter's tracks for the night with the platform's own preview clip. Kept in `raw` since 0024: the
+   * feed surfaces one per event (event_feed.track) — the honest form of "hear the night before you go".
+   */
+  spotify_tracks?: DiceTrack[] | null;
+  apple_music_tracks?: DiceTrack[] | null;
+  /** stripped from `raw`: a gallery of CDN variants, bulky and irrelevant to a listing (event_images stays) */
   images?: unknown;
   [extra: string]: unknown;
 }
+export interface DiceTrack { title?: string | null; open_url?: string | null; preview_url?: string | null }
 export interface DiceEventsPage {
   data: DiceEvent[];
   links?: { self?: string | null; next?: string | null } | null;
@@ -259,7 +264,7 @@ export function dicePrices(e: DiceEvent): { prices: PriceTier[]; priceMin: numbe
 
 /** `tz` is the city's zone: listings carry it into `listing.tz`, and refresh_event() copies the winner's onto the event (0011/0023). */
 export function normalizeEvent(e: DiceEvent, city = 'nyc', tz: string = getCity(city).tz): NormalizedListing {
-  const { spotify_tracks: _spotify, apple_music_tracks: _apple, images: _images, ...raw } = e;
+  const { images: _images, ...raw } = e;
   const hash = e.hash?.trim() || null;
   const sourceId = hash ?? e.id;
   // Canonical web URL is hash-permname; the bare id also resolves, so it is the fallback when hash is missing.

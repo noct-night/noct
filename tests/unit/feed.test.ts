@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildFeed, FeedParamError, resolveParams } from '../../src/feed/query.js';
 import {
-  ageLabel, buildDays, feedCacheHeaders, genreDisplay, genreFilterList, moodVibes, shapeEvent, shapeSource,
+  ageLabel, buildDays, feedCacheHeaders, genreDisplay, genreFilterList, moodVibes, shapeEvent, shapeSource, shapeTrack,
   sortOffers, texOf,
   type FeedRow, type OfferRow,
 } from '../../src/feed/shape.js';
@@ -110,6 +110,29 @@ describe('shapeEvent (offline)', () => {
     expect(Object.values(e.scalars).every((v) => v === null)).toBe(true);
     // no ticketing offers: one "way in" per source link instead
     expect(e.srcs).toEqual([['Resident Advisor', null, 'See listing', 'https://ra.co/events/2473602'], ['DICE', null, 'See listing', 'https://dice.fm/event/eoxvey']]);
+  });
+  it('track: the promoter\'s clip passes only from the platforms\' own hosts, with a link back (0024)', () => {
+    const sp = { platform: 'spotify', title: '  Rich Medina - Can\'t Hold Back ', url: 'https://open.spotify.com/track/3I3L2I5lU2wFLiR1FTcLyI', preview: 'https://p.scdn.co/mp3-preview/dc56?cid=921' };
+    expect(shapeTrack(sp)).toEqual({ platform: 'spotify', title: 'Rich Medina - Can\'t Hold Back', url: sp.url, preview: sp.preview });
+    const ap = { platform: 'apple', title: 'Toño Rosario - Kiliki Taka Ti', url: 'https://music.apple.com/us/album/kiliki-taka-ti/124994967?i=124994530', preview: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/36/fa/6e/x/mzaf_47.plus.aac.p.m4a' };
+    expect(shapeTrack(ap)?.platform).toBe('apple');
+    // anything that is not the platform's own audio host, or not https, or has no link back, is not a track
+    expect(shapeTrack({ ...sp, preview: 'https://evil.example/p.scdn.co/x.mp3' })).toBeNull();
+    expect(shapeTrack({ ...sp, preview: 'http://p.scdn.co/mp3-preview/dc56' })).toBeNull();
+    expect(shapeTrack({ ...sp, preview: 'javascript:alert(1)' })).toBeNull();
+    expect(shapeTrack({ ...sp, url: 'https://open.spotify.com.evil.example/track/1' })).toBeNull();
+    expect(shapeTrack({ ...sp, url: null })).toBeNull();
+    expect(shapeTrack({ ...sp, title: '   ' })).toBeNull();
+    expect(shapeTrack({ ...sp, platform: 'soundcloud' })).toBeNull();
+    expect(shapeTrack(null)).toBeNull();
+    // userinfo tricks fail outright, and what passes is emitted normalised: the form the host check ran on
+    expect(shapeTrack({ ...sp, preview: 'https://evil.example@p.scdn.co/mp3-preview/x' })).toBeNull();
+    expect(shapeTrack({ ...sp, preview: 'https://p.scdn.co\\@evil.example/x.mp3' })?.preview).toBe('https://p.scdn.co/@evil.example/x.mp3');
+    const odd = shapeTrack({ ...sp, url: 'https://open.spotify.com/track/1" onmouseover="alert(1)' });
+    expect(odd?.url).toBe(new URL('https://open.spotify.com/track/1" onmouseover="alert(1)').href);
+    expect(odd?.url).not.toMatch(/["'<>\\\s]/);
+    expect(shapeEvent(cannedRow()).track).toBeNull();
+    expect(shapeEvent(cannedRow({ track: sp })).track?.title).toBe('Rich Medina - Can\'t Hold Back');
   });
   it('on_sale is a ticketer\'s positive word, not the absence of "sold out"', () => {
     // the canned row: one RA tier unavailable, GA on sale -> a ticket can be bought
@@ -222,14 +245,19 @@ describe.skipIf(!process.env.DATABASE_URL)('buildFeed against Postgres', () => {
       }),
       // same night, same room, hard-linked to the RA id -> must land on the same event
       baseListing({
-        ...fri, source: 'dice', sourceId: `${TAG}dice-1`, sourceUrl: 'https://dice.fm/event/feedtest1', raw: { id: 'd1' },
+        ...fri, source: 'dice', sourceId: `${TAG}dice-1`, sourceUrl: 'https://dice.fm/event/feedtest1',
+        // the promoter's tracks as DICE sends them; the view surfaces the first Spotify one with a preview (0024)
+        raw: { id: 'd1', apple_music_tracks: [{ title: 'Apple Only', open_url: 'https://music.apple.com/us/album/x/1?i=2', preview_url: 'https://audio-ssl.itunes.apple.com/a.m4a' }],
+               spotify_tracks: [{ title: 'No Preview', open_url: 'https://open.spotify.com/track/000', preview_url: null },
+                                { title: 'Feed Tester - Test Pressing', open_url: 'https://open.spotify.com/track/3I3L2I5lU2wFLiR1FTcLyI', preview_url: 'https://p.scdn.co/mp3-preview/feedtest?cid=1' }] },
         title: 'Feed Test: Nowadays All Night', lineup: ['Feed Tester'], priceMin: 22.66, priceMax: 22.66, feesIncluded: true,
         genres: ['techno', 'dub'], externalRefs: [{ source: 'ra', id: `${TAG}ra-1` }],
         prices: [{ tier: 'GA', price: 22.66, feesIncluded: true, available: true, note: null }],
       }),
-      // venue calendar, date only, not a ticketer -> second night, no offers
+      // venue calendar, date only, not a ticketer -> second night, no offers. Tracks in a non-DICE raw are not read.
       baseListing({
-        source: 'goodroom', sourceId: `${TAG}gr-1`, sourceUrl: 'http://www.goodroombk.com/events/feedtest', raw: { id: 'g1' },
+        source: 'goodroom', sourceId: `${TAG}gr-1`, sourceUrl: 'http://www.goodroombk.com/events/feedtest',
+        raw: { id: 'g1', spotify_tracks: [{ title: 'Not Ours', open_url: 'https://open.spotify.com/track/x', preview_url: 'https://p.scdn.co/mp3-preview/x' }] },
         title: 'Feed Test: Good Room Saturday', hasTime: false, night: SAT, venueName: 'Good Room',
       }),
       // RA says NOT sold out (soldOut=false) although its only tier expired (NOLONGERONSALE, available=false):
@@ -245,6 +273,16 @@ describe.skipIf(!process.env.DATABASE_URL)('buildFeed against Postgres', () => {
         source: 'dice', sourceId: `${TAG}dice-2`, sourceUrl: 'https://dice.fm/event/feedtest2', raw: { id: 'd2' },
         title: 'Feed Test: Signal Closing Party', hasTime: true, night: SAT, startsAt: '2031-04-06T02:00:00.000Z', endsAt: '2031-04-06T09:00:00.000Z',
         venueName: 'Signal', lineup: ['Feed Tester'], priceMin: 30, priceMax: 30, feesIncluded: true,
+        prices: [{ tier: 'GA', price: 30, feesIncluded: true, available: false, note: null }],
+      }),
+      // SILO serves DICE's payload: its tracks count too (the DICE listing above has none), hard-linked by the DICE id
+      baseListing({
+        source: 'silo', sourceId: `${TAG}silo-1`, sourceUrl: 'https://www.silobrooklyn.com/events/feedtest2',
+        raw: { id: 's1', spotify_tracks: [{ title: 'SILO Pick', open_url: 'https://open.spotify.com/track/silo1', preview_url: 'https://p.scdn.co/mp3-preview/silo1' }] },
+        title: 'Feed Test: Signal Closing Party', hasTime: true, night: SAT, startsAt: '2031-04-06T02:00:00.000Z', endsAt: '2031-04-06T09:00:00.000Z',
+        venueName: 'Signal', externalRefs: [{ source: 'dice', id: `${TAG}dice-2` }],
+        // SILO is a ticketer: its tier must be as unavailable as DICE's for the sold-out fallback under test to hold
+        priceMin: 30, priceMax: 30, feesIncluded: true,
         prices: [{ tier: 'GA', price: 30, feesIncluded: true, available: false, note: null }],
       }),
     ];
@@ -288,11 +326,13 @@ describe.skipIf(!process.env.DATABASE_URL)('buildFeed against Postgres', () => {
     // numeric n is the 1-based position in the whole response
     expect(feed.events.map((e) => e.n)).toEqual(feed.events.map((_, i) => i + 1));
     const [a, sig, bsmt, b] = ours as [typeof ours[0], typeof ours[0], typeof ours[0], typeof ours[0]];
+    // the SILO listing's track surfaces on the Signal night (its DICE listing has none); Good Room's raw is not read
+    expect(sig.track).toMatchObject({ platform: 'spotify', title: 'SILO Pick', preview: 'https://p.scdn.co/mp3-preview/silo1' });
     // sold_out: the ticketer's own verdict beats "every offer unavailable"; the fallback applies only without a verdict
     expect(bsmt).toMatchObject({ d: 1, venue: 'BASEMENT', door: '23:00', soldout: false });
     expect(bsmt.srcs).toEqual([['Resident Advisor', 20, 'Early bird · No longer on sale', 'https://ra.co/events/feedtest2']]);
     expect(sig).toMatchObject({ d: 1, venue: 'Signal', door: '22:00', soldout: true });
-    expect(sig.srcs).toEqual([['DICE', 30, 'Sold out', 'https://dice.fm/event/feedtest2']]);
+    expect(sig.srcs).toEqual([['DICE', 30, 'Sold out', 'https://dice.fm/event/feedtest2'], ['DICE · SILO', 30, 'Sold out', 'https://www.silobrooklyn.com/events/feedtest2']]);
     expect(a).toMatchObject({ d: 0, venue: 'Nowadays', room: null, door: '23:00', close: '06:00', age: '21+', interested: 321, full: true, soldout: false, status: 'scheduled', note: 'A test night.', image: 'https://images.example/feed.png' });
     expect(a.id).toMatch(/^[0-9a-f-]{36}$/);
     expect(a.lineup).toEqual(['Feed Tester', 'DJ Alpha b2b DJ Beta']);
@@ -301,6 +341,9 @@ describe.skipIf(!process.env.DATABASE_URL)('buildFeed against Postgres', () => {
     expect(a.ra).toBe('https://ra.co/events/feedtest1');
     expect(a.dice).toBe('https://dice.fm/event/feedtest1');
     expect(a.platforms).toEqual(['Resident Advisor', 'DICE']);
+    // track: Spotify before Apple, and the first entry WITH a preview, from the live DICE listing's raw
+    expect(a.track).toEqual({ platform: 'spotify', title: 'Feed Tester - Test Pressing', url: 'https://open.spotify.com/track/3I3L2I5lU2wFLiR1FTcLyI', preview: 'https://p.scdn.co/mp3-preview/feedtest?cid=1' });
+    expect(b.track).toBeNull();
     // offers: available first, cheapest first; the sold-out early bird last
     expect(a.srcs.map((s) => [s[0], s[1]])).toEqual([['DICE', 22.66], ['Resident Advisor', 25], ['Resident Advisor', 15]]);
     expect(a.srcs[2]![2]).toMatch(/Sold out/);

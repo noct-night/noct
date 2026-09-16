@@ -175,10 +175,14 @@ describe('dice: normalisation', () => {
 
     const raw = l.raw as Record<string, unknown>;
     expect(raw.id).toBe(e.id);
-    expect(raw).not.toHaveProperty('spotify_tracks');
-    expect(raw).not.toHaveProperty('apple_music_tracks');
     expect(raw).not.toHaveProperty('images');
     expect(raw).toHaveProperty('event_images');
+    // the promoter's tracks stay in raw since 0024: event_feed.track reads the first one with a preview
+    const withTrack = normalizeEvent(byHash('bbgkdg')).raw as { spotify_tracks?: { title?: string; open_url?: string; preview_url?: string }[] };
+    expect(withTrack.spotify_tracks?.[0]?.preview_url).toMatch(/^https:\/\/p\.scdn\.co\/mp3-preview\//);
+    expect(withTrack.spotify_tracks?.[0]?.open_url).toMatch(/^https:\/\/open\.spotify\.com\/track\//);
+    const withApple = normalizeEvent(byHash('v3xrql')).raw as { apple_music_tracks?: { preview_url?: string }[] };
+    expect(withApple.apple_music_tracks?.[0]?.preview_url).toMatch(/^https:\/\/audio-ssl\.itunes\.apple\.com\//);
 
     expect(l.sourceTags).toMatchObject({
       dice_id: e.id,

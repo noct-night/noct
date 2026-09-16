@@ -84,6 +84,20 @@ Angeles are ingested in production.
   issued key** (drop it in `DICE_API_KEY` and it takes precedence automatically), and expect the frontend key to
   rotate with dice.fm deploys — a run failing with `DICE rejected the key (HTTP 401)` means refresh it. Reversible
   at any time by clearing `DICE_FRONTEND_KEY`.
+- **DICE previews are played in-page since 2026-09-15** — the owner's decision. The partner payload carries
+  Spotify / Apple Music tracks attached to the listing (by the promoter or by DICE; the payload does not say
+  which) with the platforms' own 30-second `preview_url`; `event_feed.track` surfaces one per event (DICE's
+  listing before SILO's copy of the same payload, Spotify before Apple Music) and the event sheet plays it
+  through a plain `<audio>`, never autoplaying, with the track title and the platform named and linked back
+  (`open.spotify.com` / `music.apple.com`). That text-only credit is the conservative reading of what the
+  platforms ask of their own integrations (Spotify's developer policy wants its marks plus a link; Apple its
+  badge and "provided courtesy of Apple Music"); whether those terms bind a clip that reaches NOCT through
+  DICE's partner payload (DICE's client id is on the URL) is **unconfirmed** — a question for the DICE key
+  conversation. NOCT hosts nothing, cuts nothing, and picks no timestamp. Spotify stopped issuing preview URLs
+  to new apps on 2024-11-27, so these exist only because DICE holds them; if DICE stops sending them, the row
+  disappears on the next ingest. Only the platforms' own hosts are allowed through, and the URLs are emitted in
+  normalised form (`shapeTrack()` in `src/feed/shape.ts`, `cleanTrack()` in `app.js`). Reversible by dropping
+  the two fields from `raw` again in `src/sources/dice.ts`.
 - **EDMTrain:** apply truthfully or drop. Do not scrape edmtrain.com.
 - **Ticketmaster + Eventbrite keys** are self-serve; both need a NOCT account (owner action).
 - **Plan upgrades before launch:** Vercel Pro (commercial use, per-minute crons, 800 s functions) and

@@ -114,6 +114,7 @@ export const EVENTS_COLUMNS_SQL = `
          f.energy, f.darkness, f.crowd_size, f.start_lateness, f.end_lateness, f.price_tier, f.underground_index,
          f.sound_summary, f.is_electronic, f.needs_review, f.listing_count, f.platforms, f.sources,
          f.cheapest_price, f.sold_out, f.going_count, f.city, f.tz,
+         f.track,
          o.offers
   from event_feed f
   left join lateral (

@@ -83,6 +83,27 @@ so; when no listing has an opinion it falls back to "every offer is unavailable"
 `VALID` / `SOLDOUT` / `NOLONGERONSALE` / `NOTYETONSALE` tokens are humanised there; other sources' notes pass
 through verbatim) and do not by themselves make the event "Sold out".
 
+`track` (0024) is the track on the live DICE (or SILO) listing — `{platform: 'spotify'|'apple', title, url,
+preview}` — or null. `preview` is the platform's own 30-second clip; both URLs are admitted only from the
+platforms' own hosts and emitted WHATWG-normalised with no userinfo (`shapeTrack()`). The event sheet renders it
+as a **Track** row: a Play/Stop text control on one shared `<audio>` (never autoplay; the tap answers at once,
+a Stop before the clip starts is not a failure; stops when the sheet closes or another night opens), the title
+as DICE sends it, and the platform's name linked to the track. The platform is named on purpose — the credit the
+platforms ask of their own integrations — and this is not the "no source names" decision, which is about
+listings. See docs/DATA_SOURCES.md for what is and is not confirmed about the terms.
+
+`GET /api/night?e=<uuid>[&radius_km=4][&limit=3]` → `{generated_at, radius_km, main, next[]}`: the event and up to
+three other rooms nearby that stay open later (`src/feed/night.ts`: different venue family, same city, this night
+or the next, scheduled, electronic non-class, timed, located, not sold out, close ≥ 2 h after this one's close,
+start ≤ 3 h after it, listed ≤ 12 h, within the radius; one row per room, nearest first). `next` is empty when
+the main is not scheduled, has no close time or coordinate, or is listed for more than 24 h (a weekend pass has
+no close to anchor on). `next[]` rows are ordinary event shapes plus `night`, `lat`, `lng`, `km` (straight-line,
+one decimal — for consumers; the UI does not print it that way) and `walk` (≤ 1.5 km). 404 when the event is not
+listed; cacheable (max-age 120, s-maxage 300). The event sheet shows the answer as **After this, nearby** —
+venue · title · door–close · *walkable* or whole km · Directions (origin = this venue, walking or transit by
+`walk`) — remembers the answer across Save / I'm going re-renders, and shows nothing at all when `next` is empty.
+No routing, no minutes, no "afters", no plan wording.
+
 `on_sale` is the positive claim `soldout` cannot make: true only when a ticketer's live offer says `available`
 (event_offer is ticketers only, 0019). `soldout = false` means nobody said sold out, which is also true of a
 door-price night on a community board — so the **Availability → On sale** filter uses `on_sale`, and a night with
@@ -108,6 +129,10 @@ source labels with `gsrc` naming the sources that tagged ("DICE + RA tags").
   docs/RECOMMENDATIONS.md § Picks. The app opens on `Picks` the first time a session has two or more; a tap on
   the control holds for the session (`sessionStorage`). "Tonight" for the When presets is computed in the
   **city's** zone (`cityDate()`, zones from `cities[].tz`), not New York's.
+- Genre words on cards come from `genreWords(e, n)`: the primary first, then the other tag labels in feed
+  (classifier) order — three in the image caption, two plus up to two vibes on list rows. Words, not bars: the
+  only per-genre number is classifier confidence, identical across genres on half the multi-genre events, so a
+  bar would draw a share of the night nobody measured.
 - Where present, the image caption and list rows show the **primary genre + up to two vibe chips**
   (`tagLine()`); untagged events show the raw genres exactly as before. The event page adds a **Sound** row
   (`sound_summary`), a **Vibe** row, and a **Why these tags?** block listing genre codes/labels (with the

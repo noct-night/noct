@@ -100,7 +100,7 @@ Checks run in that order, so the non-club count only covers New York events insi
 | --- | --- |
 | `sourceId` | `hash` (6 chars, e.g. `dkm38e`), falling back to `id` (Mongo ObjectId) |
 | `sourceUrl` | `https://dice.fm/event/{hash}-{perm_name}`; `https://dice.fm/event/{id}` when there is no hash |
-| `raw` | the event minus `spotify_tracks`, `apple_music_tracks`, `images` (`event_images` kept) |
+| `raw` | the event minus `images` (`event_images` kept). `spotify_tracks` / `apple_music_tracks` — `[{title, open_url, preview_url}]`, the promoter's picks with the platform's own 30 s clip — are kept since 0024: `event_feed.track` reads the first one with a preview (Spotify before Apple Music) and the event sheet plays it, platform named and linked |
 | `title` | `name` (whitespace collapsed) |
 | `startsAt` / `endsAt` | `date` / `date_end` — already UTC ISO; `hasTime: true`; `night` = NY nightlife date of `date` |
 | `venueName` | `venues[0].name`, else `venue` |
