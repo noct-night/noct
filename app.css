@@ -339,7 +339,10 @@ a{color:inherit}
 .gvote button[aria-pressed="true"]{color:var(--chalk)}
 .gsub{font-size:14px;color:var(--d2);margin:-4px 0 22px;line-height:1.5}
 .gintro{font-size:17px;line-height:1.5;color:var(--d1);margin:0 0 30px;max-width:30ch}
-.gnights{margin:0 0 20px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+.gpick{margin:0 0 18px}
+.gpick h3{font-size:12px;color:var(--d2);font-weight:400;margin-bottom:9px}
+.gpick .opts{gap:9px 18px}
+.gnights{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
 .gnights::-webkit-scrollbar{display:none}
 .gcount{font-size:14px;color:var(--d2);white-space:nowrap}
 .gcount.all{color:var(--chalk)}

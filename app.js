@@ -268,7 +268,7 @@ function renderImage(){
   $('#caption').innerHTML=`
     <div class="idx sm">${S.i+1} of ${list.length} · ${dayFull(e.d)}</div>
     ${GRP.active?(my===true?`<div class="fortag"><span class="fydot"></span>Liked</div>`:my===false?`<div class="fortag">Passed</div>`:'')
-      :pk?`<div class="fortag"><span class="fydot"></span>${pk.slot}</div>`:rec?`<div class="fortag"><span class="fydot"></span>For you</div>`:''}
+      :pk?`<div class="fortag"><span class="fydot"></span>${pk.slot}</div>`:rec?`<div class="fortag"><span class="fydot"></span>Your taste</div>`:''}
     <div class="name">${e.head}</div>
     <div class="gen">${genreLine(e)}</div>
     <div class="meta sm ${pk&&!GRP.active?'haswhy':''}">${e.venue}</div>
@@ -382,7 +382,7 @@ function renderList(){
     if(e.d!==cur){cur=e.d;out+=`<div class="dayhead">${dayName(e.d)} · ${dayFull(e.d)}</div>`}
     const rec=recFor(e),pk=pickFor(e);
     out+=`<div class="row" role="button" tabindex="0" onclick="openDet(${e.id})" onkeydown="if(event.key==='Enter'){openDet(${e.id})}">
-      <div class="rt">${pk?`<span class="rfor">${pk.slot}</span> · `:rec?`<span class="rfor">For you</span> · `:''}${e.door||'Time on listing'}</div>
+      <div class="rt">${pk?`<span class="rfor">${pk.slot}</span> · `:rec?`<span class="rfor">Your taste</span> · `:''}${e.door||'Time on listing'}</div>
       <div class="rn">${e.head}</div>
       <div class="rg">${tagLine(e)}</div>
       <div class="rv">${e.venue}</div>
@@ -909,18 +909,38 @@ const dirBetween=(o,d,walk)=>`https://www.google.com/maps/dir/?api=1&origin=${en
    owner swipes first. Everyone who opens the link swipes the same deck; the result is a count per card, in
    words -- "3 of 4 liked", "2 of 4 finished". Never a percentage, never "everyone" unless it is everyone who
    voted, and nobody's individual votes leave the database except their own (0025 group_result). */
-const DECK_SIZE=12;
+const DECK_SIZE=7;
 let GRP={id:'',city:'',night:'',deck:[],mine:{},active:false,result:null,owner:false,poll:null,since:0};
-/* The owner's list for that night, one card per venue, flyers first, the night in hand leading. `rank`
-   already folds recommendations and taste in; interested breaks ties. */
-function deckFor(d,leadUuid){
-  const pool=EV.filter(e=>e.d===d&&e.uuid&&(!e.status||e.status==='scheduled'))
-    .sort((a,b)=>(b.image?1:0)-(a.image?1:0)||rank(b)-rank(a)||(b.interested||0)-(a.interested||0));
+/* The hand for one night, dealt from what the owner can see there. Neutral on purpose -- friends have
+   different tastes, so the owner's ranking would only reproduce "she hates techno": flyers first, then how
+   many people are interested, one card per venue, at most seven. The owner narrows it with the chips instead:
+   genres (or "Your taste": a taste genre among the card's lead genres), areas. */
+const BORO_ORDER=['Manhattan','Brooklyn','Queens','Bronx','Staten Island','New Jersey'];
+const tasteHit=e=>TASTE.length>0&&(e.genre_codes||[]).slice(0,LEAD_GENRES).some(c=>TASTE.includes(c));
+const leadGenre=e=>e.primary||(e.genre&&e.genre[0])||'';
+function deckPool(d){return EV.filter(e=>e.d===d&&e.uuid&&(!e.status||e.status==='scheduled'))}
+function deckFor(d,f){
+  f=f||{genres:new Set(),taste:false,areas:new Set()};
+  const pool=deckPool(d)
+    .filter(e=>(!f.genres.size&&!f.taste)||f.genres.has(leadGenre(e))||(f.taste&&tasteHit(e)))
+    .filter(e=>!f.areas.size||f.areas.has(vInfo(e.venue).boro))
+    .sort((a,b)=>(b.image?1:0)-(a.image?1:0)||(b.interested||0)-(a.interested||0)||rank(b)-rank(a));
   const out=[],venues=new Set();
-  const lead=pool.find(e=>e.uuid===leadUuid);
-  if(lead){out.push(lead.uuid);venues.add(lead.venue)}
   for(const e of pool){if(out.length>=DECK_SIZE)break;if(venues.has(e.venue))continue;venues.add(e.venue);out.push(e.uuid)}
   return out;
+}
+/* the chips a night offers: its lead genres by how many nights carry them, and the boroughs its rooms are in */
+/* the genres worth a chip: the night's most common lead genres, at most ten -- a genre one card carries
+   narrows a group deck to nothing */
+function deckGenres(d){
+  const t={};deckPool(d).forEach(e=>{const g=leadGenre(e);if(g)t[g]=(t[g]||0)+1});
+  const all=Object.keys(t).sort((a,b)=>t[b]-t[a]||a.localeCompare(b));
+  const common=all.filter(g=>t[g]>=2);
+  return (common.length>=6?common:all).slice(0,10);
+}
+function deckAreas(d){
+  const set=new Set(deckPool(d).map(e=>vInfo(e.venue).boro).filter(Boolean));
+  return [...set].sort((a,b)=>(BORO_ORDER.indexOf(a)+1||99)-(BORO_ORDER.indexOf(b)+1||99)||a.localeCompare(b));
 }
 const groupLink=()=>`${location.origin}${location.pathname}?${new URLSearchParams({g:GRP.id,city:GRP.city||S.city||'nyc',from:GRP.night,to:GRP.night})}`;
 /* Tapping "Swipe with friends" used to copy a link and drop you into the deck with a toast -- nothing said that
@@ -932,7 +952,8 @@ let GRP_DRAFT=null;
 function planNight(){
   if(!LIVE||!DAYS.length)return;
   const d=S.from||0;
-  GRP_DRAFT={d,night:(DAYS[d]||[])[3]||'',deck:deckFor(d),busy:false};
+  GRP_DRAFT={d,night:(DAYS[d]||[])[3]||'',busy:false,genres:new Set(),taste:false,areas:new Set(),deck:[]};
+  GRP_DRAFT.deck=deckFor(d,GRP_DRAFT);
   closeAll();closePage('det');closePage('ven');
   renderGroupIntro();$('#group').classList.add('open');$('#group').scrollTop=0;
   ensureNightCounts(nextNights()).then(renderGroupIntro);   /* the chips grey out nights with too little on */
@@ -958,17 +979,39 @@ async function ensureNightCounts(dates){
 function renderGroupIntro(){
   const b=$('#groupBody'),d=GRP_DRAFT;if(!b||!d)return;
   const dates=nextNights();
-  const chips=dates.map((date,i)=>{
+  const nights=dates.map((date,i)=>{
     const n=S.counts[date];const thin=n!==undefined&&n<3;
     return `<button aria-pressed="${date===d.night}" ${thin?'disabled':''} onclick="groupPickNight('${date}')">${nightChip(date,i)}</button>`;
   }).join('');
+  const anyGenre=!d.genres.size&&!d.taste,anyArea=!d.areas.size;
+  const genres=`<button aria-pressed="${anyGenre}" onclick="groupGenre('')">All</button>`
+    +(TASTE.length?`<button aria-pressed="${d.taste}" onclick="groupGenre('*')">Your taste</button>`:'')
+    +deckGenres(d.d).map(g=>`<button aria-pressed="${d.genres.has(g)}" onclick="groupGenre('${esc(g)}')">${g}</button>`).join('');
+  const areaOpts=deckAreas(d.d);
+  const areas=areaOpts.length?`<button aria-pressed="${anyArea}" onclick="groupArea('')">All</button>`
+    +areaOpts.map(a=>`<button aria-pressed="${d.areas.has(a)}" onclick="groupArea('${esc(a)}')">${a}</button>`).join(''):'';
   const enough=d.deck.length>=3;
   b.innerHTML=`<button class="sx" onclick="closeAll()" aria-label="Close">✕</button>`
     +`<div class="sh2">Swipe with friends</div>`
-    +`<div class="opts gnights">${chips}</div>`
-    +`<div class="gsub">${d.busy?'Loading that night…':enough?`${d.deck.length} nights on ${nightLabel(d.night)}`:`Not enough on ${nightLabel(d.night)} to swipe through`}</div>`
-    +`<div class="gintro">Send the link. Everyone who opens it swipes the same ${enough?d.deck.length:''} cards. The count decides.</div>`
+    +`<div class="gpick"><h3>Night</h3><div class="opts gnights">${nights}</div></div>`
+    +(d.busy?'':`<div class="gpick"><h3>Genre</h3><div class="opts">${genres}</div></div>`
+      +(areas?`<div class="gpick"><h3>Area</h3><div class="opts">${areas}</div></div>`:''))
+    +`<div class="gsub">${d.busy?'Loading that night…':enough?`${d.deck.length} card${d.deck.length===1?'':'s'} for ${nightLabel(d.night)}`:`Not enough for ${nightLabel(d.night)} with these — widen a chip`}</div>`
+    +`<div class="gintro">Send the link. Everyone who opens it swipes the same ${enough?d.deck.length+' ':''}cards. The count decides.</div>`
     +(enough&&!d.busy?`<div class="foot"><button class="lnk" onclick="groupSend()">Send the link</button><button class="lnk" onclick="groupStart()">Start swiping</button></div>`:'');
+}
+/* chips: '' is All, '*' is Your taste, anything else a lead genre; several may be on at once */
+function groupGenre(g){
+  const d=GRP_DRAFT;if(!d)return;
+  if(g===''){d.genres.clear();d.taste=false}
+  else if(g==='*')d.taste=!d.taste;
+  else if(d.genres.has(g))d.genres.delete(g);else d.genres.add(g);
+  d.deck=deckFor(d.d,d);renderGroupIntro();
+}
+function groupArea(a){
+  const d=GRP_DRAFT;if(!d)return;
+  if(a==='')d.areas.clear();else if(d.areas.has(a))d.areas.delete(a);else d.areas.add(a);
+  d.deck=deckFor(d.d,d);renderGroupIntro();
 }
 /* A night already loaded is dealt from what is on screen; any other night is loaded first -- the feed moves to
    it, which is right: the group is about that night, and the deck should be what the owner would see there. */
@@ -984,7 +1027,7 @@ async function groupPickNight(date){
     d.busy=false;
   }
   if(idx<0){d.deck=[];renderGroupIntro();return}
-  d.d=idx;d.night=date;d.deck=deckFor(idx);
+  d.d=idx;d.night=date;d.deck=deckFor(idx,d);
   renderGroupIntro();
 }
 /* the session exists from the first step on, not from the look */
@@ -1309,7 +1352,7 @@ function openVenue(v){
     <div class="dsup">${i.addr||(i.hood?i.hood+(i.boro?', '+i.boro:''):'Address not on file')}</div>
     <div class="grp"><h3>${ev.length?`${ev.length===1?'One night':ev.length+' nights'} ${dateLabel().toLowerCase()==='tonight'?'tonight':'in '+dateLabel().toLowerCase()}`:'Nothing listed '+dateLabel().toLowerCase()}</h3>
       ${ev.map(e=>`<div class="row" style="padding-left:0;padding-right:0" role="button" tabindex="0" onclick="openDet(${e.id})">
-        <div class="rt">${pickFor(e)?`<span class="rfor">${pickFor(e).slot}</span> · `:recFor(e)?`<span class="rfor">For you</span> · `:''}${dayFull(e.d)}${e.door?' · '+e.door:''}</div>
+        <div class="rt">${pickFor(e)?`<span class="rfor">${pickFor(e).slot}</span> · `:recFor(e)?`<span class="rfor">Your taste</span> · `:''}${dayFull(e.d)}${e.door?' · '+e.door:''}</div>
         <div class="rn">${e.head}</div>
         <div class="rg">${tagLine(e)}</div>
         <div class="rv">${e.room||''}</div>
@@ -1422,7 +1465,7 @@ function buildAll(){
   opt($('#oArea'),AREAS,v=>S.area===v,v=>S.area=v);
   opt($('#oPreset'),PRESETS,v=>S.preset===v,v=>pickRange(v));
   $('#gSort').hidden=!TASTE.length;                 /* nothing to sort by until a taste exists */
-  opt($('#fSort'),[['you','For you'],['time','By time']],v=>(v==='you')===S.sortTaste,v=>{S.sortTaste=(v==='you');S.i=0});
+  opt($('#fSort'),[['you','Your taste'],['time','By time']],v=>(v==='you')===S.sortTaste,v=>{S.sortTaste=(v==='you');S.i=0});
   opt($('#fGen'),GENRES,v=>S.gen.has(v),v=>S.gen.has(v)?S.gen.delete(v):S.gen.add(v));
   opt($('#fDoor'),DOORS,v=>S.door.has(v),v=>S.door.has(v)?S.door.delete(v):S.door.add(v));
   opt($('#fAvail'),AVAIL,v=>S.avail.has(v),v=>S.avail.has(v)?S.avail.delete(v):S.avail.add(v));

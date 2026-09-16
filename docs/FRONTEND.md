@@ -122,13 +122,16 @@ No routing, no minutes, no "afters", no plan wording.
 
 **Group Mode** (0025, `GRP` in app.js). *Swipe with friends* lives in the menu (its sub-line names the night it
 would deal, or the group's state once one exists) and opens a small sheet that says the three steps once —
-"Send the link. Everyone who opens it swipes the same 12 cards. The count decides." — with
+"Send the link. Everyone who opens it swipes the same 7 cards. The count decides." — with
 *Send the link* (the phone's own share sheet via `navigator.share`, the clipboard where there is none; a
-completed share drops the owner straight into the deck) and *Start swiping*. The sheet offers the week ahead as
-chips (Tonight, Tomorrow, then dates; a night with fewer than three events is greyed out, from the same counts
-the calendar uses) and starts on the first night loaded; picking a night that is not loaded loads it, so the
-feed moves to the night the group is about. The deck is dealt from the top of the owner's own list for that
-night (`deckFor()`: flyers first, `rank()` then interested, one card per venue); the `group_session` row is inserted through PostgREST only when a step is taken
+completed share drops the owner straight into the deck) and *Start swiping*. The sheet is a small deck builder:
+**Night** (Tonight, Tomorrow and the coming Fri/Sat/Sun on one line; a night with fewer than three events is
+greyed out, from the same counts the calendar uses; picking a night that is not loaded loads it, so the feed
+moves to the night the group is about), **Genre** (All, *Your taste* when a taste is set, then the night's ten
+most common lead genres; several may be on), **Area** (All, then the boroughs the night's rooms are in). The deck
+is dealt from what passes the chips, **neutral on purpose** — flyers first, then how many people are
+interested, one card per venue, at most seven (`deckFor()`, `DECK_SIZE`); the owner's own ranking is only a
+tiebreak, because friends have different tastes and the owner's order would just reproduce "she hates techno"; the `group_session` row is inserted through PostgREST only when a step is taken
 (`ensureGroup()`; `Prefer: return=representation` gives back the id), and the link is `?g=<session>&city&from&to`.
 Once a group exists the menu entry opens the votes; *Start another* on the result sheet drops this device's
 group and deals the night on screen. The event sheet's action row is *Save · Directions · Add to calendar ·
@@ -172,7 +175,9 @@ source labels with `gsrc` naming the sources that tagged ("DICE + RA tags").
   platform filter and `platformOf()` keep working; `PLATS` and `AREAS` are rebuilt from the loaded events.
 - `VENUES` keys are the family names the events carry; each gets deterministic `tones` (the placeholder art) from
   a hash of the name.
-- `All` / `For you` / `Picks` (`S.sel`, the `.seg` under city and date) filter all three views through `results()`.
+- `All` / `Your taste` / `Picks` (`S.sel`, the `.seg` under city and date) filter all three views through `results()`;
+  the taste filter and its card marker were called *For you* until 2026-09-16 — one word for one thing now, the
+  same word as the menu entry that edits it.
   `Picks` is up to three for the first night loaded — Best match, Safer choice, Wildcard — from
   `/api/recommend?night=` and `assignSlots()`; a pick is also marked with its slot name in `All`. See
   docs/RECOMMENDATIONS.md § Picks. The app opens on `Picks` the first time a session has two or more; a tap on
