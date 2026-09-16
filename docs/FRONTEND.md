@@ -175,9 +175,10 @@ source labels with `gsrc` naming the sources that tagged ("DICE + RA tags").
   platform filter and `platformOf()` keep working; `PLATS` and `AREAS` are rebuilt from the loaded events.
 - `VENUES` keys are the family names the events carry; each gets deterministic `tones` (the placeholder art) from
   a hash of the name.
-- `All` / `Your taste` / `Picks` (`S.sel`, the `.seg` under city and date) filter all three views through `results()`;
-  the taste filter and its card marker were called *For you* until 2026-09-16 — one word for one thing now, the
-  same word as the menu entry that edits it.
+- `All` / `Picks` (`S.sel`, the `.seg` under city and date) switch all three views through `results()`. There is no
+  taste *filter*: All is already sorted by taste and marks the cards it has a reason for with *Your taste* (the
+  marker was called *For you* until 2026-09-16; a third mode between All and Picks read as a second taste
+  feature and was removed the same day).
   `Picks` is up to three for the first night loaded — Best match, Safer choice, Wildcard — from
   `/api/recommend?night=` and `assignSlots()`; a pick is also marked with its slot name in `All`. See
   docs/RECOMMENDATIONS.md § Picks. The app opens on `Picks` the first time a session has two or more; a tap on

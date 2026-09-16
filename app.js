@@ -206,10 +206,10 @@ const forMe=e=>{
   if(!TASTE.length)return false;
   return (e.genre_codes||[]).slice(0,LEAD_GENRES).some(c=>TASTE.includes(c));
 };
-/** Nothing to filter by until there is a taste or a recommendation, so the control stays hidden until then. */
-const canFilterForMe=()=>TASTE.length>0||S.recs.list.some(r=>!r.gone);
 /* Picks are an ordered answer -- Best, Safer, Wildcard -- so they come back in that order, not by door time.
-   The night's own filters still apply: "Filter · 2" has to mean the same thing on three cards as on thirty. */
+   The night's own filters still apply: "Filter · 2" has to mean the same thing on three cards as on thirty.
+   There is no taste FILTER any more: All is already sorted by taste and marks the cards it has a reason for
+   ("Your taste"), and Picks is the three; a third mode between them read as a second taste feature. */
 const results=()=>{
   /* a group deck is a fixed hand of cards, in the order the plan was dealt; the ones no longer listed drop out */
   if(GRP.active){const out=[];GRP.deck.forEach(u=>{const e=EV.find(x=>x.uuid===u);if(e)out.push(e)});return out}
@@ -218,11 +218,11 @@ const results=()=>{
     S.picks.list.forEach(p=>{const e=EV.find(x=>x.uuid===p.uuid);if(e&&ok(e))out.push(e)});
     return out;
   }
-  return EV.filter(ok).filter(e=>S.sel!=='you'||forMe(e)).sort((a,b)=>a.d-b.d
+  return EV.filter(ok).sort((a,b)=>a.d-b.d
     ||(S.sortTaste?rank(b)-rank(a):0)
     ||(a.door||'99').localeCompare(b.door||'99'));
 };
-/** One switch for all three views. In image view the caption's "1 of N" is what makes the change legible. */
+/** One switch for all three views: All, or the three Picks. In image view the caption's "1 of N" is what makes the change legible. */
 const SEL_KEY='noct.sel';
 function setSel(v){
   if(S.sel===v)return;
@@ -236,9 +236,9 @@ function renderOnlyBtn(){
   if(!b)return;
   /* a night change empties the picks until the new ones land; do not bounce someone to All in between */
   const loadingPicks=S.picks.loading&&S.sel==='picks';
-  const have={all:true,you:canFilterForMe(),picks:S.picks.list.length>0||loadingPicks};
-  if(!have[S.sel])S.sel='all';                        /* the taste was cleared, or the night has no picks */
-  const show=(have.you||have.picks)&&!GRP.active&&(S.view==='image'||S.view==='list'||S.view==='map');
+  const have={all:true,picks:S.picks.list.length>0||loadingPicks};
+  if(!have[S.sel])S.sel='all';                        /* the night has no picks */
+  const show=have.picks&&!GRP.active&&(S.view==='image'||S.view==='list'||S.view==='map');
   b.hidden=!show;
   b.querySelectorAll('button').forEach(x=>{
     x.hidden=!have[x.dataset.sel];
@@ -1913,7 +1913,7 @@ async function loadFeed(range){
   i.addEventListener('input',()=>{clearTimeout(t);const v=i.value;t=setTimeout(()=>runSearch(v),180)});
   i.addEventListener('keydown',e=>{if(e.key==='Enter'){clearTimeout(t);runSearch(i.value)}});
 })();
-sbRestore();try{S.sel=['all','you','picks'].includes(sessionStorage.getItem(SEL_KEY))?sessionStorage.getItem(SEL_KEY):'all'}catch(e){}
+sbRestore();try{S.sel=['all','picks'].includes(sessionStorage.getItem(SEL_KEY))?sessionStorage.getItem(SEL_KEY):'all'}catch(e){}
 buildAll();setView('image');loadFeed();
 try{history.replaceState(navSnapshot(),'')}catch(e){}   /* the entry back lands on */
 syncTop();

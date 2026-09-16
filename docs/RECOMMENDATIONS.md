@@ -47,8 +47,9 @@ carries it instead, three ways at once:
 
 - **Order** — a recommendation leads its night, then taste, then door time.
 - **A mark** — a dot and two words, on the list row and over the image-view title.
-- **A switch** — `All` / `Your taste` / `Picks` on its own line under city and date, which *filters* all three
-  views (the middle one was labelled *For you* until 2026-09-16). The caption's "1 of 50" against "1 of 197" is what makes the change legible.
+- **A switch** — `All` / `Picks` on its own line under city and date. The taste *filter* that sat between them
+  (*For you*, briefly *Your taste*) was removed on 2026-09-16: All is already sorted by taste, and a third mode
+  read as a second taste feature. The caption's "1 of 50" against "1 of 197" is what makes the change legible.
 
 `forMe()` admits a night when NOCT recommends it, or when one of your genres is among the event's **top two**
 (`genre_codes` is ordered by confidence). Two looser rules were tried and taken back out:
