@@ -752,6 +752,9 @@ function openDet(eid){
       ${LIVE&&e.uuid&&(GRP.id?true:deckFor(e.d,e.uuid).length>=3)?`<button class="lnk" onclick="${GRP.id?'openGroupResult()':`planWith(${e.id})`}">${GRP.id?'Group picks':'Swipe with friends'}</button>`:''}
     </div>
   </div>`;
+  /* Opened from the venue sheet (a map dot, then a row): the event goes OVER the venue, and its ✕ returns
+     to the venue list. Opened the other way round (event -> Venue ->), the venue stays on top as before. */
+  $('#det').classList.toggle('over',$('#ven').classList.contains('open'));
   $('#det').classList.add('open');$('#det').scrollTop=0;
   loadNext(e);
 }
@@ -1262,9 +1265,10 @@ function openVenue(v){
       </div>
     </div>
   </div>`;
+  $('#det').classList.remove('over');
   $('#ven').classList.add('open');$('#ven').scrollTop=0;
 }
-function closePage(id){$('#'+id).classList.remove('open');if(id==='det')stopTrack()}
+function closePage(id){$('#'+id).classList.remove('open');if(id==='det')stopTrack();if(id==='ven')$('#det').classList.remove('over')}
 function suggestGenre(id){
   const e=EV.find(x=>x.id===id);
   const g=prompt(`No source tagged a genre for "${e.head}". What would you call it?`);
@@ -1491,7 +1495,8 @@ document.addEventListener('keydown',e=>{
   if(e.key!=='Escape')return;
   const detOpen=$('#det').classList.contains('open'),venOpen=$('#ven').classList.contains('open');
   const sheetOpen=[...document.querySelectorAll('.sheet')].some(el=>el.classList.contains('open'));
-  if(venOpen){closePage('ven');return}
+  const detOver=detOpen&&$('#det').classList.contains('over');   /* the event is the top sheet when it came from the venue list */
+  if(venOpen&&!detOver){closePage('ven');return}
   if(detOpen){closePage('det');return}
   if(sheetOpen){closeAll();return}
   if(S.view==='saved'||S.view==='venues'||S.view==='profile')goBack();

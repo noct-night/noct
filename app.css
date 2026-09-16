@@ -236,6 +236,7 @@ a{color:inherit}
 .page.open{transform:translateY(0)}
 #det{z-index:54}
 #ven{z-index:56}
+#det.over{z-index:58}   /* an event opened from the venue list sits over it */
 .dhero{position:relative;height:34%;min-height:220px}
 .dx{position:absolute;top:calc(20px + env(safe-area-inset-top));right:var(--pad);z-index:5;font-size:22px;line-height:1}
 .dbody{padding:26px var(--pad) 50px}
