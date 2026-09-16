@@ -3,10 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- Safari tints the status bar and toolbar from theme-color. Without it those bands stay light and
+     the artwork appears to stop short of the island at the top and the home indicator at the bottom. -->
+<meta name="theme-color" content="#0B0B0B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>NOCT · this weekend</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Rethink+Sans:ital,wght@0,400..800;1,400..800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/gsap.min.js" defer></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
@@ -71,9 +76,9 @@
   <div class="bottom">
     <button class="lnk" id="openMenu">Menu</button>
     <div class="cr">
-      <button data-mode="image" aria-pressed="true">Image view <i class="rd"></i></button>
-      <button data-mode="list" aria-pressed="false">List view <i class="rd"></i></button>
-      <button data-mode="map" aria-pressed="false" id="modeMap" hidden>Map view <i class="rd"></i></button>
+      <button data-mode="image" aria-pressed="true">Image</button>
+      <button data-mode="list" aria-pressed="false">List</button>
+      <button data-mode="map" aria-pressed="false" id="modeMap" hidden>Map</button>
     </div>
   </div>
 

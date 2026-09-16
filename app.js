@@ -694,7 +694,7 @@ function openDet(eid){
   const crowd=crowdOf(e.id),vis=visibleTo(e.id),hidden=crowd.length-vis.length,me=isGoing(e.id);
   let guest;
   if(!S.signedIn){
-    guest=`<div class="prose">${goCount(e.id)} people on NOCT are going. <button class="lnk" onclick="openSign()">Sign in to see who</button></div>`;
+    guest=`<div class="prose">${goCount(e.id)} going. <button class="lnk" onclick="openSign()">Sign in</button> to see who.</div>`;
   }else if(S.vis==='count'){
     guest=`<div class="prose">${goCount(e.id)} going. You are set to Count only, so you see numbers and nobody sees you.</div>
       <div class="goline"><button class="lnk" onclick="setView('profile')">Change this in Profile</button> to see who else is going.</div>`;
@@ -1296,12 +1296,12 @@ function renderFbar(){
     gs.map(g=>`<button class="fb ${S.gen.has(g)?'on':''}" onclick="quickGen('${String(g).replace(/'/g,"\\'")}')">${g}</button>`).join('')+
     (n?`<button class="fb plain" onclick="clearAll()">Clear</button>`:'');
 }
-function quickGen(g){S.gen.has(g)?S.gen.delete(g):S.gen.add(g);S.i=0;buildAll();render()}
+function quickGen(g){S.gen.has(g)?S.gen.delete(g):S.gen.add(g);S.i=0;buildAll();render();syncTop()}
 function goBack(){setView(S.mode)}
 function goHome(){
   closeAll();closePage('det');closePage('ven');
   if(GRP.active){stopPoll();GRP.active=false}          /* the plan stays reachable from any event sheet ("Plan") */
-  S.i=0;setView(S.mode);
+  S.i=0;S.mode='image';setView('image');
   ['listView','savedView','venuesView','profileView'].forEach(id=>{const el=$('#'+id);if(el)el.scrollTop=0});
   $('#topscrim').classList.remove('on');
 }
@@ -1317,18 +1317,63 @@ function setView(v){
   $('#imageView').hidden=v!=='image';$('#listView').hidden=v!=='list';$('#mapView').hidden=v!=='map';
   $('#savedView').hidden=v!=='saved';$('#venuesView').hidden=v!=='venues';$('#profileView').hidden=v!=='profile';
   document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mode===S.mode&&primary));
-  const listy=(v==='list');
   const bar=$('#fbar');
-  if(bar){bar.hidden=!listy; if(listy)renderFbar();}
+  if(bar){bar.hidden=!primary; if(primary)renderFbar();}
   renderOnlyBtn();
   renderMapOption();
-  $('#listView').classList.toggle('withbar',listy);
-  $('#topscrim').classList.toggle('tall',listy||v==='map');
   $('#topscrim').classList.toggle('on',v==='map');       /* controls over map tiles need a ground; artwork does not */
   $('#botscrim').classList.toggle('on',v!=='image');
   render();
+  syncTop();
+  navPush();
 }
+/* The header grows and shrinks with the filter bar and the back row, so the scroll offset
+   under it is measured rather than guessed at with a constant per view. */
+function syncTop(){
+  const t=document.querySelector('.top');if(!t)return;
+  document.documentElement.style.setProperty('--topH',Math.round(t.getBoundingClientRect().height)+'px');
+}
+addEventListener('resize',syncTop);
 document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>setView(b.dataset.mode));
+
+/* Back should retrace where you were. Without this the first back press leaves the site, which
+   reads as "it went home". Each view change and each overlay that opens becomes a history entry;
+   popstate replays that snapshot rather than unwinding anything. */
+let NAV_REPLAY=false;
+function navSnapshot(){
+  return {v:S.view,
+          over:[...document.querySelectorAll('.sheet.open,.page.open')].map(el=>el.id),
+          det:(typeof DET_EV!=='undefined'&&DET_EV)?DET_EV.id:null};
+}
+function navSame(a,b){return a&&b&&a.v===b.v&&a.det===b.det&&String(a.over)===String(b.over)}
+function navPush(){
+  if(NAV_REPLAY)return;
+  const s=navSnapshot();
+  try{ if(!navSame(history.state,s))history.pushState(s,'') }catch(e){}
+}
+function navApply(s){
+  NAV_REPLAY=true;
+  try{
+    document.querySelectorAll('.sheet.open,.page.open').forEach(el=>{
+      if(!s.over.includes(el.id)){el.classList.remove('open');if(el.id==='det')stopTrack()}
+    });
+    if(s.v&&s.v!==S.view)setView(s.v);
+    s.over.forEach(id=>{
+      const el=$('#'+id); if(!el||el.classList.contains('open'))return;
+      if(id==='det'&&s.det!=null)openDet(s.det); else el.classList.add('open');
+    });
+  }finally{NAV_REPLAY=false}
+}
+addEventListener('popstate',ev=>navApply(ev.state||{v:'image',over:[],det:null}));
+/* Overlays open from fourteen call sites; watching the class is cheaper than threading a push
+   through every one of them, and cannot miss a new one. */
+(()=>{
+  const obs=new MutationObserver(ms=>{
+    if(NAV_REPLAY)return;
+    if(ms.some(m=>m.target.classList&&m.target.classList.contains('open')))navPush();
+  });
+  document.querySelectorAll('.sheet,.page').forEach(el=>obs.observe(el,{attributes:true,attributeFilter:['class']}));
+})();
 ['listView','savedView','venuesView','profileView'].forEach(id=>{
   $('#'+id).addEventListener('scroll',e=>{$('#topscrim').classList.toggle('on',e.target.scrollTop>6)},{passive:true});
 });
@@ -1656,3 +1701,5 @@ async function loadFeed(range){
 })();
 sbRestore();try{S.sel=['all','you','picks'].includes(sessionStorage.getItem(SEL_KEY))?sessionStorage.getItem(SEL_KEY):'all'}catch(e){}
 buildAll();setView('image');loadFeed();
+try{history.replaceState(navSnapshot(),'')}catch(e){}   /* the entry back lands on */
+syncTop();
