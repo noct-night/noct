@@ -15,7 +15,7 @@ describe('taste options: the picker\'s arrangement (offline)', () => {
     expect(CHIP_LABELS['house.garage']).toBe('UK Garage');
     expect(CHIP_LABELS['house.deep']).toBe('House');
   });
-  it('groups a family together, busiest family first, siblings in taxonomy order, chip labels on', () => {
+  it('groups a family together, busiest family first and busiest chip first within it, chip labels on', () => {
     const rows = [
       row('disco.disco', 104, 1510),
       row('house.garage', 17, 170),
@@ -30,9 +30,12 @@ describe('taste options: the picker\'s arrangement (offline)', () => {
       'House', 'UK Garage',          // house 371
       'Techno', 'Acid',              // techno 187
       'Disco',                       // disco 104
-      'Breaks', 'Club / Bass',       // bass 69, in taxonomy order not by count
+      'Club / Bass', 'Breaks',       // bass 69: 60 before 9
       'Jungle',                      // dnb 5
     ]);
+    // equal counts fall back to the taxonomy's order
+    expect(arrangeGenres([row('trance.uplifting', 5, 320), row('trance.prog', 5, 310)]).map((g) => g.label)).toEqual(['Progressive Trance', 'Trance']);
+    expect(arrangeGenres([row('trance.uplifting', 13, 320), row('trance.prog', 5, 310)]).map((g) => g.label)).toEqual(['Trance', 'Progressive Trance']);
     expect(arrangeGenres(rows)[0]).toEqual({ code: 'house.deep', label: 'House', events: 354 });
   });
   it('falls back to the taxonomy label, and never mutates its input', () => {

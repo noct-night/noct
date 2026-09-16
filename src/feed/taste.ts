@@ -6,8 +6,8 @@
  * 1,194 upcoming artists play exactly one night and almost nobody recognises the names. Genres that have
  * something on, then actual flyers to tap, is the shortest path to a profile.
  *
- * The chips read like a menu, not a leaderboard: a family at a time (the busiest family first), siblings in the
- * taxonomy's own order, so UK Garage sits next to the other house and Jungle next to Breaks. Wording is what
+ * The chips read like a menu, not a leaderboard: a family at a time (the busiest family first, the busiest chip
+ * first within it), so UK Garage sits next to the other house and Jungle next to Breaks. Wording is what
  * people say -- "House", "Techno", "UK Garage" -- where the taxonomy label is the exact one.
  */
 import { query } from '../lib/db.js';
@@ -81,15 +81,16 @@ export const CHIP_LABELS: Record<string, string> = {
 };
 
 /**
- * The picker's order: families by how much of the city's calendar they hold, chips inside a family in the
- * taxonomy's own order (House, Tech House, Melodic, Afro House, ... UK Garage), each wearing its chip label.
- * The query has already dropped the rarest codes past the cap, so this only arranges what qualified.
+ * The picker's order: families by how much of the city's calendar they hold, and inside a family the busiest
+ * chip first as well (House, Tech House, Afro House, ... UK Garage; Trance before Progressive Trance), the
+ * taxonomy's own order only breaking ties. Each chip wears its chip label. The query has already dropped the
+ * rarest codes past the cap, so this only arranges what qualified.
  */
 export function arrangeGenres(rows: TasteGenreRow[]): TasteGenre[] {
   const held = new Map<string, number>();
   for (const r of rows) held.set(r.family, (held.get(r.family) ?? 0) + r.events);
   return [...rows]
-    .sort((a, b) => (held.get(b.family)! - held.get(a.family)!) || a.family.localeCompare(b.family) || a.sort - b.sort || a.code.localeCompare(b.code))
+    .sort((a, b) => (held.get(b.family)! - held.get(a.family)!) || a.family.localeCompare(b.family) || b.events - a.events || a.sort - b.sort || a.code.localeCompare(b.code))
     .map((r) => ({ code: r.code, label: CHIP_LABELS[r.code] ?? r.label, events: Number(r.events) }));
 }
 

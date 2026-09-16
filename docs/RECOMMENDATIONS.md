@@ -23,8 +23,9 @@ asks two questions instead, both skippable, neither of them typing:
 1. **Genres** — chips drawn from `/api/taste`, which offers the codes with **4 or more** nights in the next
    45 days in that city (one every week and a half), capped at 40 with the rarest cut first. Every option
    therefore leads somewhere. The chips are arranged like a menu rather than a leaderboard: one family at a
-   time, the family holding most of the city's calendar first, siblings in the taxonomy's own order — so
-   UK Garage sits with the other house and Jungle next to Breaks — and they wear the name people look for
+   time, the family holding most of the city's calendar first and the busiest chip first within it (the
+   taxonomy's order breaks ties) — so UK Garage sits with the other house and Jungle next to Breaks — and
+   they wear the name people look for
    ("House", "Techno", "UK Garage", "Disco"; `CHIP_LABELS` in `src/feed/taste.ts`) rather than the exact
    taxonomy label the cards use. On 2026-09-16 that is 40 chips for NYC, 37 for LA and 23 for Chicago; the
    old rule (8 nights, 24 chips, by count) gave 24 / 23 / 11 and left NYC without Jungle, Breaks, Amapiano,
