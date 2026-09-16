@@ -749,7 +749,7 @@ function openDet(eid){
       <a class="lnk" href="${e.ra||e.dice||e.url||'#'}" target="_blank" rel="noopener">Open listing</a>
       ${e.uuid?`<a class="lnk" href="${API_BASE}/api/ics?e=${encodeURIComponent(e.uuid)}" rel="noopener">Add to calendar</a>`:''}
       <button class="lnk" onclick="shareEvent(${e.id})">Share</button>
-      ${LIVE&&e.uuid&&(GRP.id?true:deckFor(e.d,e.uuid).length>=3)?`<button class="lnk" onclick="${GRP.id?'openGroupResult()':`planWith(${e.id})`}">${GRP.id?'Plan':'Plan with friends'}</button>`:''}
+      ${LIVE&&e.uuid&&(GRP.id?true:deckFor(e.d,e.uuid).length>=3)?`<button class="lnk" onclick="${GRP.id?'openGroupResult()':`planWith(${e.id})`}">${GRP.id?'Group picks':'Swipe with friends'}</button>`:''}
     </div>
   </div>`;
   $('#det').classList.add('open');$('#det').scrollTop=0;
@@ -889,7 +889,7 @@ function openNext(uuid,night){const ev=EV.find(x=>x.uuid===uuid);if(ev){openDet(
 const dirBetween=(o,d,walk)=>`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(o.lat+','+o.lng)}&destination=${encodeURIComponent(d.lat+','+d.lng)}&travelmode=${walk?'walking':'transit'}`;
 
 /* ---------- Group Mode ----------
-   One link, everyone swipes, the count decides. The owner taps "Plan with friends" on a night: NOCT deals a
+   One link, everyone swipes, the count decides. The owner taps "Swipe with friends" on a night: NOCT deals a
    deck of up to twelve cards from the top of the owner's own list for that night, copies a link, and the
    owner swipes first. Everyone who opens the link swipes the same deck; the result is a count per card, in
    words -- "3 of 4 liked", "2 of 4 finished". Never a percentage, never "everyone" unless it is everyone who
@@ -908,22 +908,56 @@ function deckFor(d,leadUuid){
   return out;
 }
 const groupLink=()=>`${location.origin}${location.pathname}?${new URLSearchParams({g:GRP.id,city:GRP.city||S.city||'nyc',from:GRP.night,to:GRP.night})}`;
-async function planWith(id){
+/* Tapping "Swipe with friends" used to copy a link and drop you into the deck with a toast -- nothing said that
+   the link had to be SENT, or that the friends would swipe the same cards. Now a small sheet says the three
+   steps once, and the session is created only when a step is taken, so a look costs nothing. */
+let GRP_DRAFT=null;
+function planWith(id){
   const e=evById(id);if(!e||!LIVE||!e.uuid)return;
   const deck=deckFor(e.d,e.uuid);
-  if(deck.length<3){toast('Not enough on this night to plan around');return}
-  const night=(DAYS[e.d]||[])[3]||'';
+  if(deck.length<3){toast('Not enough on this night to swipe through');return}
+  GRP_DRAFT={id,d:e.d,night:(DAYS[e.d]||[])[3]||'',deck,head:e.head};
+  closeAll();closePage('det');
+  renderGroupIntro();$('#group').classList.add('open');$('#group').scrollTop=0;
+}
+function renderGroupIntro(){
+  const b=$('#groupBody'),d=GRP_DRAFT;if(!b||!d)return;
+  b.innerHTML=`<button class="sx" onclick="closeAll();openDet(${d.id})" aria-label="Close">✕</button>`
+    +`<div class="sh2">Swipe with friends</div>`
+    +`<div class="gsub">${d.deck.length} nights on ${nightLabel(d.night)}, this one first</div>`
+    +`<div class="gintro">Send the link. Everyone who opens it swipes the same ${d.deck.length} cards. The count decides.</div>`
+    +`<div class="foot"><button class="lnk" onclick="groupSend()">Send the link</button><button class="lnk" onclick="groupStart()">Start swiping</button></div>`;
+}
+/* the session exists from the first step on, not from the look */
+async function ensureGroup(){
+  if(GRP.id)return true;
+  const d=GRP_DRAFT;if(!d)return false;
   let sid='';
   try{
-    const r=await sbRest('POST','/group_session',{city:S.city||'nyc',night,deck},'return=representation');
+    const r=await sbRest('POST','/group_session',{city:S.city||'nyc',night:d.night,deck:d.deck},'return=representation');
     if(r&&r.ok){const rows=await r.json();sid=(Array.isArray(rows)&&rows[0]&&rows[0].session_id)||''}
   }catch(err){}
-  if(!sid){toast('Could not start a plan — check your connection',4000);return}
-  GRP={id:sid,city:S.city||'nyc',night,deck,mine:{},active:false,result:null,owner:true,poll:null,since:Date.now()};
-  const ok=await copyText(groupLink());
-  toast(ok?'Link copied · your turn first':'Could not copy — '+groupLink(),4000);
-  startDeck();
+  if(!sid){toast('Could not start — check your connection',4000);return false}
+  GRP={id:sid,city:S.city||'nyc',night:d.night,deck:d.deck,mine:{},active:false,result:null,owner:true,poll:null,since:Date.now()};
+  return true;
 }
+/* the phone's own share sheet where there is one (Messages, WhatsApp, Kakao, AirDrop); the clipboard otherwise */
+async function shareGroupLink(){
+  const url=groupLink();
+  if(navigator.share){
+    try{await navigator.share({title:'Swipe with friends on NOCT',url});return 'shared'}
+    catch(err){if(err&&err.name==='AbortError')return 'cancelled'}
+  }
+  const ok=await copyText(url);
+  toast(ok?'Link copied — paste it to your friends':'Could not copy — '+url,4000);
+  return ok?'copied':'failed';
+}
+async function groupSend(){
+  if(!(await ensureGroup()))return;
+  const how=await shareGroupLink();
+  if(how==='shared')startDeck();                  /* sent from the share sheet: their turn is coming, take yours */
+}
+async function groupStart(){if(await ensureGroup())startDeck()}
 /* the deck takes over the image view; the seg hides, the swipe pill says what a swipe now means */
 function startDeck(){
   closeAll();closePage('det');closePage('ven');
@@ -1024,7 +1058,7 @@ function renderGroup(){
     +rows.map(x=>`<button class="frow" onclick="closeAll();openDet(${x.e.id})"><div><div class="fn">${x.e.head}</div>`
       +`<div class="fm">${x.e.venue}${x.e.door?' · '+x.e.door:''}${GRP.mine[x.e.uuid]===true?' · You liked this':GRP.mine[x.e.uuid]===false?' · You passed':''}</div></div>`
       +`<span class="gcount ${m&&x.likes===m?'all':''}">${m?`${x.likes} of ${m}`:'—'}</span></button>`).join('')
-    +`<div class="foot"><button class="lnk" onclick="copyText(groupLink()).then(ok=>toast(ok?'Link copied':'Could not copy — '+groupLink()))">Copy link</button>`
+    +`<div class="foot"><button class="lnk" onclick="shareGroupLink()">Send the link</button>`
     +(left?`<button class="lnk" onclick="closeAll();startDeck()">Keep swiping</button>`:`<button class="lnk" style="color:var(--d2)" onclick="exitDeck()">Back to the night</button>`)+`</div>`;
 }
 

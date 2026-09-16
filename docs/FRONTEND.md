@@ -118,10 +118,14 @@ venue · title · door–close · *walkable* or whole km · Directions (origin =
 `walk`) — remembers the answer across Save / I'm going re-renders, and shows nothing at all when `next` is empty.
 No routing, no minutes, no "afters", no plan wording.
 
-**Group Mode** (0025, `GRP` in app.js). On an event sheet, *Plan with friends* deals a deck of up to twelve
-cards from the top of the owner's own list for that night (`deckFor()`: flyers first, `rank()` then interested,
-one card per venue, the night in hand leading), inserts a `group_session` through PostgREST (`Prefer:
-return=representation` gives back the id), copies `?g=<session>&city&from&to` and puts the owner into the deck.
+**Group Mode** (0025, `GRP` in app.js). On an event sheet, *Swipe with friends* opens a small sheet that says the
+three steps once — "Send the link. Everyone who opens it swipes the same 12 cards. The count decides." — with
+*Send the link* (the phone's own share sheet via `navigator.share`, the clipboard where there is none; a
+completed share drops the owner straight into the deck) and *Start swiping*. The deck is dealt from the top of
+the owner's own list for that night (`deckFor()`: flyers first, `rank()` then interested, one card per venue,
+the night in hand leading); the `group_session` row is inserted through PostgREST only when a step is taken
+(`ensureGroup()`; `Prefer: return=representation` gives back the id), and the link is `?g=<session>&city&from&to`.
+Once a group exists the button reads *Group picks* and opens the votes.
 The deck is the image view: `results()` returns the deck's cards in dealt order, the seg hides, the swipe pill
 reads *Pass ← · → Like*, a swipe or the two text buttons write one `group_vote` row (upsert), and the last vote
 opens the plan sheet `#group`. A link holder lands on the night (the link carries the range), `openGroupLink()`
@@ -129,7 +133,7 @@ reads `group_result(p_session)` and starts them at their first unvoted card, or 
 are done or the night has passed. The plan sheet says it in words only — heading *`m` of `m` liked* when the
 top card was liked by everyone who voted, else *Most liked: `n` of `m`*; sub-line *`k` of `m` finished*; one
 `.frow` per card with *`likes` of `m`* — polls `group_result` every 4 s while open and visible (ten minutes at
-most; nothing says "live"), and offers *Copy link*, *Keep swiping* or *Back to the night*. `m` counts people
+most; nothing says "live"), and offers *Send the link*, *Keep swiping* or *Back to the night*. `m` counts people
 who voted on at least one card, never people who merely opened the link; a person's own votes never leave the
 database except to them (RLS + a SECURITY DEFINER aggregate). No percentages, no "match", no group-taste deck,
 no push. Identity is the anonymous account, so a link opened in an in-app browser and again in Safari counts as
