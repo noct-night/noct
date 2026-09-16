@@ -610,6 +610,7 @@ function openDet(eid){
     ${e.note?`<div class="grp"><h3>About</h3><p class="prose">${e.note}</p></div>`:''}
     <div class="dacts">
       <button class="lnk" onclick="toggleSave(${e.id});openDet(${e.id})">${isSaved(e.id)?'Saved':'Save'}</button>
+      ${directionsUrl(e.venue)?`<a class="lnk" href="${directionsUrl(e.venue)}" target="_blank" rel="noopener">Directions</a>`:''}
       <a class="lnk" href="${e.ra||e.dice||e.url||'#'}" target="_blank" rel="noopener">Open listing</a>
       <button class="lnk">Add to calendar</button>
       <button class="lnk" onclick="shareEvent(${e.id})">Share</button>
@@ -778,11 +779,20 @@ function openArtistNight(uuid,night){
   if(ev){closeAll();openDet(ev.id);return}
   openNightAt(uuid,S.city,night);
 }
+/* Directions to a room. A coordinate pins the door; an address is next best; a name plus the city is the last
+   resort and lets Google search. The dir/ endpoint opens the Google Maps app where it is installed. */
+/* mirror of venue_is_placeholder() in SQL: a placeholder is not a place, so there is nowhere to go */
+const venueIsPlaceholder=v=>/\b(tba|tbc)\b|to be announced|secret location|location tba|undisclosed|venue tba/i.test(String(v||''));
+function directionsUrl(v){
+  if(venueIsPlaceholder(v))return null;
+  const i=vInfo(v)||{};
+  const cityName=(CITIES.find(c=>c[0]===S.city)||[,'New York'])[1];
+  const dest=(typeof i.lat==='number'&&typeof i.lng==='number'&&i.lat&&i.lng)?`${i.lat},${i.lng}`
+            :(i.addr?`${v}, ${i.addr}`:`${v}, ${i.hood?i.hood+', ':''}${cityName}`);
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}`;
+}
 function openVenue(v){
   const i=vInfo(v),ev=EV.filter(e=>e.venue===v).sort((a,b)=>a.d-b.d||(a.door||'99').localeCompare(b.door||'99'));
-  const cityName=(CITIES.find(c=>c[0]===S.city)||[,'New York'])[1];
-  const q=i.addr?`${v} ${i.addr}`:`${v} ${i.hood} ${cityName}`;
-  const maps=`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
   const ig=i.ig?`https://www.instagram.com/${i.ig}/`:`https://www.instagram.com/explore/search/keyword/?q=${encodeURIComponent(v)}`;
   /* What is on here comes FIRST -- from the map especially, that is the whole reason for the tap. The
      prototype's placeholder photo strip and fake Instagram grid are gone; a section that says "Placeholder.
@@ -803,7 +813,7 @@ function openVenue(v){
     </div>
     <div class="grp"><h3>Go there</h3>
       <div class="links">
-        <a href="${maps}" target="_blank" rel="noopener">Google Maps<span>${i.addr?'Exact address':'Search'}</span></a>
+        ${directionsUrl(v)?`<a href="${directionsUrl(v)}" target="_blank" rel="noopener">Directions<span>${(i.lat&&i.lng)?'Google Maps':(i.addr?'By address':'Search')}</span></a>`:`<div class="mini">Location not announced yet.</div>`}
         <a href="${ig}" target="_blank" rel="noopener">Instagram<span>${i.ig?'@'+i.ig:'Search'}</span></a>
         ${i.site?`<a href="${i.site}" target="_blank" rel="noopener">Website<span>Door policy</span></a>`:''}
       </div>
