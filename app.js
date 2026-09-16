@@ -90,8 +90,6 @@ const HANDLES=['sunroommate','kj.wav','ninetyeight','lo.fidelity','marta.exe','p
 const VIS=[['count','Count only','You add to the number. Nobody sees your handle, and you only see numbers back.'],
            ['mutuals','People I follow','Your handle shows to people you follow. You see theirs, if they opted in too.'],
            ['public','Everyone','Your handle shows to anyone on the event. You see everyone who chose the same.']];
-const IGPOSTS=[['Reel','Last Saturday'],['Post','This weekend'],['Reel','Main room'],['Post','Door notice'],['Reel','Closing set'],['Post','New dates']];
-const PHOTOS=['Main room','The bar','Doors','Outside'];
 
 const S={mode:'image',view:'image',from:0,to:0,i:0,city:'nyc',area:'All',geo:false,
  gen:new Set(),door:new Set(),avail:new Set(),plat:new Set(),
@@ -261,8 +259,9 @@ function step(n){const l=results();if(!l.length)return;S.i=(S.i+n+l.length)%l.le
    The same nights the other two views show -- results(), so filters and For-you apply -- placed on the venues
    that hold them. One dot per venue family, sized by count, filled when a For-you night is there. Tapping a
    dot opens the venue sheet, which already lists that room's nights; no new list UI.
-   New York only for now: it is the one city with seeded venues, and the one the team can check by eye. */
-const MAP_CITIES=new Set(['nyc']);
+   Every live city. Coverage after the 0022 backfill: New York 82%, Chicago 76%, Los Angeles 69% of nights
+   placed; the rest read as "N without a location yet". */
+const MAP_CITIES=new Set(['nyc','la','chi']);
 const CITY_CENTRE={nyc:[40.716,-73.955],la:[34.05,-118.30],chi:[41.89,-87.66]};
 let MAP=null,MAP_LAYER=null;
 function renderMapOption(){
@@ -310,9 +309,12 @@ function renderMap(){
     pts.push([g.lat,g.lng]);
   });
   if(pts.length&&!renderMap.fitted){
-    const c=CITY_CENTRE[S.city]||CITY_CENTRE.nyc;
-    const near=pts.filter(p=>Math.abs(p[0]-c[0])<.35&&Math.abs(p[1]-c[1])<.45);   /* ~35 km: the metro, not the region */
-    m.fitBounds(near.length?near:pts,{padding:[40,40],maxZoom:14});renderMap.fitted=true;
+    /* Fit to where the nights are, not to the furthest room RA filed under the city. The median point is
+       immune to a lone dot in Elk Grove or Catskill; 0.2 degrees (~20 km) around it is the metro core. */
+    const med=a=>{const x=[...a].sort((p,q)=>p-q);return x[Math.floor(x.length/2)]};
+    const c=[med(pts.map(p=>p[0])),med(pts.map(p=>p[1]))];
+    const near=pts.filter(p=>Math.abs(p[0]-c[0])<.2&&Math.abs(p[1]-c[1])<.25);
+    m.fitBounds(near.length>=3?near:pts,{padding:[40,40],maxZoom:14});renderMap.fitted=true;
   }
   const note=$('#mapNote');
   if(!list.length){note.textContent='Nothing matches.';note.hidden=false}
@@ -777,40 +779,34 @@ function openArtistNight(uuid,night){
   openNightAt(uuid,S.city,night);
 }
 function openVenue(v){
-  const i=vInfo(v),ev=EV.filter(e=>e.venue===v);
+  const i=vInfo(v),ev=EV.filter(e=>e.venue===v).sort((a,b)=>a.d-b.d||(a.door||'99').localeCompare(b.door||'99'));
   const cityName=(CITIES.find(c=>c[0]===S.city)||[,'New York'])[1];
   const q=i.addr?`${v} ${i.addr}`:`${v} ${i.hood} ${cityName}`;
   const maps=`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
   const ig=i.ig?`https://www.instagram.com/${i.ig}/`:`https://www.instagram.com/explore/search/keyword/?q=${encodeURIComponent(v)}`;
+  /* What is on here comes FIRST -- from the map especially, that is the whole reason for the tap. The
+     prototype's placeholder photo strip and fake Instagram grid are gone; a section that says "Placeholder.
+     Real venue photography goes here." is not something to show a person. */
   $('#ven').innerHTML=`
   <div class="dhero"><div class="tex ${i.tones[0]}"></div><button class="dx" onclick="closePage('ven')" aria-label="Close">✕</button></div>
   <div class="dbody">
     <div class="dname">${v}</div>
     <div class="dsup">${i.addr||(i.hood?i.hood+(i.boro?', '+i.boro:''):'Address not on file')}</div>
-    ${!i.verified?`<div class="mini" style="margin-top:14px">Address and handle not yet confirmed for this venue.</div>`:''}
+    <div class="grp"><h3>${ev.length?`${ev.length===1?'One night':ev.length+' nights'} ${dateLabel().toLowerCase()==='tonight'?'tonight':'in '+dateLabel().toLowerCase()}`:'Nothing listed '+dateLabel().toLowerCase()}</h3>
+      ${ev.map(e=>`<div class="row" style="padding-left:0;padding-right:0" role="button" tabindex="0" onclick="openDet(${e.id})">
+        <div class="rt">${recFor(e)?`<span class="rfor">For you</span> · `:''}${dayFull(e.d)}${e.door?' · '+e.door:''}</div>
+        <div class="rn">${e.head}</div>
+        <div class="rg">${tagLine(e)}</div>
+        <div class="rv">${e.room||''}</div>
+        <div class="rp ${e.soldout?'gone':''}">${priceLbl(e)}</div>
+      </div>`).join('')}
+    </div>
     <div class="grp"><h3>Go there</h3>
       <div class="links">
         <a href="${maps}" target="_blank" rel="noopener">Google Maps<span>${i.addr?'Exact address':'Search'}</span></a>
         <a href="${ig}" target="_blank" rel="noopener">Instagram<span>${i.ig?'@'+i.ig:'Search'}</span></a>
-        ${i.ra?`<a href="${i.ra}" target="_blank" rel="noopener">RA venue page<span>All dates</span></a>`:''}
         ${i.site?`<a href="${i.site}" target="_blank" rel="noopener">Website<span>Door policy</span></a>`:''}
       </div>
-    </div>
-    <div class="grp"><h3>Photos</h3>
-      <div class="strip">${PHOTOS.map((p,n)=>`<div class="ph"><div class="tex ${i.tones[n%i.tones.length]}"></div><div class="shade"></div><div class="cp">${p}</div></div>`).join('')}</div>
-      <div class="mini">Placeholder. Real venue photography goes here.</div>
-    </div>
-    <div class="grp"><h3>From their Instagram</h3>
-      <div class="iggrid">${IGPOSTS.map((p,n)=>`<a class="igt" href="${ig}" target="_blank" rel="noopener"><div class="tex ${i.tones[(n+1)%i.tones.length]}"></div><div class="shade"></div><div class="kind">${p[0]==='Reel'?'▶':'▣'}</div><div class="cp">${p[1]}</div></a>`).join('')}</div>
-    </div>
-    <div class="grp"><h3>This weekend here</h3>
-      ${ev.map(e=>`<div class="row" style="padding-left:0;padding-right:0" role="button" tabindex="0" onclick="openDet(${e.id})">
-        <div class="rt">${dayFull(e.d)}${e.door?' · '+e.door:''}</div>
-        <div class="rn">${e.head}</div>
-        <div class="rg">${tagLine(e)}</div>
-        <div class="rv">${e.venue}</div>
-        <div class="rp ${e.soldout?'gone':''}">${priceLbl(e)}</div>
-      </div>`).join('')}
     </div>
   </div>`;
   $('#ven').classList.add('open');$('#ven').scrollTop=0;

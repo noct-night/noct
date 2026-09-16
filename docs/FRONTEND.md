@@ -274,5 +274,14 @@ would have matched out of the box but now requires an API key — the first rend
   the city centre.
 
 **Coverage.** Only 38% of a NYC night had coordinates before `backfill_venue_coords()` (0022), which copies
-them up from listings by majority vote across sources. 82% now; the rest is placeholders and rooms no source
-geocodes. New York only for the moment — the one city with seeded venues and the one the team can check by eye.
+them up from listings by majority vote across sources. New York 82%, Chicago 76%, Los Angeles 69% now; the
+rest is placeholders and rooms no source geocodes. All three cities have the map.
+
+**The initial fit** uses the median of the placed nights and ~20 km around it, not a fixed city centre: a fixed
+centre with a 35 km radius still let one room in Elk Grove Village drag Chicago's first frame out to the
+suburbs. The median cannot be dragged by one dot.
+
+**Tapping a dot** opens the venue sheet, which now leads with that room's nights — "4 nights in this weekend" —
+because from the map that is the whole reason for the tap. It used to lead with a "Go there" block, a photo
+strip whose caption read "Placeholder. Real venue photography goes here.", and a grid of fake Instagram posts,
+with the nights at the very bottom. All three were scaffolding from the static prototype and are gone.
