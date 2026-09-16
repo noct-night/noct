@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { draftWeekend, headlineOf, pickHeroes, spanLabel, supportingCast } from '../../src/post/draft.js';
 import { daysToFriday, weekendRange } from '../../src/post/weekend.js';
 import { slideSchema, CAROUSEL_MAX, TABLE_ROWS_MAX } from '../../src/post/types.js';
+import { SITE } from '../../src/post/caption.js';
 import type { FeedDay, FeedEvent, FeedResponse } from '../../src/feed/shape.js';
 
 /** Enough of a FeedEvent for the drafting code; the rest of the shape is not read here. */
@@ -160,6 +161,15 @@ describe('draftWeekend', () => {
 
   it('slots the post on the Friday', () => {
     expect(deck.slot).toBe('2026-09-18');
+  });
+
+  it('sends people to the live site, from one constant, on the cover and in the caption', () => {
+    // This used to be a literal 'noct.nyc' in two files -- a domain that does not resolve. Every post would
+    // have pointed followers at nothing, or at whoever registers it later.
+    const cover = deck.slides[0]!;
+    expect(cover).toMatchObject({ template: 'cover', data: { foot: SITE } });
+    expect(deck.caption).toContain(SITE);
+    expect(JSON.stringify(deck)).not.toContain('noct.nyc');
   });
 
   it('returns null rather than an empty deck when the feed has nothing', () => {
