@@ -770,16 +770,28 @@ let AUDIO=null,TRK={uuid:'',key:''};
 let SHEET_TRACKS={};
 const trackOf=key=>SHEET_TRACKS[key]||null;
 const playingKey=()=>(AUDIO&&!AUDIO.paused&&TRK.uuid===(DET_EV&&DET_EV.uuid))?TRK.key:'';
-/* a track's own words: its title is the control, the state rides after it. Under the artist's own row the
-   artist's name is dropped from the front of the title ("Coco Maria - Me veo volar" -> "Me veo volar"). */
+/* A track's own words: its title is the control, the state rides after it. Under the artist's own row the
+   artist's name is dropped from the front of the title ("Coco Maria - Me veo volar" -> "Me veo volar"), and
+   the catalogue's decorations go too -- "(feat. Mike Dunn) [Mike Dunn BlackBall RemixX]", "(Radio Edit)",
+   "- Extended Mix" -- because a row is one line and the song is the point, not the pressing. */
+const MIX_WORD='(?:feat\\.?|ft\\.?|featuring|with|remix|mix|edit|version|dub|rework|refix|bootleg|instrumental|radio|extended|original|club|vip|live|bonus|mixed|remastered|remaster|single|album|explicit)';
+function tidyTitle(title){
+  let t=String(title);
+  t=t.replace(/\s*\[[^\]]*\]/g,'');                                                   // [anything]
+  t=t.replace(new RegExp('\\s*\\((?=[^)]*\\b'+MIX_WORD+'\\b)[^)]*\\)','gi'),'');   // (feat. …) (… Remix) (Radio Edit)
+  t=t.replace(new RegExp('\\s+[-–—]\\s+[^-–—]*\\b'+MIX_WORD+'\\b[^-–—]*$','i'),'');   // - Extended Mix / - X Remix
+  t=t.replace(/\s{2,}/g,' ').replace(/\s+([,.!?])/g,'$1').trim();
+  return t.length>=2?t:String(title);
+}
 function trackTitle(t,artist){
-  const title=String(t.title);
+  let title=tidyTitle(t.title);
   if(!artist)return title;
   const m=new RegExp('^'+artist.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*[-–—:]\\s*','i');
   const cut=title.replace(m,'');
   return cut.length>=2?cut:title;
 }
-const trackLabel=(t,artist,state)=>`${trackTitle(t,artist)} · <span class="nw">${state==='stop'?'Stop':state==='gone'?'Unavailable':'Play 30&nbsp;s'}</span>`;
+/* one line: the title gives way (ellipsis) before the state word ever wraps */
+const trackLabel=(t,artist,state)=>`<span class="tkt">${trackTitle(t,artist)}</span><span class="nw"> · ${state==='stop'?'Stop':state==='gone'?'Unavailable':'Play 30&nbsp;s'}</span>`;
 const platName=t=>t.platform==='apple'?'Apple Music':'Spotify';
 /* Whose night-track this is, when the data says so: a line-up name inside the title ("Caiiro - Ndisize"),
    else the only name on the bill ("Afterglow" on a Nils Hoffmann night -- DICE drops the artist when it is
@@ -800,7 +812,7 @@ const foldName=s=>String(s||'').normalize('NFKD').replace(/[̀-ͯ]/g,'').toLower
    night-track nobody on the bill can be named for closes the list. Apple's previews carry Apple's credit. */
 function trackRow(key,t,artist){
   const st=playingKey()===key?'stop':'play';
-  return `<div class="tkr"><button class="tkp" id="trk-${key}" data-key="${key}" onclick="toggleTrack('${key}')" aria-pressed="${st==='stop'}">${trackLabel(t,artist,st)}</button><a href="${t.url}" target="_blank" rel="noopener">Play full (${platName(t)})</a></div>`;
+  return `<div class="tkr"><button class="tkp" id="trk-${key}" data-key="${key}" title="${t.title}" onclick="toggleTrack('${key}')" aria-pressed="${st==='stop'}">${trackLabel(t,artist,st)}</button><a href="${t.url}" target="_blank" rel="noopener">Play full (${platName(t)})</a></div>`;
 }
 function lineupSection(e){
   const names=(e.lineup&&e.lineup.length?e.lineup:(e.act?[e.act]:[])).filter(Boolean);
