@@ -1,12 +1,12 @@
 /**
  * Opt-in network tests for the slide renderer: NOCT_LIVE=1 npx vitest run tests/live/render.live.test.ts
  *
- * These live here rather than in tests/unit because satori needs the real Archivo files, and the honest
+ * These live here rather than in tests/unit because satori needs the real Red Hat Display files, and the honest
  * choices are fetching them or vendoring 440 KB of font binaries into the repo. The offline half of the
  * renderer -- tones, veil, grain, the treatment chains, the framing -- is covered in tests/unit and needs
  * no font at all, so what is gated here is specifically "does type land on the canvas".
  *
- * Set NOCT_FONT_DIR to a directory of Archivo-400/500/600/700.ttf to run these without the network.
+ * Set NOCT_FONT_DIR to a directory of RedHatDisplay-400/500/600/700.ttf to run these without the network.
  */
 import { describe, expect, it } from 'vitest';
 import sharp from 'sharp';
@@ -91,12 +91,12 @@ describe.skipIf(!live)('rendering a slide', () => {
 describe('the Google Fonts response', () => {
   it('pulls a TTF url per weight out of the css2 payload', () => {
     const css = `@font-face {
-  font-family: 'Archivo';
+  font-family: 'Red Hat Display';
   font-weight: 400;
   src: url(https://fonts.gstatic.com/s/archivo/v25/a.ttf) format('truetype');
 }
 @font-face {
-  font-family: 'Archivo';
+  font-family: 'Red Hat Display';
   font-weight: 700;
   src: url(https://fonts.gstatic.com/s/archivo/v25/b.ttf) format('truetype');
 }`;
@@ -106,7 +106,7 @@ describe('the Google Fonts response', () => {
   });
 
   it('ignores woff2, which satori cannot read', () => {
-    const css = `@font-face { font-family: 'Archivo'; font-weight: 400;
+    const css = `@font-face { font-family: 'Red Hat Display'; font-weight: 400;
       src: url(https://fonts.gstatic.com/s/archivo/v25/a.woff2) format('woff2'); }`;
     expect(parseFontCss(css).size).toBe(0);
   });

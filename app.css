@@ -1,6 +1,6 @@
 /* NOCT stylesheet. Split out of index.html so UI work and app logic stop colliding in one file. */
 :root{--ink:#0B0B0B;--chalk:#FFFFFF;--d1:rgba(255,255,255,.66);--d2:rgba(255,255,255,.40);
---hair:rgba(255,255,255,.22);--f:'Rethink Sans','Helvetica Neue',Helvetica,Arial,sans-serif;--pad:20px;
+--hair:rgba(255,255,255,.22);--f:'Google Sans','Helvetica Neue',Helvetica,Arial,sans-serif;--pad:20px;
 --rule:rgba(255,255,255,.13);--topH:150px}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{background:var(--ink);height:100%;min-height:100dvh}

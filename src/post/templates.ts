@@ -17,6 +17,7 @@
  */
 import type { Slide } from './types.js';
 import { CANVAS, TABLE_ROWS_MAX } from './types.js';
+import { FONT_FAMILY } from './font.js';
 
 /** A satori element. Plain objects, so nothing in the render path needs React. */
 export interface Node {
@@ -277,7 +278,7 @@ export function slideTree(slide: Slide): Node {
   return el(
     {
       width: CANVAS.w, height: CANVAS.h, display: 'flex', position: 'relative',
-      fontFamily: 'Archivo', color: WHITE,
+      fontFamily: FONT_FAMILY, color: WHITE,
     },
     children,
   );

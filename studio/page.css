@@ -11,7 +11,7 @@
   --hair:rgba(255,255,255,.16);
   --hair-2:rgba(255,255,255,.28);
   --pw:420;                   /* preview width, unitless; /1080 = the scale a slide is shown at */
-  --f:'Archivo','Helvetica Neue',Helvetica,Arial,sans-serif;
+  --f:'Red Hat Display','Helvetica Neue',Helvetica,Arial,sans-serif;
 }
 
 *{box-sizing:border-box;margin:0;padding:0}

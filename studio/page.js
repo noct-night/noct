@@ -260,7 +260,7 @@
    * Deferred to the next frame rather than run straight after innerHTML: measured too early the row's grid
    * has not resolved, the field is briefly a fraction of its real width, and the text wraps into a textarea
    * thousands of pixels tall that pushes the buttons off the page. Run again once the webfont has loaded,
-   * because Archivo and the fallback do not wrap at the same place.
+   * because Red Hat Display and the fallback do not wrap at the same place.
    */
   function sizeAllCaptions() {
     requestAnimationFrame(function () {

@@ -1,9 +1,9 @@
 /**
- * Archivo, as the TTF bytes satori needs to turn type into outlines.
+ * Red Hat Display, as the TTF bytes satori needs to turn type into outlines.
  *
- * The post design system is Archivo 400/500/600/700 (docs/INSTAGRAM.md). Note this is NOT the app's
- * typeface -- index.html sets Instrument Sans -- so the two surfaces genuinely differ; see the divergence
- * note in docs/INSTAGRAM.md before "fixing" one to match the other.
+ * The post design system is Red Hat Display 400/500/600/700 (docs/INSTAGRAM.md). Note this is NOT the
+ * app's typeface -- index.html sets Google Sans -- so the two surfaces genuinely differ; see the
+ * divergence note in docs/INSTAGRAM.md before "fixing" one to match the other.
  *
  * Google Fonts serves woff2 to anything modern and plain TTF to anything that looks old, and satori reads
  * TTF/OTF/WOFF but not woff2. Hence the deliberately ancient User-Agent: it is a content negotiation, not a
@@ -18,7 +18,11 @@ import { join } from 'node:path';
 import { env } from '../lib/env.js';
 import { politeFetch } from '../lib/http.js';
 
-export const FONT_FAMILY = 'Archivo';
+export const FONT_FAMILY = 'Red Hat Display';
+/* A family of more than one word needs '+' in the Google Fonts query and no spaces at all in a
+   filename, so the bare constant cannot be dropped into either. */
+const FONT_QUERY = FONT_FAMILY.replace(/ /g, '+');
+const FONT_FILE = FONT_FAMILY.replace(/ /g, '');
 export const FONT_WEIGHTS = [400, 500, 600, 700] as const;
 export type FontWeight = (typeof FONT_WEIGHTS)[number];
 
@@ -33,7 +37,7 @@ export interface LoadedFont {
 /** A UA old enough that Google Fonts falls back to `format('truetype')`. */
 const TTF_UA = 'Mozilla/5.0 (Windows NT 6.1)';
 
-const CSS_URL = `https://fonts.googleapis.com/css2?family=${FONT_FAMILY}:wght@${FONT_WEIGHTS.join(';')}`;
+const CSS_URL = `https://fonts.googleapis.com/css2?family=${FONT_QUERY}:wght@${FONT_WEIGHTS.join(';')}`;
 
 /** Pull `weight -> url` out of the @font-face blocks the css2 endpoint returns, in declaration order. */
 export function parseFontCss(css: string): Map<number, string> {
@@ -49,7 +53,7 @@ export function parseFontCss(css: string): Map<number, string> {
 async function fromDisk(dir: string): Promise<LoadedFont[]> {
   return Promise.all(
     FONT_WEIGHTS.map(async (weight) => {
-      const buf = await readFile(join(dir, `${FONT_FAMILY}-${weight}.ttf`));
+      const buf = await readFile(join(dir, `${FONT_FILE}-${weight}.ttf`));
       return { name: FONT_FAMILY, data: toArrayBuffer(buf), weight, style: 'normal' as const };
     }),
   );

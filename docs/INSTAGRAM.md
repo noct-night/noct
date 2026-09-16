@@ -88,11 +88,12 @@ type at the top with a photo band at the foot plus a running `VENUES 01 / 04` in
 
 ### One divergence worth knowing about
 
-**The posts use Archivo. The app uses Instrument Sans** (`--f` in `app.css`). The handoff that specified the
-post system said every value was "already in index.html or derived from it", which is true of the colours
-and not of the typeface. Both the handoff and the working prototype say Archivo, so Archivo is what is
-implemented, and it is one constant — `FONT_FAMILY` in `src/post/font.ts`. If the two surfaces are meant to
-match, that is the line to change, but it is a brand decision and not a cleanup.
+**The posts use Red Hat Display. The app uses Google Sans** (`--f` in `app.css`). The handoff that
+specified the post system said every value was "already in index.html or derived from it", which is true of
+the colours and not of the typeface. Both surfaces were Archivo once; the app moved first, and the posts
+followed on a later call to drop Archivo altogether. They still do not match, and that remains deliberate —
+the post face is one constant, `FONT_FAMILY` in `src/post/font.ts`. If they are ever meant to match, that is
+the line to change, but it is a brand decision and not a cleanup.
 
 The greys also differ slightly: the app's `--d1`/`--d2` are `.66`/`.40` against the post system's `.70`/`.44`.
 The post values are used for posts, as specified.
@@ -230,7 +231,7 @@ npm test                                              # offline: layers, treatme
 NOCT_LIVE=1 npx vitest run tests/live/render.live.test.ts   # the renderer, which needs the real font files
 ```
 
-The renderer's tests are opt-in because satori needs the real Archivo files, and the alternative was
+The renderer's tests are opt-in because satori needs the real Red Hat Display files, and the alternative was
 vendoring 440 KB of font binaries. Everything that does not need a font — tones, veil, grain, the treatment
 chains, framing — is offline in `tests/unit`. Set `NOCT_FONT_DIR` to run the render tests without network.
 
