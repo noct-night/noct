@@ -45,6 +45,11 @@ async function imageBytes(src: string, opts: RenderOptions): Promise<Buffer> {
   return id ? loadPhoto(id) : fetchImage(src);
 }
 
+/** The look a photo is drawn with: the one chosen for its slide, else the post's. */
+function lookOf(image: SlideImage, opts: RenderOptions): { treatment: Treatment; grain: boolean } {
+  return { treatment: image.treatment ?? opts.treatment, grain: image.grain ?? opts.grain };
+}
+
 /** A flat rectangle of the ground, the base every slide starts from. */
 function ground(): sharp.Sharp {
   return sharp({
@@ -58,7 +63,7 @@ async function eventBase(
 ): Promise<{ base: Buffer; hasPhoto: boolean }> {
   if (image) {
     const bytes = await imageBytes(image.src, opts);
-    const treated = await treatImage(bytes, opts.treatment, image.fit);
+    const treated = await treatImage(bytes, lookOf(image, opts).treatment, image.fit);
     return { base: await treated.png().toBuffer(), hasPhoto: true };
   }
   const base = await sharp(toneSvg(tone)).png().toBuffer();
@@ -71,7 +76,7 @@ async function venueBand(image: SlideImage, opts: RenderOptions): Promise<Buffer
   const bytes = await imageBytes(image.src, opts);
   // Framed straight to the band's own proportions. Framing to the full canvas first and cropping that to
   // the band would crop twice, throwing away more of the photograph than either step intended.
-  const treated = await treatImage(bytes, opts.treatment, image.fit, { w: CANVAS.w, h: height });
+  const treated = await treatImage(bytes, lookOf(image, opts).treatment, image.fit, { w: CANVAS.w, h: height });
   return treated.png().toBuffer();
 }
 
@@ -86,12 +91,13 @@ export async function renderSlide(slide: Slide, opts: RenderOptions): Promise<Bu
     canvas = sharp(base);
     // Grain sits on the photograph, under the veil, the way the prototype stacks them -- and only where
     // there is a photograph to grain. Over a flat tone it reads as noise rather than film.
-    if (hasPhoto && opts.grain) layers.push({ input: grainSvg(), blend: 'overlay' });
+    if (hasPhoto && slide.data.image && lookOf(slide.data.image, opts).grain) layers.push({ input: grainSvg(), blend: 'overlay' });
     layers.push({ input: veilSvg(), blend: 'over' });
   } else if (slide.template === 'cover' && slide.data.image) {
-    const treated = await treatImage(await imageBytes(slide.data.image.src, opts), opts.treatment, slide.data.image.fit);
+    const look = lookOf(slide.data.image, opts);
+    const treated = await treatImage(await imageBytes(slide.data.image.src, opts), look.treatment, slide.data.image.fit);
     canvas = sharp(await treated.png().toBuffer());
-    if (opts.grain) layers.push({ input: grainSvg(), blend: 'overlay' });
+    if (look.grain) layers.push({ input: grainSvg(), blend: 'overlay' });
     layers.push({ input: coverVeilSvg(), blend: 'over' });
   } else if (slide.template === 'venue') {
     canvas = ground();

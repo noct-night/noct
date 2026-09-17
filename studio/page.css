@@ -43,14 +43,6 @@ img{max-width:100%}
 .chip[aria-current="true"]{background:var(--paper);color:#0B0B0B;border-color:var(--paper)}
 .chip .n{font-variant-numeric:tabular-nums;opacity:.6}
 
-.treat{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding-bottom:22px;margin-bottom:32px;
-  border-bottom:1px solid var(--hair)}
-.treat label{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--g2)}
-.treat select{background:rgba(255,255,255,.07);border:1px solid var(--hair);color:var(--paper);
-  padding:7px 9px;border-radius:4px;font-size:13px}
-.treat select:focus{border-color:var(--paper);outline:none}
-.treat-note{font-size:12.5px;color:var(--g2);flex:1 1 320px;min-width:0}
-
 #stream{display:flex;flex-direction:column}
 .row{display:grid;grid-template-columns:46px calc(var(--pw) * 1px) 1fr;gap:30px;align-items:start;
   padding:44px 0;border-bottom:1px solid var(--hair)}
@@ -63,6 +55,19 @@ img{max-width:100%}
 .deck{min-width:0;display:flex;flex-direction:column;gap:12px}
 .strip{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding-bottom:2px}
 .strip::-webkit-scrollbar{display:none}
+
+/* Previous and next, over the slide itself, because a sideways scroll is hard to do with a mouse. Centred on
+   the image rather than on the column, which also holds the controls under each slide. */
+.strip-wrap{position:relative}
+.nav{position:absolute;z-index:6;top:calc(var(--pw) * .5px);transform:translateY(-50%);width:40px;height:40px;
+  border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--paper);
+  background:rgba(11,11,11,.72);border:1px solid rgba(255,255,255,.34);
+  transition:opacity .18s ease,background .18s ease,border-color .18s ease}
+.nav:hover{background:rgba(11,11,11,.9);border-color:var(--paper)}
+.nav.prev{left:10px}
+.nav.next{right:10px}
+.nav.prev svg,.cal-nav.prev svg{transform:scaleX(-1)}
+.nav[disabled]{opacity:0;pointer-events:none}
 
 /* The post reads as a physical object on the work surface. */
 .shot{width:calc(var(--pw) * 1px);height:calc(var(--pw) * 1.25 * 1px);position:relative;overflow:hidden;
@@ -204,3 +209,63 @@ img{max-width:100%}
 .shot-tools .fit button:first-child{border-radius:999px 0 0 999px}
 .shot-tools .fit button:last-child{border-radius:0 999px 999px 0;margin-left:-1px}
 .shot-tools [aria-pressed="true"]{background:var(--paper);color:#0B0B0B;border-color:var(--paper)}
+.shot-tools select{font-size:12px;font-weight:500;color:var(--g1);background:transparent;border:1px solid var(--hair-2);
+  border-radius:999px;padding:4px 8px}
+.shot-tools select:hover,.shot-tools select:focus{border-color:var(--paper);color:var(--paper);outline:none}
+.shot-tools select option{background:#1C1F22;color:var(--paper)}
+
+/* Panels above the caption: rewriting a slide's words, choosing a deck's nights. */
+.panel-note{font-size:12.5px;color:var(--g2);line-height:1.5}
+.text-form textarea{background:transparent;border:0;border-bottom:1px solid var(--hair-2);color:var(--paper);
+  font:inherit;padding:8px 0;resize:vertical;line-height:1.45}
+.text-form textarea:focus{border-bottom-color:var(--paper);outline:none}
+.nights-list{list-style:none;display:flex;flex-direction:column;max-height:420px;overflow-y:auto;
+  border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
+.nights-list li+li{border-top:1px solid var(--hair)}
+.nights-list label{position:relative;display:flex;gap:10px;align-items:flex-start;padding:9px 2px;cursor:pointer;
+  font-size:13.5px;letter-spacing:0;color:var(--paper)}
+.nights-list input{position:absolute;opacity:0;pointer-events:none}
+.nights-order{flex:none;width:22px;height:22px;border-radius:50%;border:1px solid var(--hair-2);margin-top:1px;
+  display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+.nights-list input:checked+.nights-order{background:var(--paper);color:#0B0B0B;border-color:var(--paper)}
+.nights-list input:focus-visible+.nights-order{outline:2px solid var(--paper);outline-offset:2px}
+.nights-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.nights-text b{font-weight:600;overflow-wrap:anywhere}
+.nights-text span{font-size:12px;color:var(--g2)}
+
+/* The calendar: every published post on the day it went out, New York time. */
+.cal{display:flex;flex-direction:column;gap:18px}
+.cal-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.cal-head h2{font-size:22px;font-weight:600;letter-spacing:-.02em;min-width:190px;text-align:center}
+.cal-nav{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  border:1px solid var(--hair-2);color:var(--paper)}
+.cal-nav:hover{border-color:var(--paper)}
+.cal-sum{margin-left:auto;font-size:13px;color:var(--g2)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--hair);
+  border-left:1px solid var(--hair)}
+.cal-dow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--g2);padding:8px;
+  border-right:1px solid var(--hair);border-bottom:1px solid var(--hair)}
+.cal-day{min-height:104px;padding:7px;display:flex;flex-direction:column;gap:5px;min-width:0;
+  border-right:1px solid var(--hair);border-bottom:1px solid var(--hair)}
+.cal-day.is-blank{background:rgba(255,255,255,.02)}
+.cal-n{font-size:12px;color:var(--g2);font-variant-numeric:tabular-nums}
+.cal-day.is-today .cal-n{color:#0B0B0B;background:var(--paper);border-radius:999px;align-self:flex-start;padding:0 7px}
+.cal-post{display:flex;flex-direction:column;gap:3px;font-size:12px;line-height:1.3;color:var(--paper);text-decoration:none;
+  padding:5px 6px;border-radius:4px;background:rgba(255,255,255,.08);min-width:0}
+a.cal-post:hover{background:rgba(255,255,255,.16)}
+.cal-post .tag{align-self:flex-start;font-size:9.5px;padding:1px 5px}
+.cal-name{overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}
+.cal-list{list-style:none;display:flex;flex-direction:column;border-top:1px solid var(--hair)}
+.cal-list li{display:flex;gap:14px;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--hair)}
+.cal-date{font-size:13px;color:var(--g2);font-variant-numeric:tabular-nums;flex:none;width:40px}
+.cal-list .cal-post{flex-direction:row;flex-wrap:wrap;align-items:baseline;gap:8px;background:none;padding:0;font-size:14px}
+.cal-list .cal-name{-webkit-line-clamp:1}
+.cal-time{font-size:12px;color:var(--g2);font-variant-numeric:tabular-nums}
+@media (max-width:640px){
+  /* Too narrow for names in the grid: a day with posts shows a dot, and the list under it carries the detail. */
+  .cal-day{min-height:52px;padding:5px}
+  .cal-day .cal-post{display:none}
+  .cal-day.has-posts::after{content:'';width:7px;height:7px;border-radius:50%;background:var(--paper)}
+  .cal-dow{padding:6px 2px;text-align:center;letter-spacing:.04em}
+  .cal-sum{margin-left:0;width:100%}
+}

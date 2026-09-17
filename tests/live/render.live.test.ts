@@ -80,6 +80,18 @@ describe.skipIf(!live)('rendering a slide', () => {
     expect(a.equals(b)).toBe(true);
   }, 60_000);
 
+  it('draws a photo in the look chosen for its slide, and in the post\'s look otherwise', async () => {
+    const colourAt = async (image: object): Promise<number> => {
+      const slide = s({ template: 'event', data: { name: 'x', tex: 'x1', image } });
+      const jpeg = await renderSlide(slide, { treatment: 'mono', grain: false, fetchBytes });
+      // Above the veil and the type, where the photo shows as it was treated.
+      const { data } = await sharp(jpeg).extract({ left: 540, top: 300, width: 1, height: 1 }).raw().toBuffer({ resolveWithObject: true });
+      return Math.abs(data[0]! - data[2]!);
+    };
+    expect(await colourAt(FAKE_FLYER)).toBeLessThan(6);
+    expect(await colourAt({ ...FAKE_FLYER, treatment: 'none' })).toBeGreaterThan(40);
+  });
+
   it('changes the digest when the look changes', async () => {
     const slide = SLIDES[1]![1];
     const mono = await slideDigest(slide, 'mono', false);

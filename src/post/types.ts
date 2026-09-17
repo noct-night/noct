@@ -28,8 +28,10 @@ export type Tone = (typeof TONES)[number];
 export const toneSchema = z.enum(TONES).default('x1');
 
 /**
- * One treatment across every flyer is what makes an inconsistent set of promoter artwork read as one feed.
- * Global per post, never per slide. The filter chains live in src/post/treat.ts.
+ * One treatment across every flyer is what makes an inconsistent set of promoter artwork read as one feed, so
+ * the post carries a default. A slide can still choose its own (SlideImage.treatment): after review, a raw
+ * photo next to mono flyers was sometimes the right call, and only a person looking at it can make it.
+ * The filter chains live in src/post/treat.ts.
  */
 export const TREATMENTS = ['none', 'mono', 'crush', 'warm'] as const;
 export type Treatment = (typeof TREATMENTS)[number];
@@ -59,6 +61,9 @@ export const slideImageSchema = z.object({
   fit: fitSchema,
   /** The flyer a studio photo replaced, so removing the photo puts the flyer back rather than nothing. */
   flyer: z.string().url().optional(),
+  /** This slide's own look. Unset means the post's treatment and grain. */
+  treatment: z.enum(TREATMENTS).optional(),
+  grain: z.boolean().optional(),
 });
 export type SlideImage = z.infer<typeof slideImageSchema>;
 
@@ -68,6 +73,8 @@ export const coverDataSchema = z.object({
   foot: shortText.default(''),
   /** A background photograph, added in the studio. Without one the cover is type on the ground. */
   image: slideImageSchema.nullable().default(null),
+  /** Set once a person has rewritten the words, so redrafting keeps them. See carryPhotos. */
+  edited: z.boolean().optional(),
 });
 
 export const eventDataSchema = z.object({
@@ -79,6 +86,9 @@ export const eventDataSchema = z.object({
   genre: shortText.default(''),
   tex: toneSchema,
   image: slideImageSchema.nullable().default(null),
+  /** The feed event this slide is about, so the studio can show which nights a deck was built from. */
+  ref: shortText.optional(),
+  edited: z.boolean().optional(),
 });
 
 export const tableRowSchema = z.object({
@@ -118,6 +128,7 @@ export const venueDataSchema = z.object({
    * looking, and a venue post prints the address in public -- so the studio says so before approval.
    */
   verified: z.boolean().default(true),
+  edited: z.boolean().optional(),
 });
 
 export const venueCoverDataSchema = z.object({
@@ -221,6 +232,8 @@ export interface Post {
   /** YYYY-MM-DD, or null for the evergreen series. */
   slot: string | null;
   status: PostStatus;
+  /** Which post within the series and slot: a genre family, an event id, a venue. Null for the weekend deck. */
+  edition: string | null;
   caption: string;
   /** Empty for a reel. */
   slides: Slide[];

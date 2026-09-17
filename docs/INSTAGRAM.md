@@ -107,7 +107,9 @@ The post values are used for posts, as specified.
 ### Flyer treatments
 
 One treatment across every flyer is what makes an inconsistent set of promoter artwork read as one feed, so
-it is a property of the **post**, never of a slide.
+the **post** carries a default. After review, each photo slide can override it (`image.treatment`,
+`image.grain`) from the controls under the slide in the studio: sometimes a raw photo next to mono flyers
+is the right call, and only a person looking at the deck can make it.
 
 ```
 none    raw
