@@ -24,7 +24,7 @@ import { checkCaption } from '../src/post/caption.js';
 import { attachCredits, withCredits } from '../src/post/photos.js';
 import {
   igUserId, MediaNotReady, publishCarousel, publishReel, PublishError, remainingQuota, resumeCarousel,
-  resumeReel, verifyCredentials,
+  resumeReel, verifyCredentials, warmMedia,
 } from '../src/post/publish.js';
 import { currentToken, daysUntilExpiry, TokenError } from '../src/post/token.js';
 import { signedRenderPath } from '../src/post/sign.js';
@@ -46,14 +46,18 @@ const NO_STORE = { 'cache-control': 'no-store' };
  * NOCT_PUBLIC_ORIGIN is the deployment's own canonical origin; VERCEL_URL is the per-deployment hostname,
  * which works but points at a preview URL on a preview deploy.
  */
-function publicOrigin(req: VercelRequest, source = process.env): string {
+export function publicOrigin(req: VercelRequest, source = process.env): string {
   const configured = env('NOCT_PUBLIC_ORIGIN', undefined, source);
   if (configured) return configured.replace(/\/+$/, '');
+  // The host the studio is actually being used on, ahead of VERCEL_URL: it is the domain whose edge cache
+  // the previews have already warmed, and on a preview deploy VERCEL_URL is a hostname nobody else knows.
+  const host = firstParam(req.headers['x-forwarded-host']) ?? firstParam(req.headers.host);
+  if (host && !host.startsWith('localhost')) {
+    return `${firstParam(req.headers['x-forwarded-proto']) ?? 'https'}://${host}`;
+  }
   const vercel = env('VERCEL_URL', undefined, source);
   if (vercel) return `https://${vercel}`;
-  const host = firstParam(req.headers['x-forwarded-host']) ?? firstParam(req.headers.host);
-  const proto = firstParam(req.headers['x-forwarded-proto']) ?? 'https';
-  return `${proto}://${host ?? 'localhost:3000'}`;
+  return `http://${host ?? 'localhost:3000'}`;
 }
 
 /**
@@ -126,10 +130,13 @@ async function publishTheDeck(
     log.info('found a deck container to resume', { post: post.id, container: pending.containerId });
     return await resumeCarousel(pending.containerId, creds, log);
   }
+  const urls = post.slides.map(
+    (slide) => `${origin}${signedRenderPath({ slide, treatment: post.treatment, grain: post.grain, v: RENDER_VERSION })}`,
+  );
+  // Rendered and cached before Meta is told about them: see warmMedia.
+  await warmMedia(urls, log);
   return await publishCarousel(
-    post.slides.map(
-      (slide) => `${origin}${signedRenderPath({ slide, treatment: post.treatment, grain: post.grain, v: RENDER_VERSION })}`,
-    ),
+    urls,
     caption, creds, log,
     {
       onChildren: (ids) => recordContainers(runId, ids),
