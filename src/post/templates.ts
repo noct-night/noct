@@ -33,7 +33,7 @@ export interface Node {
  * serving the old design for up to 24 hours, in the studio and to Meta alike. The version rides in the URL
  * so a design change is a new URL.
  */
-export const RENDER_VERSION = 2;
+export const RENDER_VERSION = 3;
 
 const PAD = 54;
 /** The type column, inside the side margins. Every fixed width below is measured against it. */
@@ -317,14 +317,16 @@ function cta(d: { question: string; answer: string; link: string; note: string }
       ...lines(d.question).map((line) => slab(line, 80, -0.04, 1.08)),
       ...(d.answer ? [slab(d.answer, 56, -0.03, 1.12, G1, { marginTop: 28 })] : []),
     ]),
-    column({ position: 'absolute', left: PAD, right: PAD, bottom: PAD, gap: 10 }, [
+    // One line, lifted off the edge after review: the link and its instruction read as one thing, and the
+    // bottom 54px is where Instagram's own carousel dots and a thumb both sit.
+    el({ position: 'absolute', left: PAD, right: PAD, bottom: 150, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16 }, [
       ...(d.link
-        ? [el({ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16 }, [
+        ? [
             { type: 'img', props: { src: LINK_ICON, width: 50, height: 50, style: { width: 50, height: 50 } } },
             text(d.link, { fontSize: 56, fontWeight: 700, letterSpacing: track(56, -0.03) }),
-          ])]
+          ]
         : []),
-      ...(d.note ? [text(d.note, { fontSize: 36, color: G2, letterSpacing: track(36, 0.01) })] : []),
+      ...(d.note ? [text(d.note, { fontSize: 36, color: G2, letterSpacing: track(36, 0.01), marginLeft: 14, marginTop: 10 })] : []),
     ]),
   ];
 }
