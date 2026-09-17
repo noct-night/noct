@@ -177,7 +177,12 @@ two people until accounts can be linked.
 `collapseOffersByHost()` in shape.ts): when DICE's API and SILO's page both sell a night on dice.fm, only the
 higher-priority adapter's tiers are listed, every tier of it. `platforms` still names every adapter that read
 the night. `/api/health` carries `coverage[]` — per city, upcoming nights on two or more ticketing hosts — the
-cross-platform KPI counted by host, not by adapter.
+cross-platform KPI counted by host, not by adapter. Since 0036 a row is an offer **whoever carried it**, as
+long as its link is a known ticketing platform, and it is **named after the platform**: a 19hz row that links
+to axs.com with a price reads *AXS · $18*, a Tixr link *Tixr*, a Posh link *Posh* (`ticket_platform_name()`
+over `platform_host()`). Before that, 19hz was "not a ticketer", so its AXS / Tixr / Ticketmaster / Eventbrite
+links were dropped from the sheet whenever RA also listed the night, and read *19hz · See listing* otherwise.
+A link to Facebook, Instagram, Partiful or a short link is still a source, not an offer.
 
 `on_sale` is the positive claim `soldout` cannot make: true only when a ticketer's live offer says `available`
 (event_offer is ticketers only, 0019). `soldout = false` means nobody said sold out, which is also true of a

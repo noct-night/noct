@@ -134,7 +134,11 @@ Ticketmaster, Posh, Flite…). `/api/health` reports `coverage[]` per city: upco
 listed on two or more hosts. Baseline 2026-09-16 by host: Chicago 19%, Los Angeles 12%, New York 14% (by
 adapter it read 34 / 27 / 14, which double-counted 19hz's RA links). The event sheet's "N ways in" collapses
 ticket offers the same way (`collapseOffersByHost()`), so it counts places to buy, not places NOCT read. No
-card names a platform — commit 859a524 stands.
+card names a platform — commit 859a524 stands; the event sheet's ticket rows do, and since 0036 they name the
+platform the link **sells on** rather than the adapter that read it: a 19hz row to axs.com is *AXS*, to
+tixr.com *Tixr* (`ticket_platform_name()`), and such a row is an offer even though 19hz is not a ticketer. That
+put 59 AXS nights, 41 Tixr, 44 Eventbrite, 40 Ticketmaster and 34 Posh back on the sheet on 2026-09-17 — AXS
+itself sits behind a bot challenge (above) and is not read directly; its links arrive through 19hz.
 
 What the layer does *not* include yet, and why: Shotgun's only API is organizer-scoped (a token per promoter);
 Posh and Partiful forbid scraping and publish no API; Instagram's Graph API reads only accounts that authorise
