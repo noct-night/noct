@@ -2,7 +2,7 @@
  * One Serverless Function for the small read endpoints.
  *
  * Vercel Hobby allows twelve functions per deployment and the repository passed that with the post studio.
- * search, taste, night, ics, health and recommend are each a few milliseconds of work behind a stable URL, so
+ * search, taste, night, ics, health, recommend and traffic are each a few milliseconds of work behind a stable URL, so
  * they share this function: vercel.json rewrites /api/search -> /api/read/search and so on, the public URLs and
  * every handler's own headers, caching and status codes are unchanged, and the handlers themselves live in
  * api/_lib/routes/ (an underscored directory is not a function of its own).
@@ -15,9 +15,10 @@ import night from '../_lib/routes/night.js';
 import recommend from '../_lib/routes/recommend.js';
 import search from '../_lib/routes/search.js';
 import taste from '../_lib/routes/taste.js';
+import traffic from '../_lib/routes/traffic.js';
 
 type Route = (req: VercelRequest, res: VercelResponse) => Promise<void>;
-const ROUTES: Record<string, Route> = { search, taste, night, ics, health, recommend };
+const ROUTES: Record<string, Route> = { search, taste, night, ics, health, recommend, traffic };
 const NAMES = Object.keys(ROUTES).join('|');
 const FROM_PATH = new RegExp(`^/api/(?:read/)?(${NAMES})(?:/|\\?|$)`);
 

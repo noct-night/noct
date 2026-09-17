@@ -75,7 +75,7 @@ describe.skipIf(!process.env.DATABASE_URL)('traffic report against Postgres', ()
     expect(t.funnel.opened_a_night).toBeGreaterThanOrEqual(2);
     expect(t.funnel.saved_or_going).toBeGreaterThanOrEqual(1);
     expect(t.funnel.saved_or_going).toBeLessThanOrEqual(t.funnel.opened_a_night);
-    expect(t.daily).toHaveLength(14);
+    expect(t.daily).toHaveLength(30);                          // the series covers the window
     expect(t.daily.at(-1)!.visits).toBeGreaterThanOrEqual(2);   // A's second visit and B's, today in New York
     expect(t.returning_share).toBeGreaterThan(0);               // A came on two different days
     expect(formatTraffic(t)).toContain('instagram');

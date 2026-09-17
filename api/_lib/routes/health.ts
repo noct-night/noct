@@ -1,12 +1,11 @@
 /**
  * GET /api/health — public. Last ingest_run per source, live listing counts, events for the next seven nights,
- * pending review queue, cross-platform coverage, the traffic report (0030: visits, sources, funnel -- aggregates
- * only), and whether the database answered. Edge-cached for a minute so a dashboard can poll it.
+ * pending review queue, cross-platform coverage, and whether the database answered. Edge-cached for a minute so
+ * a dashboard can poll it. The traffic report (0030) lives behind the studio session at /api/traffic.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { query } from '../../../src/lib/db.js';
 import { createLogger } from '../../../src/lib/log.js';
-import { trafficReport } from '../../../src/ops/traffic.js';
 import { sendJson } from '../respond.js';
 
 interface SourceRow {
@@ -95,14 +94,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
   const log = createLogger('api:health');
   try {
-    const [sources, listings, events, review, coverage, traffic] = await Promise.all([
+    const [sources, listings, events, review, coverage] = await Promise.all([
       query<SourceRow>(SOURCES_SQL),
       query<ListingRow>(LISTINGS_SQL),
       query<CountRow>(EVENTS_SQL),
       query<CountRow>(REVIEW_SQL),
       query<CoverageRow>(COVERAGE_SQL),
-      // the report is the newest table here; a database without it must not take the health check down
-      trafficReport().catch((err: unknown) => { log.warn('traffic report unavailable', { error: err instanceof Error ? err.message : String(err) }); return null; }),
     ]);
     const rows = sources.rows;
     sendJson(
@@ -146,8 +143,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           share: Number(r.nights) ? Math.round((Number(r.multi) / Number(r.nights)) * 1000) / 10 : 0,
           platforms: r.platforms ?? [],
         })),
-        // who came, from where, and what they did: NOCT's own visit/action rows (0030), aggregates only
-        traffic,
         attention: {
           blocked: rows.filter((r) => r.error?.startsWith('BLOCKED:')).map((r) => r.source_key),
           failed: rows.filter((r) => r.status === 'failed').map((r) => r.source_key),

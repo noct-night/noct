@@ -21,6 +21,7 @@
     { k: 'passed', t: 'Passed' },
     { k: 'all', t: 'Everything' },
     { k: 'calendar', t: 'Calendar' },
+    { k: 'traffic', t: 'Traffic' },
   ];
   var LABEL = { queued: 'In queue', approved: 'Approved', passed: 'Passed', posted: 'Published' };
   var TPL_LABEL = {
@@ -70,6 +71,13 @@
   var busy = {};
   /** The month the calendar shows, YYYY-MM. Set to this month the first time it opens. */
   var calMonth = null;
+  /**
+   * The traffic report (/api/traffic, src/ops/traffic.ts): NOCT's own visit and action rows, aggregated. Held
+   * with the window it was fetched for and when, so switching tabs does not refetch and Refresh does.
+   */
+  var traffic = { days: 30, data: null, at: 0, loading: false, error: null };
+  var TRAFFIC_WINDOWS = [7, 30, 90];
+  var TRAFFIC_FRESH_MS = 60 * 1000;
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -241,9 +249,10 @@
     var chips = FILTERS.map(function (f) {
       var n = f.k === 'all' ? posts.length
         : f.k === 'calendar' ? posts.filter(function (p) { return p.status === 'posted'; }).length
+        : f.k === 'traffic' ? (traffic.data ? traffic.data.visits.recent : null)   /* the week's visits, once read */
         : posts.filter(function (p) { return p.status === f.k; }).length;
       return '<button type="button" class="chip" data-f="' + f.k + '" aria-current="' + (filter === f.k) + '">'
-        + f.t + '<span class="n">' + n + '</span></button>';
+        + f.t + (n == null ? '' : '<span class="n">' + n + '</span>') + '</button>';
     }).join('');
     byId('filters').innerHTML = chips
       + '<button type="button" class="chip" data-cta>Last slide</button>'
@@ -346,6 +355,7 @@
   function renderStream() {
     var host = byId('stream');
     if (filter === 'calendar') { renderCalendar(host); return; }
+    if (filter === 'traffic') { renderTraffic(host); return; }
     var list = visible();
 
     if (!list.length) {
@@ -1080,6 +1090,124 @@
       + '</section>';
   }
 
+  // ── traffic: who came, from where, and what they did ──────────────────────
+
+  function loadTraffic(days, force) {
+    if (traffic.loading) return;
+    var fresh = traffic.data && traffic.days === days && Date.now() - traffic.at < TRAFFIC_FRESH_MS;
+    if (fresh && !force) return;
+    traffic.loading = true; traffic.error = null; traffic.days = days;
+    render();
+    fetch('/api/traffic?days=' + days, { credentials: 'same-origin', headers: { accept: 'application/json' } })
+      .then(function (r) { if (!r.ok) throw new Error(r.status === 401 ? 'Signed out — reload and sign in again.' : 'HTTP ' + r.status); return r.json(); })
+      .then(function (j) { traffic.data = j; traffic.at = Date.now(); })
+      .catch(function (err) { traffic.error = err.message || String(err); })
+      .then(function () { traffic.loading = false; render(); });
+  }
+
+  function pct(a, b) { return b ? Math.round((a / b) * 100) + '%' : '–'; }
+  function nyWeekday(day) {
+    return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'short' }).format(new Date(day + 'T12:00:00Z'));
+  }
+  /** a list of counts as rows with a proportional bar: the bar is the mark, the text stays in text tokens */
+  function trafficList(title, rows, total, empty) {
+    var max = rows.reduce(function (m, r) { return Math.max(m, r.visits); }, 0);
+    return '<div class="tr-list"><h3>' + esc(title) + '</h3>'
+      + (rows.length ? rows.map(function (r) {
+          return '<div class="tr-row">'
+            + '<span class="tr-key">' + esc(r.key) + '</span>'
+            + '<span class="tr-bar"><i style="width:' + (max ? Math.round((r.visits / max) * 100) : 0) + '%"></i></span>'
+            + '<span class="tr-n">' + r.visits + (total ? '<small>' + pct(r.visits, total) + '</small>' : '') + '</span>'
+            + '</div>';
+        }).join('') : '<p class="tr-none">' + esc(empty || 'Nothing yet') + '</p>')
+      + '</div>';
+  }
+
+  function renderTraffic(host) {
+    var t = traffic.data;
+    if (!t && !traffic.loading && !traffic.error) { loadTraffic(traffic.days, false); return; }
+    var head = '<div class="tr-head">'
+      + '<h2>Traffic</h2>'
+      + '<div class="tr-range" role="group" aria-label="Window">'
+      +   TRAFFIC_WINDOWS.map(function (d) {
+            return '<button type="button" class="chip" data-tr-days="' + d + '" aria-current="' + (traffic.days === d) + '">' + d + ' days</button>';
+          }).join('')
+      + '</div>'
+      + '<span class="tr-asof">' + (traffic.loading ? 'Reading…' : t ? 'as of ' + esc(nyClock(new Date(traffic.at))) + ' · New York days · devices are anonymous accounts, one per browser' : '') + '</span>'
+      + '<button type="button" class="chip" data-tr-refresh aria-label="Refresh">Refresh</button>'
+      + '</div>';
+    if (!t) {
+      host.innerHTML = '<section class="tr">' + head
+        + (traffic.error ? '<p class="err">' + esc(traffic.error) + '</p>' : '<p class="empty">Reading the report…</p>')
+        + '</section>';
+      return;
+    }
+    var f = t.funnel;
+    var tiles = '<div class="tr-tiles">'
+      + '<div class="tr-tile"><span class="tr-label">Visits · ' + t.window_days + ' days</span><b>' + t.visits.window + '</b><span class="tr-sub">' + t.visits.recent + ' in the last 7</span></div>'
+      + '<div class="tr-tile"><span class="tr-label">Devices</span><b>' + t.devices.window + '</b><span class="tr-sub">' + t.devices.new_window + ' new · ' + t.devices.recent + ' in the last 7</span></div>'
+      + '<div class="tr-tile"><span class="tr-label">Came back</span><b>' + t.returning_share + '%</b><span class="tr-sub">seen on two or more days</span></div>'
+      + '<div class="tr-tile"><span class="tr-label">Opened a night</span><b>' + pct(f.opened_a_night, f.visited) + '</b><span class="tr-sub">' + f.opened_a_night + ' of ' + f.visited + ' devices</span></div>'
+      + '<div class="tr-tile"><span class="tr-label">Home screen</span><b>' + t.standalone + '</b><span class="tr-sub">visits from the icon</span></div>'
+      + '</div>';
+
+    // the daily series: one bar a day, visits; the peak and the last day carry their value, the rest is hover
+    var days = t.daily;
+    var max = days.reduce(function (m, d) { return Math.max(m, d.visits); }, 0);
+    var peak = -1; days.forEach(function (d, i) { if (d.visits > 0 && (peak < 0 || d.visits > days[peak].visits)) peak = i; });
+    var every = days.length > 45 ? 14 : days.length > 20 ? 7 : days.length > 8 ? 2 : 1;
+    var chart = '<figure class="tr-chart" aria-label="Visits per day">'
+      + '<figcaption>Visits per day</figcaption>'
+      + '<div class="tr-plot" style="--n:' + days.length + '">'
+      +   days.map(function (d, i) {
+            var h = max ? Math.max(d.visits ? 3 : 0, Math.round((d.visits / max) * 100)) : 0;
+            var label = (i === peak || (i === days.length - 1 && d.visits)) ? '<span class="tr-v">' + d.visits + '</span>' : '';
+            return '<button type="button" class="tr-col" data-day="' + d.day + '" data-visits="' + d.visits + '" data-devices="' + d.devices + '" aria-label="' + esc(nyWeekday(d.day) + ' ' + d.day + ': ' + d.visits + ' visits, ' + d.devices + ' devices') + '">'
+              + label + '<i style="height:' + h + '%"></i>'
+              + '<span class="tr-day">' + ((days.length - 1 - i) % every === 0 ? esc(d.day.slice(5).replace('-', '/')) : '') + '</span>'
+              + '</button>';
+          }).join('')
+      + '<div class="tr-tip" role="status" hidden></div>'
+      + '</div>'
+      + '</figure>';
+
+    var funnelSteps = [['Visited', f.visited], ['Opened a night', f.opened_a_night], ['Saved or going', f.saved_or_going], ['Set a taste', f.set_taste], ['Made or joined a plan', f.planned]];
+    var funnel = '<div class="tr-list tr-funnel"><h3>Funnel · distinct devices</h3>'
+      + funnelSteps.map(function (s) {
+          return '<div class="tr-row"><span class="tr-key">' + s[0] + '</span>'
+            + '<span class="tr-bar"><i style="width:' + (f.visited ? Math.round((s[1] / f.visited) * 100) : 0) + '%"></i></span>'
+            + '<span class="tr-n">' + s[1] + '<small>' + pct(s[1], f.visited) + '</small></span></div>';
+        }).join('')
+      + '</div>';
+
+    var lists = '<div class="tr-grid">'
+      + trafficList('Where from', t.sources, t.visits.window)
+      + trafficList('How they arrived', t.entry.map(function (r) { return { key: r.key === 'event' ? 'a shared night' : r.key === 'group' ? 'a plan link' : 'the front door', visits: r.visits }; }), t.visits.window)
+      + trafficList('City', t.city, t.visits.window)
+      + trafficList('Device', t.device, t.visits.window)
+      + trafficList('Language', t.lang, t.visits.window)
+      + trafficList('What they did', t.actions.map(function (r) { return { key: r.key.replace(/_/g, ' '), visits: r.visits }; }), 0, 'No taps counted yet')
+      + funnel
+      + (t.campaigns.length ? trafficList('Campaigns (utm)', t.campaigns.map(function (c) { return { key: [c.source, c.medium, c.campaign].filter(Boolean).join(' / '), visits: c.visits }; }), t.visits.window) : '')
+      + '</div>';
+
+    host.innerHTML = '<section class="tr' + (traffic.loading ? ' is-loading' : '') + '">' + head
+      + (traffic.error ? '<p class="err">' + esc(traffic.error) + '</p>' : '')
+      + tiles + chart + lists + '</section>';
+  }
+
+  function trafficTip(col) {
+    var tip = document.querySelector('.tr-tip');
+    if (!tip) return;
+    if (!col) { tip.hidden = true; return; }
+    var day = col.getAttribute('data-day');
+    tip.textContent = nyWeekday(day) + ' ' + day.slice(5).replace('-', '/') + ' · ' + col.getAttribute('data-visits') + ' visits · ' + col.getAttribute('data-devices') + ' devices';
+    tip.hidden = false;
+    var plot = col.parentNode.getBoundingClientRect(), me = col.getBoundingClientRect();
+    var x = me.left - plot.left + me.width / 2, half = tip.offsetWidth / 2;
+    tip.style.left = Math.max(half, Math.min(plot.width - half, x)) + 'px';   /* never past the plot's edge */
+  }
+
   /**
    * Wire the studio half of the page. Only called when that half was actually served: signed out, none of
    * these elements exist, and reaching for them would throw before the sign-in form could be used.
@@ -1142,6 +1270,9 @@
       }
       var cal = e.target.closest('button[data-cal]');
       if (cal) { calMonth = shiftMonth(calMonth, +cal.getAttribute('data-cal')); render(); return; }
+      var win = e.target.closest('button[data-tr-days]');
+      if (win) { loadTraffic(+win.getAttribute('data-tr-days'), false); return; }
+      if (e.target.closest('button[data-tr-refresh]')) { loadTraffic(traffic.days, true); return; }
       var edit = e.target.closest('button[data-edit]');
       if (edit) { openTextForm(edit.closest('.row').getAttribute('data-id'), +edit.getAttribute('data-edit')); return; }
       var textAct = e.target.closest('button[data-text-act]');
@@ -1175,6 +1306,12 @@
         patch(post.id, { slides: slides }, { repaint: true });
       }
     });
+
+    // the daily bars: the mark is the hit target, on hover and on focus alike
+    stream.addEventListener('pointerover', function (e) { var col = e.target.closest('.tr-col'); if (col) trafficTip(col); });
+    stream.addEventListener('pointerout', function (e) { if (e.target.closest('.tr-col') && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.tr-col'))) trafficTip(null); });
+    stream.addEventListener('focusin', function (e) { var col = e.target.closest('.tr-col'); if (col) trafficTip(col); });
+    stream.addEventListener('focusout', function (e) { if (e.target.closest('.tr-col')) trafficTip(null); });
 
     stream.addEventListener('change', function (e) {
       var look = e.target.closest('select[data-look]');

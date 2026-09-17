@@ -108,7 +108,7 @@
       "destination": "/api/studio"
     },
     {
-      "source": "/api/:fn(search|taste|night|ics|health|recommend)",
+      "source": "/api/:fn(search|taste|night|ics|health|recommend|traffic)",
       "destination": "/api/read/:fn"
     }
   ]

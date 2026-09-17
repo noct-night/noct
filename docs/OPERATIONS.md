@@ -175,8 +175,8 @@ where a.kind = 'source_label' and a.alias_norm is distinct from v.name_norm and 
 -- select reresolve_listing_venue(listing_id) from listing where norm_text(venue_name_raw) = norm_text('<label>') and gone_at is null;
 ```
 
-Traffic (0030, first-party — see FRONTEND.md "Measurement"). The same report `/api/health` carries under
-`traffic`, as a terminal page:
+Traffic (0030, first-party — see FRONTEND.md "Measurement"). The studio's *Traffic* tab shows it (7 / 30 / 90
+days, `GET /api/traffic` behind the studio session); the same report as a terminal page:
 
 ```bash
 npm run noct -- traffic            # last 30 days, 7-day slice in brackets, 14-day series, sources, funnel

@@ -290,13 +290,15 @@ third-party. Two insert-only tables (0030):
 
 Both are written with the anonymous session through `sbRest()` (`Prefer: return=minimal`) and are readable by
 nobody from the browser: `authenticated` holds `INSERT` and no policy grants `SELECT`. The owner reads
-aggregates only — `/api/health` carries a `traffic` block and `npm run noct -- traffic` prints the same report
-(`src/ops/traffic.ts`): visits and distinct devices for 30 days with a 7-day slice, new devices, the share
-seen on two or more days, a 14-day series in New York days, sources (utm_source as written, otherwise the
-referrer folded — `instagram`, `direct`, `google`, an unknown host as itself), entry, city, device, language,
-campaigns, action counts, and the funnel visited → opened a night → saved or going → set a taste → made or
-joined a plan, in distinct devices. "Devices" is the honest word for distinct anonymous accounts: one per
-browser, not one per person.
+aggregates only, in the **studio's Traffic tab** (`/studio` → *Traffic*; it reads `GET /api/traffic?days=7|30|90`,
+which needs the studio session — `/api/health` no longer carries the block) and with `npm run noct -- traffic`
+(`src/ops/traffic.ts`): visits and distinct devices for the window with a 7-day slice, new devices, the share
+seen on two or more days, a per-day series over the window in New York days (one bar a day; the peak and the
+last day labelled, every day on hover), sources (utm_source as written — `ig` folded to `instagram` — otherwise
+the referrer folded: `instagram`, `direct`, `google`, an unknown host as itself), how they arrived (front door,
+a shared night, a plan link), city, device, language, campaigns, action counts, and the funnel visited → opened
+a night → saved or going → set a taste → made or joined a plan, in distinct devices. "Devices" is the honest
+word for distinct anonymous accounts: one per browser, not one per person; the tab says so.
 
 ## Security model of the read models
 

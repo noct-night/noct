@@ -2,7 +2,8 @@
  * The traffic report: who came, from where, and whether they came back -- read from NOCT's own tables (0030),
  * not from a third party. Everything here is an aggregate over anonymous accounts.
  *
- * Numbers are for a window (30 days by default) with a seven-day slice beside them, days are New York days so
+ * Numbers are for a window (30 days by default) with a seven-day slice beside them, the daily series covers the
+ * window (90 days at most), days are New York days so
  * a Saturday night counts as Saturday, and the funnel is distinct devices: visited -> opened a night -> saved
  * or going -> set a taste -> made or joined a plan. `devices` is distinct anonymous accounts, which is one per
  * browser rather than one per person; the word is chosen so nobody reads it as people.
@@ -11,7 +12,8 @@ import { query } from '../lib/db.js';
 
 export const WINDOW_DAYS = 30;
 export const RECENT_DAYS = 7;
-export const DAILY_DAYS = 14;
+/** the daily series covers the window, up to this many days */
+export const DAILY_MAX = 90;
 const DAY_TZ = 'America/New_York';
 
 export interface TrafficCount { key: string; visits: number; devices: number }
@@ -54,6 +56,9 @@ export function foldRef(host: string | null | undefined): string {
   if (/(^|\.)vercel\.app$/.test(h)) return 'preview';
   return h;
 }
+
+/** utm_source spellings that mean the same referrer the fold already names */
+const UTM_SYNONYM: Record<string, string> = { ig: 'instagram', insta: 'instagram', fb: 'facebook', tt: 'tiktok', tw: 'x', twitter: 'x' };
 
 const W = 'make_interval(days => $1::int)';
 const R = 'make_interval(days => $2::int)';
@@ -137,9 +142,10 @@ export function fillDays(rows: { day: string; visits: number; devices: number }[
 export async function trafficReport(windowDays = WINDOW_DAYS): Promise<TrafficReport> {
   const pw = [windowDays];                       // window only
   const pr = [windowDays, RECENT_DAYS];          // window and the recent slice
+  const dailyDays = Math.min(Math.max(windowDays, 1), DAILY_MAX);
   const [totals, fresh, ret, daily, source, entry, city, device, lang, standalone, campaigns, actions, funnel, today] = await Promise.all([
     query<Row>(TOTALS_SQL, pr), query<Row>(NEW_SQL, pr), query<Row>(RETURNING_SQL, pw),
-    query<Row>(DAILY_SQL, [DAILY_DAYS]),
+    query<Row>(DAILY_SQL, [dailyDays]),
     query<Row>(SOURCE_SQL, pw), query<Row>(ENTRY_SQL, pw), query<Row>(CITY_SQL, pw), query<Row>(DEVICE_SQL, pw), query<Row>(LANG_SQL, pw),
     query<Row>(STANDALONE_SQL, pw), query<Row>(CAMPAIGN_SQL, pw), query<Row>(ACTIONS_SQL, pw), query<Row>(FUNNEL_SQL, pw),
     query<Row>(`select to_char((now() at time zone '${DAY_TZ}')::date, 'YYYY-MM-DD') as day`),
@@ -154,9 +160,10 @@ export async function trafficReport(windowDays = WINDOW_DAYS): Promise<TrafficRe
     visits: { recent: n(t.visits_recent), window: n(t.visits_window) },
     devices: { recent: n(t.devices_recent), window: n(t.devices_window), new_recent: n(f.new_recent), new_window: n(f.new_window) },
     returning_share: n(r.devices) ? Math.round((n(r.returning) / n(r.devices)) * 1000) / 10 : 0,
-    daily: fillDays(daily.rows as never, DAILY_DAYS, String(today.rows[0]?.day)),
-    // a utm_source is a name and stands as written; a host (has a dot) or nothing at all is folded
-    sources: counts(source.rows, (k) => (k && !k.includes('.') ? k : foldRef(k || null))),
+    daily: fillDays(daily.rows as never, dailyDays, String(today.rows[0]?.day)),
+    // a utm_source is a name and stands as written, except the shorthands everyone uses for the same place
+    // ("ig" is Instagram); a host (has a dot) or nothing at all is folded
+    sources: counts(source.rows, (k) => (k && !k.includes('.') ? (UTM_SYNONYM[k] ?? k) : foldRef(k || null))),
     campaigns: campaigns.rows.map((c) => ({ source: String(c.source), medium: c.medium == null ? null : String(c.medium), campaign: c.campaign == null ? null : String(c.campaign), visits: n(c.visits) })),
     entry: counts(entry.rows),
     city: counts(city.rows),
@@ -173,12 +180,13 @@ export function formatTraffic(t: TrafficReport): string {
   const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : '-');
   const list = (rows: TrafficCount[], k = 6) => rows.slice(0, k).map((r) => `${r.key} ${r.visits}`).join(' · ') || '-';
   const bar = (v: number, max: number) => '#'.repeat(max ? Math.round((v / max) * 24) : 0);
-  const max = Math.max(1, ...t.daily.map((d) => d.visits));
+  const days = t.daily.slice(-14);
+  const max = Math.max(1, ...days.map((d) => d.visits));
   return [
     `traffic · last ${t.window_days} days (7-day slice in brackets)`,
     `visits ${t.visits.window} [${t.visits.recent}] · devices ${t.devices.window} [${t.devices.recent}] · new devices ${t.devices.new_window} [${t.devices.new_recent}] · returning ${t.returning_share}% · home screen ${t.standalone}`,
     '',
-    ...t.daily.map((d) => `${d.day.slice(5)}  ${String(d.visits).padStart(4)} ${bar(d.visits, max)}`),
+    ...days.map((d) => `${d.day.slice(5)}  ${String(d.visits).padStart(4)} ${bar(d.visits, max)}`),
     '',
     `sources   ${list(t.sources)}`,
     `entry     ${list(t.entry)}`,
