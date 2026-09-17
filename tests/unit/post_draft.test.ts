@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { draftWeekend, headlineOf, pickHeroes, spanLabel, supportingCast } from '../../src/post/draft.js';
+import { CTA_SLIDE, draftWeekend, headlineOf, pickHeroes, spanLabel, supportingCast } from '../../src/post/draft.js';
 import { daysToFriday, weekendRange } from '../../src/post/weekend.js';
 import { slideSchema, CAROUSEL_MAX, TABLE_ROWS_MAX } from '../../src/post/types.js';
 import { SITE } from '../../src/post/caption.js';
@@ -170,6 +170,22 @@ describe('draftWeekend', () => {
     expect(cover).toMatchObject({ template: 'cover', data: { foot: SITE } });
     expect(deck.caption).toContain(SITE);
     expect(JSON.stringify(deck)).not.toContain('noct.nyc');
+  });
+
+  it('breaks the cover lede so "in New York" stays on one line', () => {
+    // Left to the wrapper it read "...dance in / New York".
+    expect(deck.slides[0]).toMatchObject({ template: 'cover', data: { lede: 'Where to rave and dance\nin New York' } });
+  });
+
+  it('always closes with the call to action, pointing at the live site', () => {
+    const last = deck.slides[deck.slides.length - 1]!;
+    expect(last).toEqual(CTA_SLIDE);
+    expect(last).toMatchObject({
+      template: 'cta',
+      data: { question: 'sick of checking 10 places for one night out?', answer: 'NYC nightlife, all in one place', link: SITE, note: 'link in bio' },
+    });
+    // Exactly once, and never trimmed off by a long weekend: it is added after the carousel cap is applied.
+    expect(deck.slides.filter((s) => s.template === 'cta')).toHaveLength(1);
   });
 
   it('returns null rather than an empty deck when the feed has nothing', () => {

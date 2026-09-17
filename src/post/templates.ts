@@ -22,15 +22,25 @@ import { FONT_FAMILY } from './font.js';
 /** A satori element. Plain objects, so nothing in the render path needs React. */
 export interface Node {
   type: string;
-  props: { style?: Record<string, unknown>; children?: Node | Node[] | string };
+  props: { style?: Record<string, unknown>; children?: Node | Node[] | string; [attr: string]: unknown };
 }
+
+/**
+ * Bump whenever a template changes how anything looks.
+ *
+ * Rendered slides are cached at the edge for a day, keyed by their signed URL, and the URL is built from the
+ * slide's data. Change a layout without changing the data and the URL stays the same -- so the CDN keeps
+ * serving the old design for up to 24 hours, in the studio and to Meta alike. The version rides in the URL
+ * so a design change is a new URL.
+ */
+export const RENDER_VERSION = 2;
 
 const PAD = 54;
 /** The type column, inside the side margins. Every fixed width below is measured against it. */
 const CONTENT_W = CANVAS.w - PAD * 2;
 /** The table's day+time gutter, and the gap to the event beside it. */
-const TABLE_GUTTER = 184;
-const TABLE_GAP = 28;
+const TABLE_GUTTER = 150;
+const TABLE_GAP = 24;
 /** The listing's time column. */
 const LISTING_TIME_W = 158;
 const LISTING_GAP = 28;
@@ -59,7 +69,10 @@ const text = (
       display: 'flex',
       color: WHITE,
       ...style,
-      ...(clamp ? { lineClamp: clamp } : {}),
+      // satori honours lineClamp only on a block box. On the flex box every other text node uses, it is
+      // accepted and silently ignored -- which is how every clamp in these templates did nothing until a
+      // five-line billing ran up an event slide. tests/live/render.live.test.ts now measures it.
+      ...(clamp ? { display: 'block', lineClamp: clamp } : {}),
     },
     value,
   );
@@ -106,30 +119,57 @@ function cover(d: { lede: string; date: string; foot: string }): Node[] {
   return [
     wordmark(),
     centred([
-      slab(d.lede, 84, -0.042, 1.07),
+      ...lines(d.lede).map((line) => slab(line, 84, -0.042, 1.07)),
       ...(d.date ? [slab(d.date, 84, -0.042, 1.07, G1, { marginTop: 14 })] : []),
     ]),
-    spread(
-      {
-        position: 'absolute', bottom: PAD, left: PAD, right: PAD, alignItems: 'baseline',
-        fontSize: 38, color: G2, letterSpacing: track(38, 0.02),
-      },
-      [text(d.foot, { fontSize: 38, color: G2 }), text('Swipe', { fontSize: 38, color: G2 })],
-    ),
+    swipeFoot(d.foot),
   ];
 }
+
+/**
+ * A lede broken where its author broke it. Left to the wrapper, "Where to rave and dance in New York" split
+ * as "...dance in / New York", which reads as two thoughts; a newline in the data keeps "in New York" whole.
+ */
+const lines = (value: string): string[] => value.split('\n').map((l) => l.trim()).filter(Boolean);
+
+/** The covers' foot: the site on the left, and a prompt to swipe that points the way it wants you to go. */
+const swipeFoot = (left: string): Node =>
+  spread(
+    {
+      position: 'absolute', bottom: PAD, left: PAD, right: PAD, alignItems: 'baseline',
+      fontSize: 38, color: G2, letterSpacing: track(38, 0.02),
+    },
+    [
+      text(left, { fontSize: 38, color: G2 }),
+      el({ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 12 }, [
+        text('Swipe', { fontSize: 38, color: G2 }),
+        { type: 'img', props: { src: SWIPE_ARROW, width: 40, height: 28, style: { width: 40, height: 28 } } },
+      ]),
+    ],
+  );
+
+/**
+ * The arrow after "Swipe", drawn: the post typeface has no U+2192, and a missing glyph renders as an empty box
+ * rather than failing. Same grey as the word, stroked at the type's weight.
+ */
+const SWIPE_ARROW = `data:image/svg+xml;base64,${Buffer.from(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 28" fill="none" stroke="#FFFFFF" stroke-opacity="0.44" ' +
+  'stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14h33"/><path d="M24 3l12 11-12 11"/></svg>',
+).toString('base64')}`;
 
 /** Full-bleed photo with the type at the foot. The composition that marks a weekend slide. */
 function event(d: { position: string; name: string; venue: string; time: string; genre: string }): Node[] {
   const meta = [d.venue, d.time].filter(Boolean).join('  /  ');
   return [
     wordmark(),
-    column({ position: 'absolute', left: PAD, right: PAD, bottom: 152, gap: 20 }, [
-      ...(d.position ? [text(d.position, { fontSize: 46, fontWeight: 500, letterSpacing: track(46, 0.01) })] : []),
-      slab(d.name, 92, -0.042, 1.01, WHITE, {}),
-      ...(meta ? [text(meta, { fontSize: 48, color: G1, letterSpacing: track(48, -0.01) })] : []),
+    // Sized down from 46/92/48 after review: at the old size a long billing ran five lines up the flyer and
+    // sat on its artwork. Three lines is the cap -- the veil darkens exactly the band this block occupies.
+    column({ position: 'absolute', left: PAD, right: PAD, bottom: 132, gap: 14 }, [
+      ...(d.position ? [text(d.position, { fontSize: 36, fontWeight: 500, letterSpacing: track(36, 0.01) })] : []),
+      text(d.name, { fontSize: 70, fontWeight: 700, letterSpacing: track(70, -0.04), lineHeight: 1.04, width: CONTENT_W }, 3),
+      ...(meta ? [text(meta, { fontSize: 38, color: G1, letterSpacing: track(38, -0.01) })] : []),
     ]),
-    foot(d.genre),
+    foot(d.genre, '', 32),
   ];
 }
 
@@ -141,22 +181,27 @@ function event(d: { position: string; name: string; venue: string; time: string;
 function table(d: { kicker: string; when: string; rows: { day: string; time: string; event: string; venue: string }[] }): Node[] {
   return [
     wordmark(),
-    column({ position: 'absolute', top: 190, left: PAD, right: PAD }, [
-      ...(d.kicker ? [text(d.kicker, { fontSize: 40, color: G1, letterSpacing: track(40, 0.01), marginBottom: 14 })] : []),
-      slab(d.when, 92, -0.045, 0.94),
+    column({ position: 'absolute', top: 186, left: PAD, right: PAD }, [
+      ...(d.kicker ? [text(d.kicker, { fontSize: 34, color: G1, letterSpacing: track(34, 0.01), marginBottom: 10 })] : []),
+      slab(d.when, 76, -0.045, 0.94),
     ]),
-    column({ position: 'absolute', top: 404, left: PAD, right: PAD, bottom: PAD, gap: 30 }, [
+    // Sized down from 46/38/32 after review: seven two-line rows ran into the bottom edge. At these sizes the
+    // worst case (every name wrapping, every venue present) ends clear of PAD; tests/live renders it.
+    column({ position: 'absolute', top: 350, left: PAD, right: PAD, gap: 20 }, [
       ...d.rows.slice(0, TABLE_ROWS_MAX).map((r) =>
         el({ display: 'flex', flexDirection: 'row', gap: TABLE_GAP, alignItems: 'flex-start' }, [
-          column({ width: TABLE_GUTTER, flexShrink: 0, gap: 5, paddingTop: 6 }, [
-            text(r.day.toUpperCase(), { fontSize: 27, letterSpacing: track(27, 0.15), color: G2 }),
-            text(r.time || 'TBC', { fontSize: 38, color: WHITE, letterSpacing: track(38, -0.01) }),
+          column({ width: TABLE_GUTTER, flexShrink: 0, gap: 3, paddingTop: 5 }, [
+            text(r.day.toUpperCase(), { fontSize: 23, letterSpacing: track(23, 0.15), color: G2 }),
+            text(r.time || 'TBC', { fontSize: 32, color: WHITE, letterSpacing: track(32, -0.01) }),
           ]),
           // An explicit width, not flex-grow: satori will happily let a long name run off the canvas
           // rather than wrap it, and a clipped headliner is the one thing this slide must never do.
-          column({ width: CONTENT_W - TABLE_GUTTER - TABLE_GAP, flexShrink: 0, gap: 6 }, [
-            text(r.event, { fontSize: 46, fontWeight: 600, letterSpacing: track(46, -0.025), lineHeight: 1.08 }, 2),
-            ...(r.venue ? [text(r.venue, { fontSize: 32, color: G1 })] : []),
+          column({ width: CONTENT_W - TABLE_GUTTER - TABLE_GAP, flexShrink: 0, gap: 4 }, [
+            text(r.event, {
+              fontSize: 37, fontWeight: 600, letterSpacing: track(37, -0.02), lineHeight: 1.08,
+              width: CONTENT_W - TABLE_GUTTER - TABLE_GAP,
+            }, 2),
+            ...(r.venue ? [text(r.venue, { fontSize: 26, color: G1 })] : []),
           ]),
         ]),
       ),
@@ -234,13 +279,7 @@ function venueCover(d: { lede: string; sub: string; foot: string }): Node[] {
       slab(d.lede, 96, -0.046, 1.04),
       ...(d.sub ? [slab(d.sub, 96, -0.046, 1.04, G1, { marginTop: 14 })] : []),
     ]),
-    spread(
-      {
-        position: 'absolute', bottom: PAD, left: PAD, right: PAD, alignItems: 'baseline',
-        fontSize: 38, color: G2, letterSpacing: track(38, 0.02),
-      },
-      [text(d.foot, { fontSize: 38, color: G2 }), text('Swipe', { fontSize: 38, color: G2 })],
-    ),
+    swipeFoot(d.foot),
   ];
 }
 
@@ -253,6 +292,40 @@ function note(d: { text: string; after: string; foot: string }): Node[] {
       ...(d.after ? [text(d.after, { fontSize: 42, color: G1, marginTop: 40, maxWidth: 800, lineHeight: 1.42 })] : []),
     ]),
     foot(d.foot),
+  ];
+}
+
+/**
+ * The link glyph, drawn rather than typed. The copy asked for 🔗, but the post type has no emoji and a colour
+ * emoji would be the only accent on a system that has none -- so it is the same symbol in the type's own
+ * white, at the type's own weight.
+ */
+const LINK_ICON = `data:image/svg+xml;base64,${Buffer.from(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.4" ' +
+  'stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>' +
+  '<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
+).toString('base64')}`;
+
+/**
+ * The last slide: why NOCT exists, then where to find it. The question is the hook and gets the size; the
+ * answer sits under it in grey; the link and its instruction sit at the foot where a thumb is.
+ */
+function cta(d: { question: string; answer: string; link: string; note: string }): Node[] {
+  return [
+    wordmark(),
+    centred([
+      ...lines(d.question).map((line) => slab(line, 80, -0.04, 1.08)),
+      ...(d.answer ? [slab(d.answer, 56, -0.03, 1.12, G1, { marginTop: 28 })] : []),
+    ]),
+    column({ position: 'absolute', left: PAD, right: PAD, bottom: PAD, gap: 10 }, [
+      ...(d.link
+        ? [el({ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16 }, [
+            { type: 'img', props: { src: LINK_ICON, width: 50, height: 50, style: { width: 50, height: 50 } } },
+            text(d.link, { fontSize: 56, fontWeight: 700, letterSpacing: track(56, -0.03) }),
+          ])]
+        : []),
+      ...(d.note ? [text(d.note, { fontSize: 36, color: G2, letterSpacing: track(36, 0.01) })] : []),
+    ]),
   ];
 }
 
@@ -273,6 +346,7 @@ export function slideTree(slide: Slide): Node {
       case 'venue': return venue(slide.data);
       case 'venuecover': return venueCover(slide.data);
       case 'note': return note(slide.data);
+      case 'cta': return cta(slide.data);
     }
   })();
   return el(

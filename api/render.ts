@@ -14,6 +14,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { z } from 'zod';
 import { renderSlide } from '../src/post/render.js';
+import { RENDER_VERSION } from '../src/post/templates.js';
 import { decodePayload, SignatureError, signedRenderPath, verify } from '../src/post/sign.js';
 import { ImageSourceError } from '../src/post/image.js';
 import {
@@ -102,7 +103,7 @@ async function signDeck(req: VercelRequest, res: VercelResponse): Promise<void> 
   sendJson(
     res,
     200,
-    { urls: slides.map((slide) => signedRenderPath({ slide, treatment, grain })) },
+    { urls: slides.map((slide) => signedRenderPath({ slide, treatment, grain, v: RENDER_VERSION })) },
     NO_STORE,
   );
 }
