@@ -33,11 +33,17 @@ export interface Node {
  * serving the old design for up to 24 hours, in the studio and to Meta alike. The version rides in the URL
  * so a design change is a new URL.
  */
-export const RENDER_VERSION = 5;
+export const RENDER_VERSION = 6;
 
+/** The margin at the top and bottom edges. */
 const PAD = 54;
+/**
+ * The margin at the left and right edges. Wider than PAD after review: at 54 the type ran close enough to the
+ * sides to feel cramped, and a carousel is judged edge to edge as it is swiped, so every slide shares it.
+ */
+const SIDE = 68;
 /** The type column, inside the side margins. Every fixed width below is measured against it. */
-const CONTENT_W = CANVAS.w - PAD * 2;
+const CONTENT_W = CANVAS.w - SIDE * 2;
 /** The table's day+time gutter, and the gap to the event beside it. */
 const TABLE_GUTTER = 150;
 const TABLE_GAP = 24;
@@ -88,7 +94,7 @@ const column = (style: Record<string, unknown>, children: Node[]): Node =>
 const wordmark = (type: Typefaces): Node =>
   spread(
     {
-      position: 'absolute', top: 50, left: PAD, right: PAD,
+      position: 'absolute', top: 50, left: SIDE, right: SIDE,
       fontFamily: type.display, fontSize: 96, fontWeight: 700, letterSpacing: track(96, -0.04), lineHeight: 1, color: WHITE,
     },
     [text('NO', { fontSize: 96 }), text('CT', { fontSize: 96 })],
@@ -97,14 +103,14 @@ const wordmark = (type: Typefaces): Node =>
 /** The foot line: one thing on the left, one on the right, either of which may be empty. */
 const foot = (left: string, right = '', size = 40, color = G1): Node =>
   spread(
-    { position: 'absolute', bottom: PAD, left: PAD, right: PAD, alignItems: 'baseline', fontSize: size, color },
+    { position: 'absolute', bottom: PAD, left: SIDE, right: SIDE, alignItems: 'baseline', fontSize: size, color },
     [text(left, { fontSize: size, color }), text(right, { fontSize: size, color })],
   );
 
 /** A block centred on the canvas. Replaces `top: 50%; transform: translateY(-50%)`. */
 const centred = (children: Node[]): Node =>
   column(
-    { position: 'absolute', top: 0, bottom: 0, left: PAD, right: PAD, justifyContent: 'center' },
+    { position: 'absolute', top: 0, bottom: 0, left: SIDE, right: SIDE, justifyContent: 'center' },
     children,
   );
 
@@ -136,7 +142,7 @@ const lines = (value: string): string[] => value.split('\n').map((l) => l.trim()
 const swipeFoot = (left: string): Node =>
   spread(
     {
-      position: 'absolute', bottom: PAD, left: PAD, right: PAD, alignItems: 'baseline',
+      position: 'absolute', bottom: PAD, left: SIDE, right: SIDE, alignItems: 'baseline',
       fontSize: 38, color: G2, letterSpacing: track(38, 0.02),
     },
     [
@@ -164,7 +170,7 @@ function event(d: { position: string; name: string; venue: string; time: string;
     wordmark(type),
     // Sized down from 46/92/48 after review: at the old size a long billing ran five lines up the flyer and
     // sat on its artwork. Three lines is the cap -- the veil darkens exactly the band this block occupies.
-    column({ position: 'absolute', left: PAD, right: PAD, bottom: 132, gap: 14 }, [
+    column({ position: 'absolute', left: SIDE, right: SIDE, bottom: 132, gap: 14 }, [
       ...(d.position ? [text(d.position, { fontSize: 36, fontWeight: 500, letterSpacing: track(36, 0.01) })] : []),
       text(d.name, { fontFamily: type.display, fontSize: 70, fontWeight: 700, letterSpacing: track(70, -0.04), lineHeight: 1.04, width: CONTENT_W }, 3),
       ...(meta ? [text(meta, { fontSize: 38, color: G1, letterSpacing: track(38, -0.01) })] : []),
@@ -181,13 +187,13 @@ function event(d: { position: string; name: string; venue: string; time: string;
 function table(d: { kicker: string; when: string; rows: { day: string; time: string; event: string; venue: string }[] }, type: Typefaces): Node[] {
   return [
     wordmark(type),
-    column({ position: 'absolute', top: 186, left: PAD, right: PAD }, [
+    column({ position: 'absolute', top: 186, left: SIDE, right: SIDE }, [
       ...(d.kicker ? [text(d.kicker, { fontSize: 34, color: G1, letterSpacing: track(34, 0.01), marginBottom: 10 })] : []),
       slab(d.when, 76, -0.045, 0.94),
     ]),
     // Sized down from 46/38/32 after review: seven two-line rows ran into the bottom edge. At these sizes the
     // worst case (every name wrapping, every venue present) ends clear of PAD; tests/live renders it.
-    column({ position: 'absolute', top: 350, left: PAD, right: PAD, gap: 20 }, [
+    column({ position: 'absolute', top: 350, left: SIDE, right: SIDE, gap: 20 }, [
       ...d.rows.slice(0, TABLE_ROWS_MAX).map((r) =>
         el({ display: 'flex', flexDirection: 'row', gap: TABLE_GAP, alignItems: 'flex-start' }, [
           column({ width: TABLE_GUTTER, flexShrink: 0, gap: 3, paddingTop: 5 }, [
@@ -214,11 +220,11 @@ function table(d: { kicker: string; when: string; rows: { day: string; time: str
 function listing(d: { kicker: string; when: string; events: { time: string; name: string; venue: string; genre: string }[] }, type: Typefaces): Node[] {
   return [
     wordmark(type),
-    column({ position: 'absolute', top: 214, left: PAD, right: PAD }, [
+    column({ position: 'absolute', top: 214, left: SIDE, right: SIDE }, [
       text(d.kicker, { fontSize: 42, color: G1, letterSpacing: track(42, 0.01), marginBottom: 16 }),
       slab(d.when, 110, -0.045, 0.94),
     ]),
-    column({ position: 'absolute', top: 516, left: PAD, right: PAD, gap: 54 }, [
+    column({ position: 'absolute', top: 516, left: SIDE, right: SIDE, gap: 54 }, [
       ...d.events.slice(0, 4).map((e) =>
         column({ gap: 10 }, [
           el({ display: 'flex', flexDirection: 'row', gap: LISTING_GAP, alignItems: 'baseline' }, [
@@ -250,7 +256,7 @@ function venue(d: { index: string; name: string; hood: string; note: string; foo
   const hasPhoto = Boolean(d.image);
   return [
     wordmark(type),
-    column({ position: 'absolute', top: 192, left: PAD, right: PAD, gap: 16 }, [
+    column({ position: 'absolute', top: 192, left: SIDE, right: SIDE, gap: 16 }, [
       spread({ fontSize: 28, letterSpacing: track(28, 0.2), color: G2 }, [
         text('VENUES', { fontSize: 28, letterSpacing: track(28, 0.2), color: G2 }),
         text(d.index.toUpperCase(), { fontSize: 28, letterSpacing: track(28, 0.2), color: G2 }),
@@ -260,7 +266,7 @@ function venue(d: { index: string; name: string; hood: string; note: string; foo
       ...(d.note ? [text(d.note, { fontSize: 40, color: G1, lineHeight: 1.38, width: 900, marginTop: 10 }, hasPhoto ? 5 : 9)] : []),
     ]),
     ...(d.foot
-      ? [text(d.foot, { position: 'absolute', left: PAD, bottom: hasPhoto ? VENUE_BAND_PLACEHOLDER.height + 42 : PAD, fontSize: 34, color: G2 })]
+      ? [text(d.foot, { position: 'absolute', left: SIDE, bottom: hasPhoto ? VENUE_BAND_PLACEHOLDER.height + 42 : PAD, fontSize: 34, color: G2 })]
       : []),
   ];
 }
@@ -316,7 +322,7 @@ function cta(d: { question: string; answer: string; link: string; note: string }
     ]),
     // One line, lifted off the edge: the link and its instruction read as one thing, and the bottom 54px is
     // where Instagram's own carousel dots and a thumb both sit.
-    el({ position: 'absolute', left: PAD, right: PAD, bottom: 150, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 14 }, [
+    el({ position: 'absolute', left: SIDE, right: SIDE, bottom: 150, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 14 }, [
       ...(d.link
         ? [
             { type: 'img', props: { src: LINK_ICON, width: 40, height: 40, style: { width: 40, height: 40 } } },

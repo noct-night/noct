@@ -26,7 +26,7 @@
     cover: 'carousel', event: 'event', table: 'table', listing: 'listing',
     venue: 'venue', venuecover: 'venues', note: 'note', cta: 'cta',
   };
-  var TAKES_IMAGE = { event: 1, venue: 1 };
+  var TAKES_IMAGE = { cover: 1, event: 1, venue: 1 };
   /** What the Draft menu offers, in the order a week is usually worked through. */
   var DRAFT_KINDS = [
     { k: 'weekend', t: 'This weekend', hint: 'The weekend guide: cover, top nights, tables' },
