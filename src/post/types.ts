@@ -66,6 +66,8 @@ export const coverDataSchema = z.object({
   lede: text,
   date: text.default(''),
   foot: shortText.default(''),
+  /** A background photograph, added in the studio. Without one the cover is type on the ground. */
+  image: slideImageSchema.nullable().default(null),
 });
 
 export const eventDataSchema = z.object({
@@ -168,7 +170,7 @@ export const TEMPLATE_LABEL: Record<Template, string> = {
 };
 
 /** Templates that draw a photo. The rest are type on the ground and ignore the treatment entirely. */
-export const TAKES_IMAGE: ReadonlySet<Template> = new Set<Template>(['event', 'venue']);
+export const TAKES_IMAGE: ReadonlySet<Template> = new Set<Template>(['cover', 'event', 'venue']);
 
 /**
  * What Meta is handed at the end. A carousel is N `image_url` children with is_carousel_item; a reel is

@@ -246,6 +246,7 @@ export function draftWeekend(feed: FeedResponse, opts: DeckOptions = {}): Weeken
       lede: opts.lede ?? 'Where to rave and dance\nin New York',
       date: `${when} weekend`,
       foot: SITE,
+      image: null,
     },
   };
 

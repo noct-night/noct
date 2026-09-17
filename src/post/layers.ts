@@ -181,6 +181,24 @@ export function veilSvg(): Buffer {
   );
 }
 
+/**
+ * The veil over a cover photograph. The cover's type sits in the middle of the frame, not at the foot, so this
+ * darkens evenly enough for a centred title to hold over any photo, deepening at the top for the wordmark and
+ * at the bottom for the site and Swipe.
+ */
+export function coverVeilSvg(): Buffer {
+  return Buffer.from(
+    svg(
+      linearGradient('v', 180, [
+        { at: 0, color: '#0B0B0B', opacity: 0.74 }, { at: 0.3, color: '#0B0B0B', opacity: 0.6 },
+        { at: 0.5, color: '#0B0B0B', opacity: 0.68 }, { at: 0.72, color: '#0B0B0B', opacity: 0.6 },
+        { at: 1, color: '#0B0B0B', opacity: 0.88 },
+      ]),
+      fill('url(#v)'),
+    ),
+  );
+}
+
 /** Film grain, composited with an overlay blend the way `mix-blend-mode: overlay` does on the page. */
 export function grainSvg(): Buffer {
   return Buffer.from(

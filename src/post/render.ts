@@ -18,7 +18,7 @@ import sharp from 'sharp';
 import { loadFonts, POST_TYPEFACES, type Typefaces } from './font.js';
 import { fetchImage, treatImage } from './image.js';
 import { loadPhoto, photoIdOf } from './photos.js';
-import { GROUND, grainSvg, toneSvg, veilSvg } from './layers.js';
+import { coverVeilSvg, GROUND, grainSvg, toneSvg, veilSvg } from './layers.js';
 import { slideTree, VENUE_BAND_PLACEHOLDER } from './templates.js';
 import { CANVAS, type Slide, type SlideImage, type Tone, type Treatment } from './types.js';
 
@@ -88,6 +88,11 @@ export async function renderSlide(slide: Slide, opts: RenderOptions): Promise<Bu
     // there is a photograph to grain. Over a flat tone it reads as noise rather than film.
     if (hasPhoto && opts.grain) layers.push({ input: grainSvg(), blend: 'overlay' });
     layers.push({ input: veilSvg(), blend: 'over' });
+  } else if (slide.template === 'cover' && slide.data.image) {
+    const treated = await treatImage(await imageBytes(slide.data.image.src, opts), opts.treatment, slide.data.image.fit);
+    canvas = sharp(await treated.png().toBuffer());
+    if (opts.grain) layers.push({ input: grainSvg(), blend: 'overlay' });
+    layers.push({ input: coverVeilSvg(), blend: 'over' });
   } else if (slide.template === 'venue') {
     canvas = ground();
     if (slide.data.image) {

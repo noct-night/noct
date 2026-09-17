@@ -57,7 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     if (!body.success) throw new PhotoError(400, body.error.issues[0]?.message ?? 'body must be {data, source}');
     // Checked before saving, so a photo aimed at a slide that cannot show one is not stored for nothing.
     const slide = post.slides[n]!;
-    if (slide.template !== 'event' && slide.template !== 'venue') {
+    if (slide.template !== 'cover' && slide.template !== 'event' && slide.template !== 'venue') {
       throw new PhotoError(400, `a ${slide.template} slide has no photo`);
     }
     const raw = Buffer.from(body.data.data.replace(/^data:[^,]*,/, ''), 'base64');

@@ -77,7 +77,14 @@ describe('attaching and removing', () => {
   });
 
   it('refuses a slide that has no photo to show', () => {
-    expect(() => attachPhoto([cover], 0, A)).toThrow(PhotoError);
+    const cta = s({ template: 'cta', data: { question: 'sick of checking 10 places?' } });
+    expect(() => attachPhoto([cta], 0, A)).toThrow(PhotoError);
+  });
+
+  it('gives the cover a background photo, and removing it leaves the plain cover', () => {
+    const [withPhoto] = attachPhoto([cover], 0, A);
+    expect(withPhoto).toMatchObject({ template: 'cover', data: { image: { src: `photo:${A}` } } });
+    expect(detachPhoto([withPhoto!], 0)[0]).toMatchObject({ data: { image: null } });
   });
 });
 
@@ -88,6 +95,12 @@ describe('redrafting keeps chosen photos', () => {
     expect(after[1]).toMatchObject({ data: { image: { src: `photo:${A}`, flyer: FLYER } } });
     expect(after[2]).toMatchObject({ data: { image: { src: FLYER } } });
     expect(after[3]).toMatchObject({ data: { image: { src: `photo:${B}` } } });
+  });
+
+  it('keeps the cover background through a redraft, whatever the new cover says', () => {
+    const before = attachPhoto([cover], 0, A);
+    const next = s({ template: 'cover', data: { lede: 'A different weekend' } });
+    expect(carryPhotos(before, [next])[0]).toMatchObject({ data: { lede: 'A different weekend', image: { src: `photo:${A}` } } });
   });
 
   it('drops a photo whose night is no longer in the draft, rather than moving it onto another', () => {
