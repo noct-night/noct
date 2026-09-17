@@ -19,7 +19,8 @@
     "db:local": "bash scripts/db-local.sh",
     "db:push": "supabase db push",
     "lint": "tsc --noEmit",
-    "clip": "tsx src/cli.ts clip"
+    "clip": "tsx src/cli.ts clip",
+    "icons": "node scripts/icons.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",
