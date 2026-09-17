@@ -107,6 +107,28 @@ describe('redrafting keeps chosen photos', () => {
     const after = carryPhotos([event('Gone', `photo:${A}`)], [event('Different', FLYER)]);
     expect(photoIdsIn(after)).toEqual([]);
   });
+
+  it('keeps a slide whose words were rewritten exactly as it was left', () => {
+    const mine = s({ template: 'event', data: { name: 'MERGE ft Someone', venue: 'Nowadays', time: '', genre: '', ref: 'ev1', edited: true } });
+    const redrafted = s({ template: 'event', data: { name: 'MERGE ft Someone, Someone Else, And Another', venue: 'Nowadays', time: '23:00', genre: 'Techno', ref: 'ev1' } });
+    expect(carryPhotos([mine], [redrafted])[0]).toEqual(mine);
+  });
+
+  it('finds the same night by its feed event even after the title was changed', () => {
+    const before = [s({ template: 'event', data: { name: 'Short title', venue: 'Nowadays', ref: 'ev1', image: { src: `photo:${A}`, fit: 'cover' } } })];
+    const after = carryPhotos(before, [s({ template: 'event', data: { name: 'The long feed title', venue: 'Nowadays', ref: 'ev1', image: null } })]);
+    expect(after[0]).toMatchObject({ data: { name: 'The long feed title', image: { src: `photo:${A}` } } });
+  });
+
+  it('matches a slide drafted before events were referenced by name and venue', () => {
+    const after = carryPhotos([event('MERGE', `photo:${A}`)], [s({ template: 'event', data: { name: 'MERGE', venue: 'Nowadays', ref: 'ev1' } })]);
+    expect(photoIdsIn(after)).toEqual([A]);
+  });
+
+  it('carries a look chosen for a flyer onto the flyer the new draft found', () => {
+    const after = carryPhotos([event('MERGE', FLYER, { treatment: 'none', grain: true })], [event('MERGE', 'https://images.ra.co/new.jpg')]);
+    expect(after[0]).toMatchObject({ data: { image: { src: 'https://images.ra.co/new.jpg', treatment: 'none', grain: true } } });
+  });
 });
 
 describe('normalisePhoto', () => {

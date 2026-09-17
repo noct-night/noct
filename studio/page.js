@@ -20,6 +20,7 @@
     { k: 'posted', t: 'Published' },
     { k: 'passed', t: 'Passed' },
     { k: 'all', t: 'Everything' },
+    { k: 'calendar', t: 'Calendar' },
   ];
   var LABEL = { queued: 'In queue', approved: 'Approved', passed: 'Passed', posted: 'Published' };
   var TPL_LABEL = {
@@ -27,6 +28,33 @@
     venue: 'venue', venuecover: 'venues', note: 'note', cta: 'cta',
   };
   var TAKES_IMAGE = { cover: 1, event: 1, venue: 1 };
+  /** Slides whose rewritten words survive a redraft (the server marks them `edited`). */
+  var KEEPS_EDITS = { cover: 1, event: 1, venue: 1 };
+  var LOOKS = [
+    { k: 'none', t: 'Raw' },
+    { k: 'mono', t: 'Mono' },
+    { k: 'crush', t: 'Mono, crushed' },
+    { k: 'warm', t: 'Warm mono' },
+  ];
+  /**
+   * The words on each template that can be rewritten, as [field, label, multiline, max length]. The lengths
+   * are the schema's (src/post/types.ts), so the field stops where the server would refuse.
+   */
+  var FIELDS = {
+    cover: [['lede', 'Title', true, 400], ['date', 'Date line', false, 400], ['foot', 'Bottom left', false, 120]],
+    event: [['position', 'Day', false, 120], ['name', 'Title', true, 400], ['venue', 'Venue', false, 120],
+      ['time', 'Time', false, 120], ['genre', 'Genre', false, 120]],
+    venue: [['index', 'Number', false, 120], ['name', 'Name', false, 400], ['hood', 'Neighbourhood', false, 120],
+      ['note', 'About', true, 600], ['foot', 'Address', false, 400]],
+    venuecover: [['lede', 'Title', true, 400], ['sub', 'Subtitle', true, 400], ['foot', 'Bottom left', false, 120]],
+    note: [['text', 'Text', true, 400], ['after', 'After', true, 600], ['foot', 'Foot', false, 120]],
+    cta: [['question', 'Question', true, 400], ['answer', 'Answer', false, 400], ['link', 'Link', false, 120],
+      ['note', 'Note', false, 120]],
+    table: [['kicker', 'Kicker', false, 120], ['when', 'Heading', false, 400], ['rows', 'Rows', true, 0]],
+    listing: [['kicker', 'Kicker', false, 120], ['when', 'Heading', false, 400]],
+  };
+  var TABLE_ROWS_MAX = 7;
+  var NY = 'America/New_York';
   /** What the Draft menu offers, in the order a week is usually worked through. */
   var DRAFT_KINDS = [
     { k: 'weekend', t: 'This weekend', hint: 'The weekend guide: cover, top nights, tables' },
@@ -40,6 +68,8 @@
   /** post id -> array of signed render URLs, in slide order. Dropped whenever the deck or the look changes. */
   var shots = {};
   var busy = {};
+  /** The month the calendar shows, YYYY-MM. Set to this month the first time it opens. */
+  var calMonth = null;
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -198,7 +228,9 @@
 
   function renderFilters() {
     var chips = FILTERS.map(function (f) {
-      var n = f.k === 'all' ? posts.length : posts.filter(function (p) { return p.status === f.k; }).length;
+      var n = f.k === 'all' ? posts.length
+        : f.k === 'calendar' ? posts.filter(function (p) { return p.status === 'posted'; }).length
+        : posts.filter(function (p) { return p.status === f.k; }).length;
       return '<button type="button" class="chip" data-f="' + f.k + '" aria-current="' + (filter === f.k) + '">'
         + f.t + '<span class="n">' + n + '</span></button>';
     }).join('');
@@ -232,27 +264,42 @@
 
   function isStudioPhoto(img) { return !!img && /^photo:/.test(img.src); }
 
+  function lookOf(p, img) { return img.treatment || p.treatment; }
+  function grainOf(p, img) { return img.grain === undefined ? p.grain : img.grain; }
+
   function slideMarkup(p, s, n) {
     var takesImage = !!TAKES_IMAGE[s.template];
     var img = (s.data || {}).image;
     var locked = p.status === 'posted';
     // Under the slide and always shown. These used to appear only on hover, over the bottom of the preview,
     // and a control you have to already know is there is one people go looking for and do not find.
-    var tools = takesImage && !locked
-      ? '<div class="shot-tools">'
-        + '<button type="button" data-photo="add" data-slide="' + n + '">' + (img ? 'Change photo' : 'Add photo') + '</button>'
-        + (isStudioPhoto(img) ? '<button type="button" data-photo="remove" data-slide="' + n + '">'
-            + (img.flyer ? 'Back to flyer' : 'Remove photo') + '</button>' : '')
-        + (img
-          ? '<span class="fit" role="group" aria-label="Framing">'
-            + '<button type="button" data-fit="cover" data-slide="' + n + '" aria-pressed="' + (img.fit !== 'contain') + '">Fill</button>'
-            + '<button type="button" data-fit="contain" data-slide="' + n + '" aria-pressed="' + (img.fit === 'contain') + '">Fit whole</button>'
-            + '</span>'
-          : '')
-        + (img && !isStudioPhoto(img)
-          ? '<a href="' + esc(img.src) + '" target="_blank" rel="noopener noreferrer">Open flyer</a>' : '')
-        + '</div>'
-      : '';
+    var tools = '';
+    if (!locked) {
+      var photo = takesImage
+        ? '<button type="button" data-photo="add" data-slide="' + n + '">' + (img ? 'Change photo' : 'Add photo') + '</button>'
+          + (isStudioPhoto(img) ? '<button type="button" data-photo="remove" data-slide="' + n + '">'
+              + (img.flyer ? 'Back to flyer' : 'Remove photo') + '</button>' : '')
+        : '';
+      // The look is per slide: a raw photo can sit next to mono flyers when that is what the deck needs.
+      var look = takesImage && img
+        ? '<span class="fit" role="group" aria-label="Framing">'
+          +   '<button type="button" data-fit="cover" data-slide="' + n + '" aria-pressed="' + (img.fit !== 'contain') + '">Fill</button>'
+          +   '<button type="button" data-fit="contain" data-slide="' + n + '" aria-pressed="' + (img.fit === 'contain') + '">Fit whole</button>'
+          + '</span>'
+          + '<select data-look="' + n + '" aria-label="Look for slide ' + (n + 1) + '">'
+          +   LOOKS.map(function (o) {
+                return '<option value="' + o.k + '"' + (lookOf(p, img) === o.k ? ' selected' : '') + '>' + o.t + '</option>';
+              }).join('')
+          + '</select>'
+          + '<button type="button" data-grain="' + n + '" aria-pressed="' + !!grainOf(p, img) + '">Grain</button>'
+        : '';
+      var flyer = takesImage && img && !isStudioPhoto(img)
+        ? '<a href="' + esc(img.src) + '" target="_blank" rel="noopener noreferrer">Open flyer</a>' : '';
+      tools = '<div class="shot-tools">'
+        + '<button type="button" data-edit="' + n + '">Edit text</button>'
+        + photo + look + flyer
+        + '</div>';
+    }
     return '<div class="slide-col">'
       + '<div class="shot" data-slide="' + n + '"><div class="pending">Rendering</div></div>'
       + tools
@@ -283,6 +330,7 @@
 
   function renderStream() {
     var host = byId('stream');
+    if (filter === 'calendar') { renderCalendar(host); return; }
     var list = visible();
 
     if (!list.length) {
@@ -293,6 +341,13 @@
         + '</p>';
       return;
     }
+
+    // Where each deck was scrolled to, so saving a change to slide 4 does not throw her back to slide 1.
+    var scrolled = {};
+    Array.prototype.forEach.call(host.querySelectorAll('.row'), function (row) {
+      var strip = row.querySelector('[data-strip]');
+      if (strip) scrolled[row.getAttribute('data-id')] = strip.scrollLeft;
+    });
 
     host.innerHTML = list.map(function (p, i) {
       var cap = p.caption || '';
@@ -312,7 +367,12 @@
 
       return '<article class="row is-' + p.status + '" data-id="' + esc(p.id) + '">'
         + '<div class="idx">' + pad(i + 1) + '</div>'
-        + '<div class="deck"><div class="strip" data-strip>' + strip + '</div>' + dots + '</div>'
+        + '<div class="deck"><div class="strip-wrap"><div class="strip" data-strip>' + strip + '</div>'
+        +   (!isReel(p) && sl.length > 1
+              ? '<button type="button" class="nav prev" data-nav="-1" aria-label="Previous slide">' + CHEVRON + '</button>'
+                + '<button type="button" class="nav next" data-nav="1" aria-label="Next slide">' + CHEVRON + '</button>'
+              : '')
+        + '</div>' + dots + '</div>'
         + '<div class="meta">'
         +   '<div class="head">'
         +     '<div class="slot"><span class="pip"></span>' + esc(p.slot || 'Unscheduled')
@@ -343,6 +403,8 @@
         +       (locked ? ' disabled' : '') + '>' + (p.status === 'passed' ? 'Passed' : 'Pass') + '</button>'
         +     (p.status === 'approved'
               ? '<button type="button" class="btn btn-go" data-act="publish">Publish to Instagram</button>' : '')
+        +     (canChooseNights(p)
+              ? '<button type="button" class="btn" data-act="nights">Choose nights</button>' : '')
         +     '<span class="state" data-state="' + esc(p.id) + '">'
         +       (p.ig_permalink
                  ? '<a href="' + esc(p.ig_permalink) + '" target="_blank" rel="noopener noreferrer">Published</a>'
@@ -353,6 +415,11 @@
     }).join('');
 
     Array.prototype.forEach.call(host.querySelectorAll('.deck'), wireDeck);
+    Array.prototype.forEach.call(host.querySelectorAll('.row'), function (row) {
+      var strip = row.querySelector('[data-strip]');
+      var left = scrolled[row.getAttribute('data-id')];
+      if (strip && left) { strip.scrollLeft = left; strip.dispatchEvent(new Event('scroll')); }
+    });
     sizeAllCaptions();
     list.forEach(function (p) { loadShots(p); paintShots(p.id); });
   }
@@ -375,14 +442,33 @@
 
   function autosize(el) { el.style.height = 'auto'; el.style.height = (el.scrollHeight + 2) + 'px'; }
 
-  /** Keep the dots and the scroll position in step, both directions. */
+  /** A drawn chevron, pointing right; the previous-slide button mirrors it in CSS. */
+  var CHEVRON = '<svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor"'
+    + ' stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 4l6 6-6 6"/></svg>';
+
+  /**
+   * Move through a deck by the arrows, the dots or a swipe, keeping all three in step. The arrows exist
+   * because a sideways scroll is easy on a trackpad or a phone and close to impossible with a mouse wheel.
+   */
   function wireDeck(deck) {
     var strip = deck.querySelector('[data-strip]');
-    var dots = deck.querySelector('[data-dots]');
-    if (!strip || !dots) return;
-    var buttons = dots.querySelectorAll('button');
+    if (!strip || strip.children.length < 2) return;
+    var dots = deck.querySelectorAll('[data-dots] button');
+    var prev = deck.querySelector('[data-nav="-1"]');
+    var next = deck.querySelector('[data-nav="1"]');
+    var last = strip.children.length - 1;
+    var current = 0;
     function mark(n) {
-      Array.prototype.forEach.call(buttons, function (b, i) { b.setAttribute('aria-current', i === n); });
+      current = n;
+      Array.prototype.forEach.call(dots, function (b, i) { b.setAttribute('aria-current', i === n); });
+      if (prev) prev.disabled = n === 0;
+      if (next) next.disabled = n === last;
+    }
+    function go(n) {
+      var to = Math.max(0, Math.min(last, n));
+      var slide = strip.children[to];
+      if (slide) strip.scrollTo({ left: slide.offsetLeft - strip.offsetLeft, behavior: 'smooth' });
+      mark(to);
     }
     var tick;
     strip.addEventListener('scroll', function () {
@@ -391,17 +477,24 @@
         var slide = strip.firstElementChild;
         if (!slide) return;
         var step = slide.getBoundingClientRect().width + 12;
-        mark(Math.max(0, Math.min(buttons.length - 1, Math.round(strip.scrollLeft / step))));
+        // At the far end the strip cannot scroll a whole step, so the last slide is read off the edge.
+        var atEnd = strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 2;
+        mark(atEnd ? last : Math.max(0, Math.min(last, Math.round(strip.scrollLeft / step))));
       }, 60);
     }, { passive: true });
-    dots.addEventListener('click', function (e) {
-      var b = e.target.closest('button[data-go]');
-      if (!b) return;
-      var n = +b.getAttribute('data-go');
-      var slide = strip.children[n];
-      if (slide) strip.scrollTo({ left: slide.offsetLeft - strip.offsetLeft, behavior: 'smooth' });
-      mark(n);
+    deck.addEventListener('click', function (e) {
+      var dot = e.target.closest('button[data-go]');
+      if (dot) { go(+dot.getAttribute('data-go')); return; }
+      var nav = e.target.closest('button[data-nav]');
+      if (nav) go(current + +nav.getAttribute('data-nav'));
     });
+    // Left and right arrow keys too, once focus is anywhere in the deck.
+    deck.addEventListener('keydown', function (e) {
+      if (e.target.matches('input, textarea, select')) return;
+      if (e.key === 'ArrowRight') { e.preventDefault(); go(current + 1); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); go(current - 1); }
+    });
+    mark(0);
   }
 
   // ── mutations ─────────────────────────────────────────────────────────────
@@ -584,6 +677,239 @@
     render();
   }
 
+  // ── rewriting a slide's words ─────────────────────────────────────────────
+  // For a title the renderer cuts off, or a line that should not be on the slide at all. An empty field is
+  // left off the slide. Cover, event and venue slides keep their words through a redraft.
+
+  /** Panels above the caption: one at a time per post, so two half-finished edits cannot race each other. */
+  function openPanel(postId, className, html) {
+    var row = document.querySelector('.row[data-id="' + postId + '"]');
+    if (!row) return null;
+    Array.prototype.forEach.call(row.querySelectorAll('.panel'), function (el) { el.remove(); });
+    var panel = document.createElement('div');
+    panel.className = 'photo-form panel ' + className;
+    panel.setAttribute('data-post', postId);
+    panel.innerHTML = html;
+    row.querySelector('.meta').prepend(panel);
+    return panel;
+  }
+
+  function rowsToText(rows) {
+    return (rows || []).map(function (r) { return [r.day, r.time, r.event, r.venue].join(' | '); }).join('\n');
+  }
+
+  function textToRows(value) {
+    var lines = value.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
+    if (lines.length > TABLE_ROWS_MAX) throw new Error('A table slide holds ' + TABLE_ROWS_MAX + ' rows at most.');
+    return lines.map(function (line, i) {
+      var parts = line.split('|').map(function (x) { return x.trim(); });
+      if (!parts[0] || !parts[2]) throw new Error('Row ' + (i + 1) + ' needs a day and an event: Day | Time | Event | Venue');
+      return { day: parts[0], time: parts[1] || '', event: parts[2], venue: parts[3] || '' };
+    });
+  }
+
+  function openTextForm(postId, n) {
+    var post = find(postId);
+    var slide = post && post.slides[n];
+    var fields = slide && FIELDS[slide.template];
+    if (!fields) return;
+    var d = slide.data || {};
+    var panel = openPanel(postId, 'text-form',
+      '<p class="photo-name">Slide ' + (n + 1) + ': edit the words</p>'
+      + '<p class="panel-note">Leave a field empty to leave it off the slide.'
+      + (slide.template === 'cover' ? ' A new line in the title starts a new line on the slide.' : '')
+      + (slide.template === 'table' ? ' One row per line: Day | Time | Event | Venue.' : '')
+      + '</p>'
+      + fields.map(function (f) {
+          var id = 'f-' + postId + '-' + n + '-' + f[0];
+          var value = f[0] === 'rows' ? rowsToText(d.rows) : (d[f[0]] == null ? '' : d[f[0]]);
+          var max = f[3] ? ' maxlength="' + f[3] + '"' : '';
+          return '<label for="' + id + '">' + f[1] + '</label>'
+            + (f[2]
+              ? '<textarea id="' + id + '" data-field="' + f[0] + '" rows="' + (f[0] === 'rows' ? 7 : 2) + '"' + max + '>' + esc(value) + '</textarea>'
+              : '<input type="text" id="' + id + '" data-field="' + f[0] + '"' + max + ' value="' + esc(value) + '">');
+        }).join('')
+      + '<div class="photo-acts">'
+      +   '<button type="button" class="btn btn-go" data-text-act="save" data-slide="' + n + '">Save</button>'
+      +   '<button type="button" class="btn" data-text-act="cancel">Cancel</button>'
+      +   '<span class="photo-status"></span>'
+      + '</div>');
+    if (panel) panel.querySelector('[data-field]').focus();
+  }
+
+  function saveTextForm(panel, n) {
+    var post = find(panel.getAttribute('data-post'));
+    var status = panel.querySelector('.photo-status');
+    if (!post || !post.slides[n]) return;
+    var slides = JSON.parse(JSON.stringify(post.slides));
+    var data = slides[n].data;
+    try {
+      Array.prototype.forEach.call(panel.querySelectorAll('[data-field]'), function (el) {
+        var key = el.getAttribute('data-field');
+        if (key === 'rows') { data.rows = textToRows(el.value); return; }
+        // Trailing spaces on a line are never meant; a line break inside a title is.
+        data[key] = el.value.split('\n').map(function (l) { return l.replace(/\s+$/, ''); }).join('\n').trim();
+      });
+    } catch (err) {
+      status.textContent = err.message;
+      return;
+    }
+    if (KEEPS_EDITS[slides[n].template]) data.edited = true;
+    status.textContent = 'Saving…';
+    patch(post.id, { slides: slides }, { repaint: true });
+  }
+
+  // ── choosing a deck's nights ──────────────────────────────────────────────
+
+  function canChooseNights(p) {
+    return !isReel(p) && p.status !== 'posted' && !!p.slot && (p.series === 'weekend' || p.series === 'genre');
+  }
+
+  function openNights(postId) {
+    var post = find(postId);
+    if (!post) return;
+    var panel = openPanel(postId, 'nights-form', '<p class="photo-name">Loading the weekend’s nights…</p>');
+    if (!panel) return;
+    api('/api/posts?candidates=' + encodeURIComponent(postId)).then(function (res) {
+      panel._chosen = res.chosen.slice();
+      panel._max = res.max;
+      var queued = post.status === 'queued';
+      panel.innerHTML = '<p class="photo-name">Choose the nights that get their own slide</p>'
+        + '<p class="panel-note">Up to ' + res.max + ', in the order you tick them. The rest of the weekend goes in the'
+        + ' tables. Rebuilding redraws the slides and the caption; photos, looks and edited words stay with the'
+        + ' nights you keep.</p>'
+        + '<ol class="nights-list">'
+        + res.candidates.map(function (c) {
+            var meta = [c.day + (c.door ? ' ' + c.door : ''), c.venue, c.genre, c.interested ? c.interested + ' interested' : '']
+              .filter(Boolean).join('  /  ');
+            return '<li><label>'
+              + '<input type="checkbox" value="' + esc(c.id) + '"' + (res.chosen.indexOf(c.id) >= 0 ? ' checked' : '') + '>'
+              + '<span class="nights-order"></span>'
+              + '<span class="nights-text"><b>' + esc(c.name) + '</b><span>' + esc(meta) + '</span></span>'
+              + '</label></li>';
+          }).join('')
+        + '</ol>'
+        + '<div class="photo-acts">'
+        +   '<button type="button" class="btn btn-go" data-nights-act="rebuild"' + (queued ? '' : ' disabled') + '>Rebuild deck</button>'
+        +   '<button type="button" class="btn" data-nights-act="cancel">Cancel</button>'
+        +   '<span class="photo-status">' + (queued ? '' : 'Take the approval back first: press Approved, then rebuild.') + '</span>'
+        + '</div>';
+      paintNights(panel);
+    }).catch(function (err) {
+      panel.innerHTML = '<p class="photo-name">' + esc(err.message) + '</p>'
+        + '<div class="photo-acts"><button type="button" class="btn" data-nights-act="cancel">Close</button></div>';
+    });
+  }
+
+  function paintNights(panel) {
+    Array.prototype.forEach.call(panel.querySelectorAll('.nights-list input'), function (box) {
+      var at = panel._chosen.indexOf(box.value);
+      box.checked = at >= 0;
+      box.closest('li').querySelector('.nights-order').textContent = at >= 0 ? String(at + 1) : '';
+    });
+  }
+
+  function toggleNight(panel, box) {
+    var at = panel._chosen.indexOf(box.value);
+    var status = panel.querySelector('.photo-status');
+    if (box.checked && at < 0) {
+      if (panel._chosen.length >= panel._max) {
+        status.textContent = 'That is ' + panel._max + ' already. Untick one first.';
+      } else {
+        panel._chosen.push(box.value);
+        status.textContent = '';
+      }
+    } else if (!box.checked && at >= 0) {
+      panel._chosen.splice(at, 1);
+    }
+    paintNights(panel);
+  }
+
+  function rebuildNights(panel, btn) {
+    var postId = panel.getAttribute('data-post');
+    var status = panel.querySelector('.photo-status');
+    if (!panel._chosen.length) { status.textContent = 'Choose at least one night.'; return; }
+    btn.disabled = true;
+    status.textContent = 'Rebuilding…';
+    api('/api/posts?rebuild=' + encodeURIComponent(postId), { method: 'POST', body: { events: panel._chosen } })
+      .then(function (res) { replacePost(res.post); })
+      .catch(function (err) { status.textContent = err.message; btn.disabled = false; });
+  }
+
+  // ── the calendar of published posts ───────────────────────────────────────
+
+  var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
+    'November', 'December'];
+
+  /** YYYY-MM-DD in New York, which is the day the post went out as far as anyone following NOCT is concerned. */
+  function nyDay(when) {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: NY, year: 'numeric', month: '2-digit', day: '2-digit' })
+      .format(when);
+  }
+  function nyClock(when) {
+    return new Intl.DateTimeFormat('en-US', { timeZone: NY, hour: 'numeric', minute: '2-digit' }).format(when);
+  }
+
+  function shiftMonth(ym, by) {
+    var y = +ym.slice(0, 4);
+    var m = +ym.slice(5, 7) - 1 + by;
+    var d = new Date(Date.UTC(y, m, 1));
+    return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1);
+  }
+
+  function renderCalendar(host) {
+    var today = nyDay(new Date());
+    if (!calMonth) calMonth = today.slice(0, 7);
+    var y = +calMonth.slice(0, 4);
+    var m = +calMonth.slice(5, 7);
+    var lead = new Date(Date.UTC(y, m - 1, 1)).getUTCDay();
+    var length = new Date(Date.UTC(y, m, 0)).getUTCDate();
+
+    var published = posts.filter(function (p) { return p.status === 'posted' && p.posted_at; })
+      .map(function (p) { var at = new Date(p.posted_at); return { p: p, at: at, day: nyDay(at) }; })
+      .sort(function (a, b) { return a.at - b.at; });
+    var month = published.filter(function (x) { return x.day.slice(0, 7) === calMonth; });
+
+    function entry(x, withTime) {
+      var label = esc(headline(x.p));
+      var bits = (withTime ? '<span class="cal-time">' + esc(nyClock(x.at)) + '</span>' : '')
+        + '<span class="tag">' + esc(isReel(x.p) ? 'reel' : x.p.series) + '</span>'
+        + '<span class="cal-name">' + label + '</span>';
+      return x.p.ig_permalink
+        ? '<a class="cal-post" href="' + esc(x.p.ig_permalink) + '" target="_blank" rel="noopener noreferrer">' + bits + '</a>'
+        : '<span class="cal-post">' + bits + '</span>';
+    }
+
+    var cells = '';
+    for (var i = 0; i < lead; i++) cells += '<div class="cal-day is-blank"></div>';
+    for (var day = 1; day <= length; day++) {
+      var date = calMonth + '-' + pad(day);
+      var those = month.filter(function (x) { return x.day === date; });
+      cells += '<div class="cal-day' + (date === today ? ' is-today' : '') + (those.length ? ' has-posts' : '') + '">'
+        + '<span class="cal-n">' + day + '</span>'
+        + those.map(function (x) { return entry(x, false); }).join('')
+        + '</div>';
+    }
+
+    host.innerHTML = '<section class="cal">'
+      + '<div class="cal-head">'
+      +   '<button type="button" class="cal-nav prev" data-cal="-1" aria-label="Previous month">' + CHEVRON + '</button>'
+      +   '<h2>' + MONTHS[m - 1] + ' ' + y + '</h2>'
+      +   '<button type="button" class="cal-nav next" data-cal="1" aria-label="Next month">' + CHEVRON + '</button>'
+      +   '<span class="cal-sum">' + month.length + ' published this month / ' + published.length + ' in all</span>'
+      + '</div>'
+      + '<div class="cal-grid">'
+      +   ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(function (w) { return '<div class="cal-dow">' + w + '</div>'; }).join('')
+      +   cells
+      + '</div>'
+      + (month.length
+        ? '<ul class="cal-list">' + month.map(function (x) {
+            return '<li><span class="cal-date">' + esc(x.day.slice(5).replace('-', '/')) + '</span>' + entry(x, true) + '</li>';
+          }).join('') + '</ul>'
+        : '<p class="empty">Nothing published in ' + MONTHS[m - 1] + '.</p>')
+      + '</section>';
+  }
+
   /**
    * Wire the studio half of the page. Only called when that half was actually served: signed out, none of
    * these elements exist, and reaching for them would throw before the sign-in form could be used.
@@ -613,6 +939,7 @@
         var id = act.closest('.row').getAttribute('data-id');
         var kind = act.getAttribute('data-act');
         if (kind === 'publish') publish(id);
+        else if (kind === 'nights') openNights(id);
         else setStatus(id, kind === 'approve' ? 'approved' : 'passed');
         return;
       }
@@ -632,6 +959,30 @@
         else submitPhoto(form);
         return;
       }
+      var cal = e.target.closest('button[data-cal]');
+      if (cal) { calMonth = shiftMonth(calMonth, +cal.getAttribute('data-cal')); render(); return; }
+      var edit = e.target.closest('button[data-edit]');
+      if (edit) { openTextForm(edit.closest('.row').getAttribute('data-id'), +edit.getAttribute('data-edit')); return; }
+      var textAct = e.target.closest('button[data-text-act]');
+      if (textAct) {
+        var tpanel = textAct.closest('.panel');
+        if (textAct.getAttribute('data-text-act') === 'cancel') tpanel.remove();
+        else saveTextForm(tpanel, +textAct.getAttribute('data-slide'));
+        return;
+      }
+      var nightsAct = e.target.closest('button[data-nights-act]');
+      if (nightsAct) {
+        var npanel = nightsAct.closest('.panel');
+        if (nightsAct.getAttribute('data-nights-act') === 'cancel') npanel.remove();
+        else if (!nightsAct.disabled) rebuildNights(npanel, nightsAct);
+        return;
+      }
+      var grain = e.target.closest('button[data-grain]');
+      if (grain) {
+        var gn = +grain.getAttribute('data-grain');
+        setLook(grain.closest('.row').getAttribute('data-id'), gn, { grain: grain.getAttribute('aria-pressed') !== 'true' });
+        return;
+      }
       var fit = e.target.closest('button[data-fit]');
       if (fit) {
         var row = fit.closest('.row');
@@ -643,6 +994,27 @@
         patch(post.id, { slides: slides }, { repaint: true });
       }
     });
+
+    stream.addEventListener('change', function (e) {
+      var look = e.target.closest('select[data-look]');
+      if (look) {
+        setLook(look.closest('.row').getAttribute('data-id'), +look.getAttribute('data-look'), { treatment: look.value });
+        return;
+      }
+      var night = e.target.closest('.nights-list input');
+      if (night) toggleNight(night.closest('.panel'), night);
+    });
+
+    /** Set one slide's own treatment or grain. The post's values stay as the default for the other slides. */
+    function setLook(id, n, change) {
+      var post = find(id);
+      if (!post || !post.slides[n] || !post.slides[n].data.image) return;
+      var slides = JSON.parse(JSON.stringify(post.slides));
+      var image = slides[n].data.image;
+      if (change.treatment) image.treatment = change.treatment;
+      if (change.grain !== undefined) image.grain = change.grain;
+      patch(post.id, { slides: slides }, { repaint: true });
+    }
 
     var capTimer = {};
     stream.addEventListener('input', function (e) {
@@ -677,18 +1049,6 @@
       }, 650);
     });
 
-    // The treatment is one look across the feed, so it is written to every post that is still editable.
-    function applyLook() {
-      var treatment = byId('tx').value;
-      var grain = byId('gr').value === 'on';
-      var editable = posts.filter(function (p) {
-        return p.status !== 'posted' && (p.treatment !== treatment || p.grain !== grain);
-      });
-      Promise.all(editable.map(function (p) {
-        delete shots[p.id];
-        return patch(p.id, { treatment: treatment, grain: grain });
-      })).then(render);
-    }
     // The Draft menu closes on a click anywhere else, and on Escape, handing focus back to its button.
     document.addEventListener('click', function (e) {
       if (!e.target.closest('.draft-menu')) setDraftMenu(false);
@@ -698,8 +1058,6 @@
       var toggle = document.querySelector('.draft-toggle');
       if (toggle && toggle.getAttribute('aria-expanded') === 'true') { setDraftMenu(false); toggle.focus(); }
     });
-    byId('tx').addEventListener('change', applyLook);
-    byId('gr').addEventListener('change', applyLook);
   }
 
   // ── boot ──────────────────────────────────────────────────────────────────
@@ -715,11 +1073,6 @@
   window.addEventListener('resize', sizeAllCaptions);
   api('/api/posts').then(function (body) {
     posts = body.posts || [];
-    var first = posts.filter(function (p) { return p.status !== 'posted'; })[0];
-    if (first) {
-      byId('tx').value = first.treatment;
-      byId('gr').value = first.grain ? 'on' : 'off';
-    }
     render();
   }).catch(function (err) {
     if (err.message === 'signed out') return;

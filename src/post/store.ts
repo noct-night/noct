@@ -19,6 +19,7 @@ interface PostRow {
   kind: PostKind;
   slot: string | null;
   status: PostStatus;
+  edition: string | null;
   caption: string;
   slides: Slide[];
   video_url: string | null;
@@ -41,6 +42,7 @@ function toPost(row: PostRow): Post {
     kind: row.kind,
     slot: row.slot ? String(row.slot).slice(0, 10) : null,
     status: row.status,
+    edition: row.edition,
     caption: row.caption,
     slides: Array.isArray(row.slides) ? row.slides : [],
     video_url: row.video_url,
@@ -56,7 +58,7 @@ function toPost(row: PostRow): Post {
 
 // `slot` is cast to text so node-postgres does not turn a date into a local-midnight Date, the same
 // reasoning as `night` in src/feed/query.ts.
-const COLUMNS = `post_id, series, kind, slot::text as slot, status, caption, slides,
+const COLUMNS = `post_id, series, kind, slot::text as slot, status, edition, caption, slides,
                  video_url, cover_url, video_meta, treatment, grain,
                  ig_permalink, posted_at, updated_at`;
 
