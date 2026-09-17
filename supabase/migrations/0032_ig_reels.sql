@@ -1,4 +1,4 @@
--- NOCT 0030: reels, alongside the carousel.
+-- NOCT 0032: reels, alongside the carousel.
 --
 -- A reel is a post, not a slide. It shares everything that made ig_post worth having -- one review state
 -- machine, one caption with the house rules applied to it, one gated publish endpoint, one audit trail in

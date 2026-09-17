@@ -1,4 +1,4 @@
--- NOCT 0031: a publish attempt that is waiting on Instagram, not one that failed.
+-- NOCT 0033: a publish attempt that is waiting on Instagram, not one that failed.
 --
 -- A carousel's children are ready the moment the Graph API returns their ids, so a publish is one straight
 -- run of calls and every outcome is either 'succeeded' or 'failed'. A reel is not: the container is
