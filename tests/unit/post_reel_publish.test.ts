@@ -1,5 +1,5 @@
 /**
- * Publishing a reel, with the Graph API stubbed.
+ * Publishing through the Graph API, stubbed.
  *
  * The thing worth testing here is not the happy path -- it is the third outcome a carousel does not have.
  * A reel container is transcoded asynchronously, so a publish can run out of function time while the work
@@ -9,8 +9,10 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  awaitContainer, POLL_BUDGET_MS, POLL_STEPS_MS, publishReel, PublishError, ReelNotReady, resumeReel,
+  awaitContainer, CAROUSEL_BUDGET_MS, MediaNotReady, POLL_BUDGET_MS, POLL_STEPS_MS, publishCarousel,
+  publishReel, PublishError, PUBLISH_RETRY_MS, resumeCarousel, resumeReel,
 } from '../../src/post/publish.js';
+import { forgetHostPacing } from '../../src/lib/http.js';
 import type { Logger } from '../../src/lib/log.js';
 
 const quiet: Logger = {
@@ -19,6 +21,23 @@ const quiet: Logger = {
 };
 
 const creds = { userId: '17841400000000000', token: 'IGQ-test' };
+
+/**
+ * Room for the client's own pacing. politeFetch spaces requests to a host, so a deck of two slides is a
+ * dozen paced calls: well under a lambda's budget, and well over vitest's five-second default.
+ */
+const SLOW = 30_000;
+
+/**
+ * Drive a promise to its end under fake timers, in slices.
+ *
+ * The waits being tested are seconds long, and politeFetch paces its own calls on top of them, so advancing
+ * by one total is not enough: the next timer is only scheduled once the previous one has run.
+ */
+async function settle<T>(p: Promise<T>): Promise<T> {
+  for (let i = 0; i < 240; i += 1) await vi.advanceTimersByTimeAsync(250);
+  return p;
+}
 
 interface Call {
   url: string;
@@ -32,9 +51,15 @@ interface Call {
  * `statuses` is consumed one per poll, so a test can say "IN_PROGRESS, then FINISHED" and assert the poll
  * actually waited rather than returning on the first answer.
  */
-function stubGraph(opts: { statuses?: string[]; statusDetail?: string; containerId?: string; mediaId?: string }) {
+function stubGraph(opts: {
+  statuses?: string[]; statusDetail?: string; containerId?: string; containerIds?: string[]; mediaId?: string;
+  /** How many times media_publish answers "Media ID is not available" before it works. */
+  notReady?: number;
+}) {
   const calls: Call[] = [];
   const statuses = [...(opts.statuses ?? ['FINISHED'])];
+  const containers = [...(opts.containerIds ?? [])];
+  let notReady = opts.notReady ?? 0;
   vi.stubGlobal('fetch', async (input: string | URL, init?: RequestInit) => {
     const url = String(input);
     calls.push({ url, method: init?.method ?? 'GET', body: String(init?.body ?? '') });
@@ -45,9 +70,15 @@ function stubGraph(opts: { statuses?: string[]; statusDetail?: string; container
       const status = statuses.length > 1 ? statuses.shift()! : statuses[0]!;
       return json({ status_code: status, status: opts.statusDetail ?? status });
     }
-    if (url.includes('media_publish')) return json({ id: opts.mediaId ?? 'media-1' });
+    if (url.includes('media_publish')) {
+      if (notReady > 0) {
+        notReady -= 1;
+        return json({ error: { message: 'Media ID is not available', code: 9007, error_subcode: 2207027 } });
+      }
+      return json({ id: opts.mediaId ?? 'media-1' });
+    }
     if (url.includes('permalink')) return json({ permalink: 'https://instagram.com/p/abc' });
-    if (url.endsWith('/media')) return json({ id: opts.containerId ?? 'container-1' });
+    if (url.endsWith('/media')) return json({ id: containers.shift() ?? opts.containerId ?? 'container-1' });
     return json({});
   });
   return calls;
@@ -55,6 +86,10 @@ function stubGraph(opts: { statuses?: string[]; statusDetail?: string; container
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
+  // A test that moved the clock left politeFetch's per-host pacing pointing at a future instant, which the
+  // next test would otherwise wait out for real.
+  forgetHostPacing();
 });
 
 describe('awaitContainer', () => {
@@ -89,10 +124,10 @@ describe('awaitContainer', () => {
     // A budget under the first poll interval: one check, then stop. The container id is the payload that
     // matters -- without it the next attempt has nothing to resume.
     const err = await awaitContainer('container-9', creds, quiet, 1).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(ReelNotReady);
-    expect((err as ReelNotReady).containerId).toBe('container-9');
-    expect((err as ReelNotReady).lastStatus).toBe('IN_PROGRESS');
-    expect((err as ReelNotReady).message).toMatch(/press Publish again/);
+    expect(err).toBeInstanceOf(MediaNotReady);
+    expect((err as MediaNotReady).containerId).toBe('container-9');
+    expect((err as MediaNotReady).lastStatus).toBe('IN_PROGRESS');
+    expect((err as MediaNotReady).message).toMatch(/press Publish again/);
     // It stopped before sleeping rather than waiting out the budget first.
     expect(calls).toHaveLength(1);
   });
@@ -209,8 +244,8 @@ describe('resumeReel', () => {
   it('can time out again, and stays resumable when it does', async () => {
     stubGraph({ statuses: ['IN_PROGRESS'] });
     const err = await resumeReel('container-3', creds, quiet, 1).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(ReelNotReady);
-    expect((err as ReelNotReady).containerId).toBe('container-3');
+    expect(err).toBeInstanceOf(MediaNotReady);
+    expect((err as MediaNotReady).containerId).toBe('container-3');
   });
 
   it('reports a carousel-shaped result with no children', async () => {
@@ -218,4 +253,103 @@ describe('resumeReel', () => {
     const result = await resumeReel('container-3', creds, quiet);
     expect(result.childIds).toEqual([]);
   });
+});
+
+/**
+ * A deck waits too.
+ *
+ * Meta fetches every rendered slide from /api/render itself, and a carousel built from containers it has
+ * not finished fetching is refused at media_publish with "Media ID is not available" (9007 / 2207027) --
+ * which is exactly what a publish used to fail with.
+ */
+describe('publishCarousel', () => {
+  const urls = ['https://noct.pro/api/render?p=1', 'https://noct.pro/api/render?p=2'];
+  const polled = (calls: Call[]): string[] =>
+    calls.filter((c) => c.url.includes('status_code')).map((c) => c.url.split('/').pop()!.split('?')[0]!);
+
+  it('waits for every slide, then for the carousel, before publishing', async () => {
+    const calls = stubGraph({ containerIds: ['kid-1', 'kid-2', 'deck-1'], mediaId: 'media-7' });
+    const result = await publishCarousel(urls, 'caption', creds, quiet);
+
+    expect(result).toMatchObject({ mediaId: 'media-7', containerId: 'deck-1', childIds: ['kid-1', 'kid-2'] });
+    expect(polled(calls)).toEqual(['kid-1', 'kid-2', 'deck-1']);
+    // Every slide is waited for before the carousel naming them exists, not after.
+    const carouselAt = calls.findIndex((c) => c.body.includes('media_type=CAROUSEL'));
+    expect(calls.findIndex((c) => c.url.includes('kid-2') && c.url.includes('status_code'))).toBeLessThan(carouselAt);
+    expect(calls.findIndex((c) => c.url.includes('media_publish'))).toBeGreaterThan(carouselAt);
+  }, SLOW);
+
+  it('waits and tries again when Instagram says the media is not available yet', async () => {
+    vi.useFakeTimers();
+    try {
+      const calls = stubGraph({ containerIds: ['kid-1', 'deck-1'], notReady: 2, mediaId: 'media-8' });
+      const running = settle(publishCarousel([urls[0]!], 'caption', creds, quiet));
+      expect(await running).toMatchObject({ mediaId: 'media-8' });
+      expect(calls.filter((c) => c.url.includes('media_publish'))).toHaveLength(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  }, SLOW);
+
+  it('gives up on a publish Instagram keeps refusing, rather than retrying for ever', async () => {
+    vi.useFakeTimers();
+    try {
+      stubGraph({ containerIds: ['kid-1', 'deck-1'], notReady: 99 });
+      const err = await settle(publishCarousel([urls[0]!], 'caption', creds, quiet).catch((e: unknown) => e));
+      expect(err).toBeInstanceOf(PublishError);
+      expect((err as PublishError).step).toBe('publish');
+      expect((err as PublishError).subcode).toBe(2207027);
+    } finally {
+      vi.useRealTimers();
+    }
+  }, SLOW);
+
+  it('names the slide Instagram is still fetching when the wait runs out', async () => {
+    // No carousel container exists yet, so there is nothing to resume: a plain failure, and pressing
+    // Publish again starts over. The orphaned child containers expire on their own.
+    stubGraph({ statuses: ['IN_PROGRESS'], containerIds: ['kid-1'] });
+    const err = await publishCarousel(urls, 'caption', creds, quiet, {}, 1).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PublishError);
+    expect(err).not.toBeInstanceOf(MediaNotReady);
+    expect((err as PublishError).step).toBe('slide 1');
+    expect((err as PublishError).message).toMatch(/still fetching slide 1 of 2/);
+  }, SLOW);
+
+  it('parks a deck whose carousel container is not ready, so the next press resumes it', async () => {
+    // The children finished; the carousel did not. That one is resumable, because the container exists.
+    const statuses = ['FINISHED', 'FINISHED', 'IN_PROGRESS'];
+    let n = 0;
+    vi.stubGlobal('fetch', async (input: string | URL, init?: RequestInit) => {
+      const url = String(input);
+      const json = (v: unknown) => new Response(JSON.stringify(v), { status: 200, headers: { 'content-type': 'application/json' } });
+      if (url.includes('status_code')) return json({ status_code: statuses[Math.min(n++, statuses.length - 1)] });
+      if (url.endsWith('/media')) return json({ id: init?.body?.toString().includes('CAROUSEL') ? 'deck-1' : 'kid-1' });
+      return json({});
+    });
+    const err = await publishCarousel(urls, 'caption', creds, quiet, {}, 1).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(MediaNotReady);
+    expect((err as MediaNotReady).containerId).toBe('deck-1');
+    expect((err as MediaNotReady).message).toMatch(/fetching the images/);
+  }, SLOW);
+
+  it('leaves room for building ten containers before the waiting starts', () => {
+    expect(CAROUSEL_BUDGET_MS).toBeLessThan(POLL_BUDGET_MS);
+  }, SLOW);
+});
+
+describe('resumeCarousel', () => {
+  it('publishes the container an earlier attempt left, rendering nothing again', async () => {
+    const calls = stubGraph({ statuses: ['FINISHED'], mediaId: 'media-9' });
+    const result = await resumeCarousel('deck-1', creds, quiet);
+    expect(result).toMatchObject({ mediaId: 'media-9', containerId: 'deck-1' });
+    expect(calls.filter((c) => c.url.endsWith('/media') && c.method === 'POST')).toHaveLength(0);
+    expect(calls.some((c) => c.body.includes('creation_id=deck-1'))).toBe(true);
+  }, SLOW);
+
+  it('stays resumable if it runs out of time again', async () => {
+    stubGraph({ statuses: ['IN_PROGRESS'] });
+    const err = await resumeCarousel('deck-1', creds, quiet, 1).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(MediaNotReady);
+    expect((err as MediaNotReady).containerId).toBe('deck-1');
+  }, SLOW);
 });

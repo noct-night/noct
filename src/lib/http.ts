@@ -59,6 +59,16 @@ export function detectBlock(status: number, headers: Headers, body: string): str
   return null;
 }
 
+/**
+ * Forget when each host was last called.
+ *
+ * For tests that move the clock: pacing is remembered as a wall-clock instant, so a test running under fake
+ * timers leaves timestamps in the future and the next real-time caller waits them out.
+ */
+export function forgetHostPacing(): void {
+  lastRequestAt.clear();
+}
+
 async function throttle(host: string, minIntervalMs: number): Promise<void> {
   const last = lastRequestAt.get(host) ?? 0;
   const wait = last + minIntervalMs - Date.now();
