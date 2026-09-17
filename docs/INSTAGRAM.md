@@ -245,13 +245,19 @@ words would be worse than leaving a mistake.
   posting. They rank the deck and are never printed on it. A caption is reviewed in the minute before
   publishing, so it is the only place they belong.
 
-### Publishing a reel, and the third outcome
+### Publishing, and the third outcome
 
-A carousel publish has two endings. A reel has three, and the extra one is not a failure.
+Every publish has three endings, and the extra one is not a failure.
 
-A reel container is **transcoded asynchronously**: `media_publish` refuses it until `status_code` reads
-FINISHED, and how long that takes is Meta's business. For a 90-second clip it can outlast the 120 s cap on
-`api/publish.ts`. That leaves two bad options and one good one:
+Meta fetches the media itself and will not publish a container until it has. A reel container is
+**transcoded asynchronously**, and how long that takes is Meta's business: for a 90-second clip it can
+outlast the 120 s cap on `api/publish.ts`. A deck is quicker but not instant — a carousel built from
+children Instagram is still fetching is refused with **`Media ID is not available` (9007 / 2207027)**,
+which is what publishing a deck used to fail with. So both kinds wait: every carousel item, then the
+carousel itself (45 s budget), then `media_publish`, which is itself retried three times on 9007 because
+FINISHED and publishable can be a second or two apart.
+
+For a reel, waiting can outlast the function, which leaves two bad options and one good one:
 
 - hold the lambda until it is killed — and being killed between `media_publish` and the row update is the
   single worst outcome available, because Instagram has the post and the database does not know;
@@ -368,9 +374,9 @@ the post goes out and the problem is logged rather than blocking a deadline on a
   remaining quota before it starts rather than failing opaquely.
 - Up to 10 items per carousel. The weekend deck is seven.
 - JPEG only on the image endpoints. No shopping tags, no branded content tags, no filters.
-- A reel container is processed **asynchronously**: it has to be polled for `status_code=FINISHED` before
-  `media_publish` will take it. A carousel's children are ready immediately, so this is new work in the
-  publish path and is listed under *Still open*.
+- Containers are processed **asynchronously**, reels and carousel items alike: each is polled for
+  `status_code=FINISHED` before `media_publish` will take it, and 9007 / 2207027 from `media_publish`
+  means "not yet", not "no".
 
 ## Tests
 

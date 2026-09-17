@@ -12,18 +12,19 @@
  * There is no auto-publish and no cron that calls this. A weekly job may prepare a draft and send a nudge;
  * a person presses the button.
  *
- * Two kinds of post go out through here. A carousel is a straight run of Graph API calls. A reel is not:
- * its container is transcoded asynchronously and `media_publish` refuses it until that finishes, which for
- * a long clip can outlast this function. So a reel publish can end in a third way -- 202, container
- * recorded as 'pending', resumable by pressing Publish again -- and that is a normal outcome rather than a
- * failure. See `ReelNotReady` in src/post/publish.ts and supabase/migrations/0033_ig_reel_pending.sql.
+ * Either kind of post can end in a third way. Meta fetches the media itself -- the rendered slides of a
+ * deck, the MP4 of a reel -- and `media_publish` refuses the container until it has. A long clip can
+ * outlast this function, and a deck can be a second or two behind its own containers. So a publish may end
+ * as 202: the container is recorded as 'pending' and pressing Publish again resumes it, which is a normal
+ * outcome rather than a failure. See `MediaNotReady` in src/post/publish.ts and
+ * supabase/migrations/0033_ig_reel_pending.sql.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { checkCaption } from '../src/post/caption.js';
 import { attachCredits, withCredits } from '../src/post/photos.js';
 import {
-  igUserId, publishCarousel, publishReel, PublishError, ReelNotReady, remainingQuota, resumeReel,
-  verifyCredentials,
+  igUserId, MediaNotReady, publishCarousel, publishReel, PublishError, remainingQuota, resumeCarousel,
+  resumeReel, verifyCredentials,
 } from '../src/post/publish.js';
 import { currentToken, daysUntilExpiry, TokenError } from '../src/post/token.js';
 import { signedRenderPath } from '../src/post/sign.js';
@@ -32,6 +33,7 @@ import {
   claimForPublish, clearPending, failPublish, finishPublish, pausePublish, PostConflict, recordContainers,
   resumableContainer,
 } from '../src/post/store.js';
+import type { Slide, Treatment } from '../src/post/types.js';
 import { createLogger } from '../src/lib/log.js';
 import { env } from '../src/lib/env.js';
 import { firstParam, sendJson } from './_lib/respond.js';
@@ -102,6 +104,37 @@ async function publishTheReel(
     { videoUrl: post.video_url!, coverUrl: post.cover_url, caption: post.caption },
     creds, log,
     { onContainer: (id) => recordContainers(runId, [], id) },
+  );
+}
+
+/**
+ * Publish a carousel, resuming the container from an earlier attempt when there is one.
+ *
+ * Same reasoning as a reel: the containers from the parked run are valid for 24 hours, and building a
+ * second set would re-render every slide and leave the first set to expire unused.
+ */
+async function publishTheDeck(
+  post: { id: string; slides: Slide[]; treatment: Treatment; grain: boolean },
+  runId: string,
+  creds: { userId: string; token: string },
+  log: ReturnType<typeof createLogger>,
+  origin: string,
+  caption: string,
+) {
+  const pending = await resumableContainer(post.id);
+  if (pending) {
+    log.info('found a deck container to resume', { post: post.id, container: pending.containerId });
+    return await resumeCarousel(pending.containerId, creds, log);
+  }
+  return await publishCarousel(
+    post.slides.map(
+      (slide) => `${origin}${signedRenderPath({ slide, treatment: post.treatment, grain: post.grain, v: RENDER_VERSION })}`,
+    ),
+    caption, creds, log,
+    {
+      onChildren: (ids) => recordContainers(runId, ids),
+      onCarousel: (containerId) => recordContainers(runId, [], containerId),
+    },
   );
 }
 
@@ -183,20 +216,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const result = post.kind === 'reel'
       ? await publishTheReel(post, runId, creds, log)
-      : await publishCarousel(
-          post.slides.map(
-            (slide) => `${publicOrigin(req)}${signedRenderPath({ slide, treatment: post.treatment, grain: post.grain, v: RENDER_VERSION })}`,
-          ),
-          caption, creds, log,
-          {
-            onChildren: (ids) => recordContainers(runId, ids),
-            onCarousel: (containerId) => recordContainers(runId, [], containerId),
-          },
-        );
+      : await publishTheDeck(post, runId, creds, log, publicOrigin(req), caption);
 
-    // A resumed reel may have been published from a run other than this one's original container, so any
+    // A resumed publish may have gone out from a run other than this one's original container, so any
     // other pending run for this post is closed out before the post is marked posted.
-    if (post.kind === 'reel') await clearPending(post.id, runId);
+    await clearPending(post.id, runId);
     const updated = await finishPublish(runId, post.id, result.mediaId, result.permalink);
     log.info('published', {
       post: post.id, kind: post.kind, media: result.mediaId,
@@ -206,9 +230,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   } catch (err) {
     // Not a failure: the container is alive and the work is resumable, so the run is parked rather than
     // failed and the studio is told to press Publish again. Failing here would strand the container.
-    if (err instanceof ReelNotReady) {
+    if (err instanceof MediaNotReady) {
       await pausePublish(runId, err.containerId, err.message);
-      log.info('reel still processing; parked as pending', { post: post.id, container: err.containerId });
+      log.info('media still processing; parked as pending', { post: post.id, kind: post.kind, container: err.containerId });
       sendJson(res, 202, { pending: true, error: err.message, container: err.containerId }, NO_STORE);
       return;
     }

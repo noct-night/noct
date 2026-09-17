@@ -531,11 +531,11 @@
     say(id, 'Handing the deck to Instagram…');
     api('/api/publish?id=' + encodeURIComponent(id), { method: 'POST' })
       .then(function (res) {
-        // 202: a reel container exists and Instagram is still transcoding it. Not a failure -- the post is
+        // 202: the container exists and Instagram is still fetching the media. Not a failure -- the post is
         // still approved and the container is valid for 24 hours, so the button goes back to being
-        // pressable and the next press resumes the poll instead of re-uploading the video.
+        // pressable and the next press resumes the poll instead of submitting the media again.
         if (res.pending) {
-          say(id, res.error || 'Instagram is still processing the video. Press Publish again in a moment.');
+          say(id, res.error || 'Instagram is still preparing the post. Press Publish again in a moment.');
           if (btn) { btn.disabled = false; btn.textContent = 'Publish to Instagram'; }
           return;
         }

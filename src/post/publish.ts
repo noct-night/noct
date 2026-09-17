@@ -36,11 +36,29 @@ export const GRAPH_HOST = 'https://graph.instagram.com';
 const GRAPH = `${GRAPH_HOST}/${GRAPH_VERSION}`;
 
 export class PublishError extends Error {
-  constructor(message: string, public readonly step: string) {
+  constructor(
+    message: string,
+    public readonly step: string,
+    /** The Graph API's own code and subcode, when the failure came back as one. */
+    public readonly code?: number,
+    public readonly subcode?: number,
+  ) {
     super(message);
     this.name = 'PublishError';
   }
 }
+
+/**
+ * "Media ID is not available": the container is not publishable yet.
+ *
+ * Meta fetches every image itself, and a container reporting FINISHED is not quite the same thing as the
+ * media being ready to publish -- the two can be a second or two apart, and pressing Publish then fails
+ * with this. It is a wait, not a verdict, so it is retried rather than surfaced.
+ */
+const NOT_READY_CODE = 9007;
+const NOT_READY_SUBCODE = 2207027;
+export const isNotReady = (err: unknown): boolean =>
+  err instanceof PublishError && (err.subcode === NOT_READY_SUBCODE || err.code === NOT_READY_CODE);
 
 export interface IgCredentials {
   userId: string;
@@ -89,7 +107,7 @@ async function graphPost<T>(path: string, params: Record<string, string>, token:
   }
   if (parsed.error) {
     const e = parsed.error;
-    throw new PublishError(`${e.message ?? 'unknown Graph API error'} (code ${e.code ?? '?'})`, step);
+    throw new PublishError(`${e.message ?? 'unknown Graph API error'} (code ${e.code ?? '?'})`, step, e.code, e.error_subcode);
   }
   return parsed;
 }
@@ -121,12 +139,14 @@ export interface PublishResult {
  */
 export async function publishCarousel(
   imageUrls: string[], caption: string, creds: IgCredentials, log: Logger, hooks: PublishHooks = {},
+  budgetMs = CAROUSEL_BUDGET_MS,
 ): Promise<PublishResult> {
   if (imageUrls.length === 0) throw new PublishError('a carousel needs at least one slide', 'validate');
   if (imageUrls.length > CAROUSEL_MAX) {
     throw new PublishError(`a carousel holds at most ${CAROUSEL_MAX} slides, got ${imageUrls.length}`, 'validate');
   }
 
+  const deadline = Date.now() + budgetMs;
   const childIds: string[] = [];
   for (const [index, url] of imageUrls.entries()) {
     const child = await graphPost<{ id: string }>(
@@ -139,6 +159,9 @@ export async function publishCarousel(
     log.info('carousel item created', { index: index + 1, of: imageUrls.length });
   }
   await hooks.onChildren?.(childIds);
+  // Meta fetches each image from /api/render itself, and until it has, the carousel built from these is not
+  // publishable -- which is the "Media ID is not available" (9007 / 2207027) a publish used to end in.
+  await awaitChildren(childIds, creds, log, deadline);
 
   const carousel = await graphPost<{ id: string }>(
     `/${creds.userId}/media`,
@@ -149,12 +172,8 @@ export async function publishCarousel(
   await hooks.onCarousel?.(carousel.id);
   log.info('carousel container created', { container: carousel.id, children: childIds.length });
 
-  const published = await graphPost<{ id: string }>(
-    `/${creds.userId}/media_publish`,
-    { creation_id: carousel.id },
-    creds.token,
-    'publish',
-  );
+  await awaitContainer(carousel.id, creds, log, Math.max(0, deadline - Date.now()), 'deck');
+  const published = await publishContainer(carousel.id, creds, log);
   log.info('carousel published', { media: published.id });
 
   return {
@@ -163,6 +182,62 @@ export async function publishCarousel(
     childIds,
     containerId: carousel.id,
   };
+}
+
+/**
+ * How long a carousel publish may spend waiting for Instagram to fetch the slides.
+ *
+ * Shorter than a reel's budget because creating ten containers has already taken part of the function's
+ * 120 s before any waiting starts. A deck's images are small and usually ready within a second or two of
+ * their container existing; this is the ceiling, not the expectation.
+ */
+export const CAROUSEL_BUDGET_MS = 45_000;
+
+/**
+ * Wait for every carousel item, in order, sharing one deadline.
+ *
+ * A slide that is still being fetched when the budget runs out is reported as a plain failure rather than
+ * as a resumable one: the carousel container does not exist yet, so there is nothing to resume, and
+ * pressing Publish again simply starts over. Unpublished containers expire by themselves in 24 hours.
+ */
+async function awaitChildren(childIds: string[], creds: IgCredentials, log: Logger, deadline: number): Promise<void> {
+  for (const [index, id] of childIds.entries()) {
+    try {
+      await awaitContainer(id, creds, log, Math.max(0, deadline - Date.now()), 'slide');
+    } catch (err) {
+      if (err instanceof MediaNotReady) {
+        throw new PublishError(
+          `Instagram is still fetching slide ${index + 1} of ${childIds.length}. Press Publish again in a moment.`,
+          `slide ${index + 1}`,
+        );
+      }
+      throw err;
+    }
+  }
+}
+
+/** How long to wait after a "media is not available", before asking again. */
+export const PUBLISH_RETRY_MS = [3_000, 6_000, 10_000] as const;
+
+/**
+ * Publish a container, waiting out the gap between "finished" and "publishable".
+ *
+ * Only 9007 / 2207027 is retried, and only after an error response, so nothing here can publish the same
+ * container twice: the retry happens exactly when Instagram has said it did not publish it.
+ */
+async function publishContainer(containerId: string, creds: IgCredentials, log: Logger): Promise<{ id: string }> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await graphPost<{ id: string }>(
+        `/${creds.userId}/media_publish`, { creation_id: containerId }, creds.token, 'publish',
+      );
+    } catch (err) {
+      const wait = PUBLISH_RETRY_MS[attempt];
+      if (!isNotReady(err) || wait === undefined) throw err;
+      log.info('media not available yet; waiting', { container: containerId, next_in_ms: wait });
+      await sleep(wait);
+    }
+  }
 }
 
 /**
@@ -177,15 +252,24 @@ export async function publishCarousel(
  * out of *our* time rather than out of hope. The caller records it as 'pending' with the container id and
  * the next request resumes the poll instead of uploading a second copy of the same video.
  */
-export class ReelNotReady extends Error {
-  constructor(public readonly containerId: string, public readonly waitedMs: number, public readonly lastStatus: string) {
+export class MediaNotReady extends Error {
+  constructor(
+    public readonly containerId: string,
+    public readonly waitedMs: number,
+    public readonly lastStatus: string,
+    public readonly what: MediaKind = 'reel',
+  ) {
     super(
-      `the reel is still being processed by Instagram after ${Math.round(waitedMs / 1000)}s (${lastStatus}). ` +
+      `Instagram is still ${what === 'reel' ? 'processing the video' : 'fetching the images'} ` +
+      `after ${Math.round(waitedMs / 1000)}s (${lastStatus}). ` +
       `The container is valid for 24 hours; press Publish again to pick it up where this left off.`,
     );
-    this.name = 'ReelNotReady';
+    this.name = 'MediaNotReady';
   }
 }
+
+/** What is being waited for, which is only ever used to word the wait. */
+type MediaKind = 'reel' | 'deck' | 'slide';
 
 /** What a container reports. PUBLISHED appears if something already published it. */
 type ContainerStatus = 'EXPIRED' | 'ERROR' | 'FINISHED' | 'IN_PROGRESS' | 'PUBLISHED' | 'UNKNOWN';
@@ -245,7 +329,7 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
  * Exported so the endpoint can resume a container it did not create.
  */
 export async function awaitContainer(
-  containerId: string, creds: IgCredentials, log: Logger, budgetMs = POLL_BUDGET_MS,
+  containerId: string, creds: IgCredentials, log: Logger, budgetMs = POLL_BUDGET_MS, what: MediaKind = 'reel',
 ): Promise<void> {
   const started = Date.now();
   let last: ContainerStatus = 'UNKNOWN';
@@ -257,22 +341,22 @@ export async function awaitContainer(
     // PUBLISHED counts as ready: it means a previous attempt got further than its row did, and refusing
     // here would leave a post that can never be marked published.
     if (state.status === 'FINISHED' || state.status === 'PUBLISHED') {
-      log.info('reel container ready', { container: containerId, waited_ms: Date.now() - started, status: state.status });
+      log.info('container ready', { container: containerId, what, waited_ms: Date.now() - started, status: state.status });
       return;
     }
     if (state.status === 'ERROR') {
-      throw new PublishError(state.detail ?? 'Instagram rejected the video', 'process');
+      throw new PublishError(state.detail ?? `Instagram rejected the ${what}`, 'process');
     }
     if (state.status === 'EXPIRED') {
-      // Containers live 24 hours. Past that the video has to be submitted again.
-      throw new PublishError('the reel container expired before it was published; publish again', 'process');
+      // Containers live 24 hours. Past that the media has to be submitted again.
+      throw new PublishError(`the ${what} container expired before it was published; publish again`, 'process');
     }
 
     const elapsed = Date.now() - started;
     const wait = POLL_STEPS_MS[attempt] ?? POLL_MAX_INTERVAL_MS;
     // Checked before sleeping, not after: waiting out the budget and then reporting it wastes the wait.
-    if (elapsed + wait > budgetMs) throw new ReelNotReady(containerId, elapsed, last);
-    log.info('reel still processing', { container: containerId, elapsed_ms: elapsed, next_in_ms: wait });
+    if (elapsed + wait > budgetMs) throw new MediaNotReady(containerId, elapsed, last, what);
+    log.info('still processing', { container: containerId, what, elapsed_ms: elapsed, next_in_ms: wait });
     await sleep(wait);
   }
 }
@@ -286,7 +370,7 @@ export interface ReelInput {
 }
 
 export interface ReelHooks {
-  /** Called as soon as the container exists, before any polling. See ReelNotReady for why that matters. */
+  /** Called as soon as the container exists, before any polling. See MediaNotReady for why that matters. */
   onContainer?: (id: string) => Promise<void>;
 }
 
@@ -328,13 +412,7 @@ export async function publishReel(
   log.info('reel container created', { container: container.id });
 
   await awaitContainer(container.id, creds, log, budgetMs);
-
-  const published = await graphPost<{ id: string }>(
-    `/${creds.userId}/media_publish`,
-    { creation_id: container.id },
-    creds.token,
-    'publish',
-  );
+  const published = await publishContainer(container.id, creds, log);
   log.info('reel published', { media: published.id });
 
   return {
@@ -348,7 +426,7 @@ export async function publishReel(
 /**
  * Publish a reel whose container already exists, from a 'pending' run.
  *
- * The resume half of ReelNotReady: no container is created, so no second copy of the video is submitted
+ * The resume half of MediaNotReady: no container is created, so no second copy of the video is submitted
  * and the 24-hour window on the original one is what is being used.
  */
 export async function resumeReel(
@@ -356,14 +434,31 @@ export async function resumeReel(
 ): Promise<PublishResult> {
   log.info('resuming a reel container', { container: containerId });
   await awaitContainer(containerId, creds, log, budgetMs);
-
-  const published = await graphPost<{ id: string }>(
-    `/${creds.userId}/media_publish`,
-    { creation_id: containerId },
-    creds.token,
-    'publish',
-  );
+  const published = await publishContainer(containerId, creds, log);
   log.info('reel published on resume', { media: published.id });
+
+  return {
+    mediaId: published.id,
+    permalink: await permalinkOf(published.id, creds).catch(() => null),
+    childIds: [],
+    containerId,
+  };
+}
+
+/**
+ * Publish a carousel whose container already exists, from a 'pending' run.
+ *
+ * The resume half of MediaNotReady for a deck: the children and the carousel container were built by the
+ * earlier attempt and are valid for 24 hours, so this only waits and publishes. Nothing is re-rendered and
+ * no second copy of the deck is created.
+ */
+export async function resumeCarousel(
+  containerId: string, creds: IgCredentials, log: Logger, budgetMs = CAROUSEL_BUDGET_MS,
+): Promise<PublishResult> {
+  log.info('resuming a carousel container', { container: containerId });
+  await awaitContainer(containerId, creds, log, budgetMs, 'deck');
+  const published = await publishContainer(containerId, creds, log);
+  log.info('carousel published on resume', { media: published.id });
 
   return {
     mediaId: published.id,
