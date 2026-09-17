@@ -168,9 +168,13 @@ export function toneSvg(tone: Tone): Buffer {
 export function veilSvg(): Buffer {
   return Buffer.from(
     svg(
+      // Strengthened after review. The old ramp only reached .94 at the very bottom, so a billing sitting at
+      // 60-85% of the height lay on a barely-darkened flyer and was unreadable over its artwork. The flyer
+      // now stays clear through the upper middle and the band the type occupies is near-solid.
       linearGradient('v', 180, [
-        { at: 0, color: '#0B0B0B', opacity: 0.66 }, { at: 0.3, color: '#0B0B0B', opacity: 0.06 },
-        { at: 0.5, color: '#0B0B0B', opacity: 0.2 }, { at: 1, color: '#0B0B0B', opacity: 0.94 },
+        { at: 0, color: '#0B0B0B', opacity: 0.66 }, { at: 0.18, color: '#0B0B0B', opacity: 0.08 },
+        { at: 0.4, color: '#0B0B0B', opacity: 0.12 }, { at: 0.58, color: '#0B0B0B', opacity: 0.66 },
+        { at: 0.74, color: '#0B0B0B', opacity: 0.9 }, { at: 1, color: '#0B0B0B', opacity: 0.96 },
       ]),
       fill('url(#v)'),
     ),

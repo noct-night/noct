@@ -37,6 +37,7 @@ const SLIDES: [string, Slide][] = [
   ['venue', s({ template: 'venue', data: { index: '01 / 04', name: 'Nowadays', hood: 'Ridgewood, Queens', note: 'Dancefloor plus a backyard.', foot: '56-06 Cooper Ave', image: null } })],
   ['venuecover', s({ template: 'venuecover', data: { lede: 'Where to go', sub: 'Four New York venues', foot: 'noct.pro' } })],
   ['note', s({ template: 'note', data: { text: 'One feed for New York nightlife', after: 'Every listing, every night.', foot: 'noct.pro' } })],
+  ['cta', s({ template: 'cta', data: { question: 'sick of checking 10 places for one night out?', answer: 'NYC nightlife, all in one place', link: 'noct.pro', note: 'link in bio' } })],
 ];
 
 /** Fraction of sampled pixels that are not the near-black ground: a cheap "did anything get drawn". */
@@ -86,6 +87,46 @@ describe.skipIf(!live)('rendering a slide', () => {
     expect(await slideDigest(slide, 'crush', false)).not.toBe(mono);
     expect(await slideDigest(slide, 'mono', true)).not.toBe(mono);
   });
+});
+
+/** Topmost and bottom-most rows holding bright pixels, ignoring the wordmark band at the top. */
+async function inkRows(png: Buffer, fromY = 200): Promise<{ top: number; bottom: number }> {
+  const { data, info } = await sharp(png).raw().toBuffer({ resolveWithObject: true });
+  let top = -1;
+  let bottom = -1;
+  for (let y = fromY; y < info.height; y++) {
+    for (let x = 0; x < info.width; x += 2) {
+      const i = (y * info.width + x) * info.channels;
+      // The type layer is transparent PNG: count only opaque, bright pixels.
+      if (data[i]! > 150 && (info.channels < 4 || data[i + 3]! > 150)) {
+        if (top < 0) top = y;
+        bottom = y;
+        break;
+      }
+    }
+  }
+  return { top, bottom };
+}
+
+const LONG = 'Nonstop: Batu, DJ Masda, JASSS b2b MORENXXX, Mariposa, Roza Terenzi, Vlada b2b Vaahzer, and a long list of friends besides';
+
+describe.skipIf(!live)('the review fixes stay fixed', () => {
+  it('caps an event name at three lines', async () => {
+    // satori ignores lineClamp on a flex box, so every clamp silently did nothing until a five-line billing ran
+    // up a flyer. Unclamped, this name is seven lines and its block starts around y=640; clamped, well below 760.
+    const png = await renderType(s({ template: 'event', data: { position: 'Saturday', name: LONG, venue: 'Nowadays', time: '22:00', genre: 'Club', tex: 'x1', image: null } }));
+    const { top } = await inkRows(png);
+    expect(top).toBeGreaterThan(760);
+  }, 60_000);
+
+  it('ends a full table above the bottom margin', async () => {
+    // The worst case: seven rows, every name wrapping to two lines, every venue present.
+    const rows = Array.from({ length: 7 }, (_, i) => ({ day: 'Fri', time: '22:00', event: `${LONG} ${i}`, venue: 'Brooklyn Storehouse' }));
+    const png = await renderType(s({ template: 'table', data: { kicker: 'The rest of the weekend', when: 'Friday', rows } }));
+    const { bottom } = await inkRows(png);
+    expect(bottom).toBeGreaterThan(0);
+    expect(bottom).toBeLessThan(CANVAS.h - 54);
+  }, 60_000);
 });
 
 describe('the Google Fonts response', () => {

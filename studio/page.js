@@ -24,7 +24,7 @@
   var LABEL = { queued: 'In queue', approved: 'Approved', passed: 'Passed', posted: 'Published' };
   var TPL_LABEL = {
     cover: 'carousel', event: 'event', table: 'table', listing: 'listing',
-    venue: 'venue', venuecover: 'venues', note: 'note',
+    venue: 'venue', venuecover: 'venues', note: 'note', cta: 'cta',
   };
   var TAKES_IMAGE = { event: 1, venue: 1 };
 

@@ -26,6 +26,7 @@ import {
 } from '../src/post/publish.js';
 import { currentToken, daysUntilExpiry, TokenError } from '../src/post/token.js';
 import { signedRenderPath } from '../src/post/sign.js';
+import { RENDER_VERSION } from '../src/post/templates.js';
 import {
   claimForPublish, clearPending, failPublish, finishPublish, pausePublish, PostConflict, recordContainers,
   resumableContainer,
@@ -179,7 +180,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       ? await publishTheReel(post, runId, creds, log)
       : await publishCarousel(
           post.slides.map(
-            (slide) => `${publicOrigin(req)}${signedRenderPath({ slide, treatment: post.treatment, grain: post.grain })}`,
+            (slide) => `${publicOrigin(req)}${signedRenderPath({ slide, treatment: post.treatment, grain: post.grain, v: RENDER_VERSION })}`,
           ),
           post.caption, creds, log,
           {

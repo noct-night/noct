@@ -113,6 +113,14 @@ export const venueCoverDataSchema = z.object({
   foot: shortText.default(''),
 });
 
+/** The closing call to action. The icon is part of the template; the data is only words. */
+export const ctaDataSchema = z.object({
+  question: text,
+  answer: text.default(''),
+  link: shortText.default(''),
+  note: shortText.default(''),
+});
+
 export const noteDataSchema = z.object({
   text: text,
   after: z.string().max(600).default(''),
@@ -131,6 +139,7 @@ export const slideSchema = z.discriminatedUnion('template', [
   z.object({ template: z.literal('venue'), data: venueDataSchema }),
   z.object({ template: z.literal('venuecover'), data: venueCoverDataSchema }),
   z.object({ template: z.literal('note'), data: noteDataSchema }),
+  z.object({ template: z.literal('cta'), data: ctaDataSchema }),
 ]);
 export type Slide = z.infer<typeof slideSchema>;
 export type Template = Slide['template'];
@@ -144,6 +153,7 @@ export const TEMPLATE_LABEL: Record<Template, string> = {
   venue: 'venue',
   venuecover: 'venues',
   note: 'note',
+  cta: 'cta',
 };
 
 /** Templates that draw a photo. The rest are type on the ground and ignore the treatment entirely. */

@@ -189,6 +189,17 @@ export interface WeekendDraft {
  * Build the deck. Pure: it takes a feed response and returns slides, so the whole shape of a weekend post
  * is unit-testable against a canned feed with no database, no network and no image work.
  */
+/** The closing slide. Copy as written for it; the link is SITE so it can never drift from the cover. */
+export const CTA_SLIDE: Slide = {
+  template: 'cta',
+  data: {
+    question: 'sick of checking 10 places for one night out?',
+    answer: 'NYC nightlife, all in one place',
+    link: SITE,
+    note: 'link in bio',
+  },
+};
+
 export function draftWeekend(feed: FeedResponse): WeekendDraft | null {
   const { days, events } = feed;
   if (days.length === 0 || events.length === 0) return null;
@@ -200,14 +211,18 @@ export function draftWeekend(feed: FeedResponse): WeekendDraft | null {
   const cover: Slide = {
     template: 'cover',
     data: {
-      lede: 'Where to rave and dance in New York',
+      lede: 'Where to rave and dance\nin New York',
       date: `${when} weekend`,
       foot: SITE,
     },
   };
 
-  const slides = [cover, ...heroes.map((ev) => heroSlide(days, ev)), ...tableSlides(days, events, used)]
-    .slice(0, CAROUSEL_MAX);
+  // The CTA always closes the deck, so the content is trimmed to leave its slot rather than the CTA being
+  // the thing a long weekend pushes past Instagram's ten.
+  const slides = [
+    ...[cover, ...heroes.map((ev) => heroSlide(days, ev)), ...tableSlides(days, events, used)].slice(0, CAROUSEL_MAX - 1),
+    CTA_SLIDE,
+  ];
 
   const caption = draftWeekendCaption({
     when,
