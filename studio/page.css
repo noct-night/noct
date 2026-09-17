@@ -204,6 +204,7 @@ img{max-width:100%}
   border-radius:999px;padding:5px 11px;text-decoration:none;white-space:nowrap;transition:border-color .16s,color .16s}
 .shot-tools button:hover,.shot-tools a:hover{border-color:var(--paper);color:var(--paper)}
 .shot-tools [data-photo="add"]{color:var(--paper);border-color:var(--paper)}
+.shot-tools .save{margin-left:auto}
 .shot-tools .fit{display:inline-flex;gap:0}
 .shot-tools .fit button{border-radius:0}
 .shot-tools .fit button:first-child{border-radius:999px 0 0 999px}
