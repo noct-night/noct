@@ -3,7 +3,7 @@ import type { FeedDay, FeedEvent, FeedResponse } from '../../src/feed/shape.js';
 import { scrubCopy } from '../../src/post/caption.js';
 import { CTA_SLIDE, isNightOut, namesNotIn, pickHeroes } from '../../src/post/draft.js';
 import {
-  draftGenreEditions, draftSpotlights, EDITION_MIN_EVENTS, familyOf, FAMILY_PHRASE,
+  draftGenreEditions, draftSpotlights, draftVenuePosts, EDITION_MIN_EVENTS, familyOf, FAMILY_PHRASE, venueVibe,
 } from '../../src/post/editions.js';
 import { CAROUSEL_MAX, slideSchema } from '../../src/post/types.js';
 
@@ -166,5 +166,66 @@ describe('the fixes these posts surfaced', () => {
   it('does not repeat names the headline already carries', () => {
     expect(namesNotIn('DAY+NIGHT: D.Dan/ Mos/ Elle Dee', ['Mos (NYC)', 'Elle Dee', 'Heidi Lawden'])).toEqual(['Heidi Lawden']);
     expect(namesNotIn('Magnetic ft Artwork', ['Alex McCracken'])).toEqual(['Alex McCracken']);
+  });
+});
+
+
+describe('draftVenuePosts', () => {
+  const vibes = (...labels: [string, string][]) => labels.map(([label, kind]) => ({ code: label, label, kind, glyph: null }));
+  const nights = (venueName: string, n: number, extra: Partial<FeedEvent> = {}): FeedEvent[] =>
+    Array.from({ length: n }, (_, i) => ev({
+      id: `${venueName}${i}`, d: i % 3, head: `${venueName} night ${i}`, venue: venueName, door: `2${i}:00`,
+      primary: 'Deep House', vibes: vibes(['Underground', 'crowd'], ['Warehouse', 'space'], ['Ends early', 'time']),
+      ...extra,
+    }));
+  const withVenues = (events: FeedEvent[]): FeedResponse => ({
+    ...feed(events),
+    venues: {
+      Nowadays: { addr: '56-06 Cooper Ave', hood: 'Ridgewood', boro: 'Queens', verified: true },
+      'Public Records': { addr: '233 Butler St', hood: 'Gowanus', boro: 'Brooklyn', verified: false },
+      'No Address Club': { addr: null, hood: '', boro: 'Brooklyn', verified: false },
+      'Location TBA – New York': { addr: null, hood: '', boro: '', verified: false },
+    },
+  } as unknown as FeedResponse);
+
+  const events = [
+    ...nights('Public Records', 5), ...nights('Nowadays', 4), ...nights('No Address Club', 6),
+    ...nights('Location TBA – New York', 9), ...nights('Tiny Bar', 1),
+  ];
+  const posts = draftVenuePosts(withVenues(events));
+
+  it('picks busy venues that have an address, and never "Location TBA"', () => {
+    expect(posts.map((p) => p.edition)).toEqual(['Public Records', 'Nowadays']);
+  });
+
+  it('is the venue, its coming nights, then the CTA, filed under the venue name with no date', () => {
+    const p = posts[1]!;
+    expect(p.slides.map((x) => x.template)).toEqual(['venue', 'table', 'cta']);
+    expect(p).toMatchObject({ series: 'venues', slot: null, edition: 'Nowadays' });
+    expect(p.slides[0]).toMatchObject({
+      template: 'venue',
+      data: { name: 'Nowadays', hood: 'Ridgewood, Queens', foot: '56-06 Cooper Ave', image: null, verified: true },
+    });
+  });
+
+  it('marks venues nobody has verified, so the studio can warn before the address goes out', () => {
+    expect(posts[0]!.slides[0]).toMatchObject({ data: { verified: false } });
+  });
+
+  it('describes the room from its own listings, leaving out tags about the time of night', () => {
+    expect(venueVibe(nights('Nowadays', 3))).toBe('Underground, warehouse. Mostly deep house.');
+  });
+
+  it('keeps acronyms in capitals when a label goes into a sentence', () => {
+    const e = nights('Public Records', 3, { primary: 'Experimental / IDM', vibes: vibes(['Sound system', 'space']) });
+    expect(venueVibe(e)).toBe('Sound system. Mostly experimental / IDM.');
+  });
+
+  it('writes a caption that follows the house rules', () => {
+    const cap = posts[0]!.caption;
+    expect(cap.startsWith('Public Records, Gowanus, Brooklyn.')).toBe(true);
+    expect(cap).toContain('Coming up:');
+    expect(cap).not.toMatch(/[—·]/);
+    for (const x of posts[0]!.slides) expect(() => slideSchema.parse(x)).not.toThrow();
   });
 });

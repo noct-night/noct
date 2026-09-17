@@ -30,6 +30,10 @@
     "api/studio.ts": {
       "maxDuration": 15,
       "includeFiles": "studio/**"
+    },
+    "api/photos.ts": {
+      "maxDuration": 30,
+      "memory": 1024
     }
   },
   "crons": [

@@ -50,9 +50,15 @@ const text = z.string().max(400);
 const shortText = z.string().max(120);
 
 /** An image a slide draws: a source URL we are allowed to fetch, plus how to frame it. */
+/** A photo added in the studio, as a slide references it: `photo:` and the ig_photo row's uuid. */
+export const PHOTO_SRC = /^photo:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
 export const slideImageSchema = z.object({
-  src: z.string().url(),
+  /** A flyer URL from the feed, or `photo:<uuid>` for one added in the studio. */
+  src: z.string().refine((s) => PHOTO_SRC.test(s) || /^https?:\/\//.test(s), 'must be an http(s) URL or photo:<uuid>'),
   fit: fitSchema,
+  /** The flyer a studio photo replaced, so removing the photo puts the flyer back rather than nothing. */
+  flyer: z.string().url().optional(),
 });
 export type SlideImage = z.infer<typeof slideImageSchema>;
 
@@ -105,6 +111,11 @@ export const venueDataSchema = z.object({
   note: z.string().max(600).default(''),
   foot: text.default(''),
   image: slideImageSchema.nullable().default(null),
+  /**
+   * Whether a person has checked this venue's address and details. Most come from listings, not from anyone
+   * looking, and a venue post prints the address in public -- so the studio says so before approval.
+   */
+  verified: z.boolean().default(true),
 });
 
 export const venueCoverDataSchema = z.object({
@@ -220,6 +231,8 @@ export interface Post {
   ig_permalink: string | null;
   posted_at: string | null;
   updated_at: string;
+  /** Photo credits added to the caption on publish ("Photo: ..."). Attached by the API, not stored. */
+  credits?: string[];
 }
 
 /** The subset of a post the studio may change. Status moves have their own route; publishing has its own. */

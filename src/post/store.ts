@@ -6,6 +6,7 @@
  * the publish step asks whether this deck was actually signed off.
  */
 import { query, withTx } from '../lib/db.js';
+import { carryPhotos } from './photos.js';
 import {
   CAROUSEL_MAX, type Post, type PostKind, type PostPatch, type PostStatus, type Series, type Slide,
   type StoredVideoMeta, type Treatment,
@@ -142,12 +143,22 @@ export async function upsertDraft(input: DraftInput): Promise<Post> {
   return withTx(async (client) => {
     // `is not distinct from` so a null slot or edition matches null, which `=` never does.
     if (input.slot || edition) {
+      // Photos someone added by hand survive the redraft (see carryPhotos). Read under the row lock, so a
+      // photo attached while this runs is not overwritten by slides built before it existed.
+      const { rows: current } = await client.query<{ slides: Slide[] }>(
+        `select slides from ig_post
+          where series = $1 and slot is not distinct from $2 and edition is not distinct from $3
+            and status = 'queued'
+          for update`,
+        [input.series, input.slot, edition],
+      );
+      const slides = current[0] ? carryPhotos(current[0].slides, input.slides) : input.slides;
       const { rows } = await client.query<PostRow>(
         `update ig_post set slides = $3, caption = $4
            where series = $1 and slot is not distinct from $2 and edition is not distinct from $5
              and status = 'queued'
            returning ${COLUMNS}`,
-        [input.series, input.slot, JSON.stringify(input.slides), input.caption, edition],
+        [input.series, input.slot, JSON.stringify(slides), input.caption, edition],
       );
       if (rows[0]) return toPost(rows[0]);
 

@@ -20,6 +20,7 @@
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { checkCaption } from '../src/post/caption.js';
+import { attachCredits, withCredits } from '../src/post/photos.js';
 import {
   igUserId, publishCarousel, publishReel, PublishError, ReelNotReady, remainingQuota, resumeReel,
   verifyCredentials,
@@ -148,7 +149,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 
   const { post, runId } = claim;
-  const problems = checkCaption(post.caption);
+  // Photo credits join the caption here, at the last moment, so redrafting or editing can never drop one.
+  // The house rules and the 2200 limit are checked against what will actually be posted.
+  const [withPhotos] = await attachCredits([post]);
+  const caption = withCredits(post.caption, withPhotos?.credits ?? []);
+  const problems = checkCaption(caption);
   if (problems.length) {
     await failPublish(runId, problems.map((p) => p.message).join(' '));
     sendJson(res, 422, { error: 'the caption needs fixing first', problems }, NO_STORE);
@@ -182,7 +187,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           post.slides.map(
             (slide) => `${publicOrigin(req)}${signedRenderPath({ slide, treatment: post.treatment, grain: post.grain, v: RENDER_VERSION })}`,
           ),
-          post.caption, creds, log,
+          caption, creds, log,
           {
             onChildren: (ids) => recordContainers(runId, ids),
             onCarousel: (containerId) => recordContainers(runId, [], containerId),
