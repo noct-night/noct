@@ -4,6 +4,8 @@
  *   GET    /api/posts                  every post, newest slot first
  *   GET    /api/posts?status=approved  one review state
  *   POST   /api/posts?draft=weekend    draft the coming weekend from the feed, or return the existing draft
+ *   POST   /api/posts?draft=genre      draft up to three genre editions of the coming weekend
+ *   POST   /api/posts?draft=spotlight  draft the three most anticipated nights of the next two weeks
  *   PATCH  /api/posts?id=<uuid>        caption, status, slides, treatment, grain
  *
  * Read-only for the account: nothing here reaches Instagram. Publishing is /api/publish and takes a
@@ -12,6 +14,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { buildFeed } from '../src/feed/query.js';
 import { draftWeekend } from '../src/post/draft.js';
+import { draftGenreEditions, draftSpotlights, type EditionDraft } from '../src/post/editions.js';
+import { localDatePlus } from '../src/lib/time.js';
 import { listPosts, patchPost, PostConflict, upsertDraft } from '../src/post/store.js';
 import { postPatchSchema, STATUSES, type PostStatus } from '../src/post/types.js';
 import { weekendRange } from '../src/post/weekend.js';
@@ -59,6 +63,42 @@ async function draft(req: VercelRequest, res: VercelResponse): Promise<void> {
   }
 }
 
+/** How far ahead a spotlight may be. Two weeks: far enough to build anticipation, near enough to be listed. */
+const SPOTLIGHT_DAYS = 14;
+
+/**
+ * Draft a batch of editions and store each one.
+ *
+ * One edition already approved, passed or published is a decision, so it is skipped and reported rather than
+ * failing the whole batch -- the other two genre editions should still be drafted.
+ */
+async function draftEditions(res: VercelResponse, kind: 'genre' | 'spotlight'): Promise<void> {
+  const log = createLogger('api:posts');
+  const { from, to } = kind === 'genre' ? weekendRange() : { from: localDatePlus(0), to: localDatePlus(SPOTLIGHT_DAYS - 1) };
+  const feed = await buildFeed({ from, to });
+  const drafts: EditionDraft[] = kind === 'genre' ? draftGenreEditions(feed) : draftSpotlights(feed);
+  if (drafts.length === 0) {
+    const note = kind === 'genre'
+      ? `no genre has enough nights for an edition between ${from} and ${to}`
+      : `the feed has no events between ${from} and ${to}`;
+    sendJson(res, 200, { posts: [], note }, NO_STORE);
+    return;
+  }
+
+  const posts = [];
+  const skipped: string[] = [];
+  for (const d of drafts) {
+    try {
+      posts.push(await upsertDraft({ series: d.series, slot: d.slot, edition: d.edition, slides: d.slides, caption: d.caption }));
+    } catch (err) {
+      if (!(err instanceof PostConflict)) throw err;
+      skipped.push(err.message);
+    }
+  }
+  log.info(`${kind} editions drafted`, { drafted: posts.length, skipped: skipped.length, from, to });
+  sendJson(res, 200, { posts, skipped }, NO_STORE);
+}
+
 async function patch(req: VercelRequest, res: VercelResponse): Promise<void> {
   const id = firstParam(req.query.id);
   if (!id) {
@@ -87,6 +127,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   try {
     if (req.method === 'GET') return await list(req, res);
     if (req.method === 'POST' && firstParam(req.query.draft) === 'weekend') return await draft(req, res);
+    if (req.method === 'POST' && firstParam(req.query.draft) === 'genre') return await draftEditions(res, 'genre');
+    if (req.method === 'POST' && firstParam(req.query.draft) === 'spotlight') return await draftEditions(res, 'spotlight');
     if (req.method === 'PATCH') return await patch(req, res);
     sendJson(res, 405, { error: 'method not allowed' }, { allow: 'GET, POST, PATCH' });
   } catch (err) {

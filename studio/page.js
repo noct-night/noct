@@ -175,7 +175,9 @@
     }).join('');
     byId('filters').innerHTML = chips
       + '<span class="spacer"></span>'
-      + '<button type="button" class="chip" id="draftBtn">Draft the coming weekend</button>';
+      + '<button type="button" class="chip" data-draft="weekend">Draft the coming weekend</button>'
+      + '<button type="button" class="chip" data-draft="genre">Draft genre editions</button>'
+      + '<button type="button" class="chip" data-draft="spotlight">Draft spotlights</button>';
   }
 
   function renderReady() {
@@ -393,16 +395,24 @@
 
   // ── events ────────────────────────────────────────────────────────────────
 
-  function draftWeekend(btn) {
+  /**
+   * Draft one kind of post. The weekend answers with one post; genre editions and spotlights answer with
+   * several, so both shapes are folded into the list the same way: replace a post already shown, else add it.
+   */
+  function draftKind(btn) {
+    var kind = btn.getAttribute('data-draft');
     var was = btn.textContent;
     btn.textContent = 'Drafting…';
     btn.disabled = true;
-    api('/api/posts?draft=weekend', { method: 'POST' })
+    api('/api/posts?draft=' + encodeURIComponent(kind), { method: 'POST' })
       .then(function (res) {
-        if (!res.post) { btn.textContent = res.note || 'Nothing to draft'; return; }
-        delete shots[res.post.id];
-        var i = posts.findIndex(function (p) { return p.id === res.post.id; });
-        if (i >= 0) posts[i] = res.post; else posts.unshift(res.post);
+        var drafted = res.posts || (res.post ? [res.post] : []);
+        if (!drafted.length) { btn.textContent = res.note || 'Nothing to draft'; return; }
+        drafted.forEach(function (post) {
+          delete shots[post.id];
+          var i = posts.findIndex(function (p) { return p.id === post.id; });
+          if (i >= 0) posts[i] = post; else posts.unshift(post);
+        });
         filter = 'queued';
         render();
       })
@@ -422,7 +432,8 @@
     byId('filters').addEventListener('click', function (e) {
       var chip = e.target.closest('button[data-f]');
       if (chip) { filter = chip.getAttribute('data-f'); render(); return; }
-      if (e.target.closest('#draftBtn')) draftWeekend(e.target.closest('#draftBtn'));
+      var draftBtn = e.target.closest('button[data-draft]');
+      if (draftBtn && !draftBtn.disabled) draftKind(draftBtn);
     });
 
     stream.addEventListener('click', function (e) {

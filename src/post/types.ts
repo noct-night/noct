@@ -188,7 +188,7 @@ export const videoMetaSchema = z.object({
 }).partial();
 export type StoredVideoMeta = z.infer<typeof videoMetaSchema>;
 
-export const SERIES = ['weekend', 'venues', 'single'] as const;
+export const SERIES = ['weekend', 'venues', 'single', 'genre', 'artists'] as const;
 export type Series = (typeof SERIES)[number];
 
 export const STATUSES = ['queued', 'approved', 'passed', 'posted'] as const;

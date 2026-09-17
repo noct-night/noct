@@ -77,10 +77,34 @@ function rank(events: FeedEvent[]): FeedEvent[] {
  * Without the venue rule a big room with four rooms of programming takes the whole deck, and the deck stops
  * being a guide to the weekend. The cap is per venue family, so two rooms of Avant Gardner count as one.
  */
+/**
+ * Whether a listing is a night out rather than something else that happens at a venue.
+ *
+ * RA lists merch pop-ups, talks and plays alongside parties, and a merch pop-up with a famous name on it can
+ * out-rank every club night on "interested". It is still not the post. Deliberately a short list of words
+ * that never name a party: tables still list everything, only the slides a whole post leads with are filtered.
+ */
+const NOT_A_NIGHT = /\b(pop[- ]?up|merch|market|panel|workshop|talk|screening|lecture|class|exhibition|a play)\b/i;
+export function isNightOut(ev: Pick<FeedEvent, 'head'>): boolean {
+  return !NOT_A_NIGHT.test(ev.head);
+}
+
+/**
+ * The supporting names worth adding after a headline: the ones the headline does not already carry. A title
+ * like "DAY+NIGHT: D.Dan/ Mos/ Elle Dee" names the whole bill, and repeating it as "with Mos, Elle Dee" is
+ * the caption saying the same thing twice.
+ */
+export function namesNotIn(headline: string, names: string[]): string[] {
+  const key = (s: string): string => s.replace(/\([^)]*\)/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const said = key(headline);
+  return names.filter((n) => key(n) && !said.includes(key(n)));
+}
+
 export function pickHeroes(events: FeedEvent[], limit = HERO_SLIDES): FeedEvent[] {
   const seen = new Set<string>();
   const out: FeedEvent[] = [];
-  for (const ev of rank(events)) {
+  const nights = events.filter(isNightOut);
+  for (const ev of rank(nights)) {
     if (out.length >= limit) break;
     const key = ev.venue.toLowerCase();
     if (seen.has(key)) continue;
@@ -89,7 +113,7 @@ export function pickHeroes(events: FeedEvent[], limit = HERO_SLIDES): FeedEvent[
   }
   // If venue de-duplication left the deck short, fill it rather than ship a four-slide weekend.
   if (out.length < limit) {
-    for (const ev of rank(events)) {
+    for (const ev of rank(nights)) {
       if (out.length >= limit) break;
       if (!out.includes(ev)) out.push(ev);
     }
@@ -121,7 +145,7 @@ export function spanLabel(days: FeedDay[]): string {
 /** The tone a slide falls back to when it has no flyer. Already deterministic per event in the feed. */
 const toneOf = (ev: FeedEvent): Tone => (ev.tex as Tone) ?? 'x1';
 
-function heroSlide(days: FeedDay[], ev: FeedEvent): Slide {
+export function heroSlide(days: FeedDay[], ev: FeedEvent): Slide {
   return {
     template: 'event',
     data: {
@@ -185,10 +209,6 @@ export interface WeekendDraft {
   caption: string;
 }
 
-/**
- * Build the deck. Pure: it takes a feed response and returns slides, so the whole shape of a weekend post
- * is unit-testable against a canned feed with no database, no network and no image work.
- */
 /** The closing slide. Copy as written for it; the link is SITE so it can never drift from the cover. */
 export const CTA_SLIDE: Slide = {
   template: 'cta',
@@ -200,7 +220,19 @@ export const CTA_SLIDE: Slide = {
   },
 };
 
-export function draftWeekend(feed: FeedResponse): WeekendDraft | null {
+/** What a themed deck changes about the weekend deck: what the cover and the caption say the post is. */
+export interface DeckOptions {
+  /** Cover lede; a newline marks where it breaks. */
+  lede?: string;
+  /** The caption's first sentence, before the dates. */
+  captionLead?: string;
+}
+
+/**
+ * Build the deck. Pure: it takes a feed response and returns slides, so the whole shape of a weekend post
+ * is unit-testable against a canned feed with no database, no network and no image work.
+ */
+export function draftWeekend(feed: FeedResponse, opts: DeckOptions = {}): WeekendDraft | null {
   const { days, events } = feed;
   if (days.length === 0 || events.length === 0) return null;
 
@@ -211,7 +243,7 @@ export function draftWeekend(feed: FeedResponse): WeekendDraft | null {
   const cover: Slide = {
     template: 'cover',
     data: {
-      lede: 'Where to rave and dance\nin New York',
+      lede: opts.lede ?? 'Where to rave and dance\nin New York',
       date: `${when} weekend`,
       foot: SITE,
     },
@@ -225,11 +257,13 @@ export function draftWeekend(feed: FeedResponse): WeekendDraft | null {
   ];
 
   const caption = draftWeekendCaption({
+    lead: opts.captionLead,
     when,
     headlines: heroes.map((ev) => {
-      const cast = supportingCast(ev);
+      const headline = headlineOf(ev);
+      const cast = namesNotIn(headline, supportingCast(ev));
       const tail = cast.length ? ` with ${cast.slice(0, 3).join(', ')}` : '';
-      return `${headlineOf(ev)}${tail}, ${venueOf(ev)}`;
+      return `${headline}${tail}, ${venueOf(ev)}`;
     }),
     genres: events.flatMap((e) => (e.primary ? [e.primary] : e.genre.slice(0, 1))),
   });
