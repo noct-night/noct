@@ -121,6 +121,8 @@ export async function patchPost(id: string, patch: PostPatch): Promise<Post> {
 export interface DraftInput {
   series: Series;
   slot: string | null;
+  /** Which post within the series and slot. Null for the weekend deck, which is the only one of its kind. */
+  edition?: string | null;
   slides: Slide[];
   caption: string;
 }
@@ -136,25 +138,29 @@ export async function upsertDraft(input: DraftInput): Promise<Post> {
   if (input.slides.length > CAROUSEL_MAX) {
     throw new PostConflict(`a carousel holds at most ${CAROUSEL_MAX} slides, got ${input.slides.length}`);
   }
+  const edition = input.edition ?? null;
   return withTx(async (client) => {
-    if (input.slot) {
+    // `is not distinct from` so a null slot or edition matches null, which `=` never does.
+    if (input.slot || edition) {
       const { rows } = await client.query<PostRow>(
         `update ig_post set slides = $3, caption = $4
-           where series = $1 and slot = $2 and status = 'queued'
+           where series = $1 and slot is not distinct from $2 and edition is not distinct from $5
+             and status = 'queued'
            returning ${COLUMNS}`,
-        [input.series, input.slot, JSON.stringify(input.slides), input.caption],
+        [input.series, input.slot, JSON.stringify(input.slides), input.caption, edition],
       );
       if (rows[0]) return toPost(rows[0]);
 
       const { rows: taken } = await client.query<{ status: PostStatus }>(
-        `select status from ig_post where series = $1 and slot = $2`,
-        [input.series, input.slot],
+        `select status from ig_post
+          where series = $1 and slot is not distinct from $2 and edition is not distinct from $3`,
+        [input.series, input.slot, edition],
       );
-      if (taken[0]) throw new PostConflict(`a ${taken[0].status} post already holds ${input.slot}`);
+      if (taken[0]) throw new PostConflict(`a ${taken[0].status} post already holds ${edition ?? input.slot}`);
     }
     const { rows } = await client.query<PostRow>(
-      `insert into ig_post (series, slot, slides, caption) values ($1, $2, $3, $4) returning ${COLUMNS}`,
-      [input.series, input.slot, JSON.stringify(input.slides), input.caption],
+      `insert into ig_post (series, slot, slides, caption, edition) values ($1, $2, $3, $4, $5) returning ${COLUMNS}`,
+      [input.series, input.slot, JSON.stringify(input.slides), input.caption, edition],
     );
     return toPost(rows[0]!);
   });

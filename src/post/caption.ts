@@ -79,7 +79,10 @@ export function checkCaption(caption: string): CaptionProblem[] {
 export function scrubCopy(value: string): string {
   return value
     .replace(/\s*—\s*/g, ', ')
-    .replace(/\s*–\s*/g, ' to ')
+    // An en dash is "to" only between numbers (22:00 – 04:00). Elsewhere it is a separator, and turning
+    // "Location TBA – New York" into "Location TBA to New York" says something the listing never did.
+    .replace(/(\d)\s*–\s*(\d)/g, '$1 to $2')
+    .replace(/\s*–\s*/g, ' / ')
     .replace(/\s*·\s*/g, ' / ')
     .replace(/[ \t]+/g, ' ')
     .trim();
@@ -114,6 +117,8 @@ export interface CaptionSeed {
   /** Headliner-first names, in deck order. */
   headlines: string[];
   genres: string[];
+  /** What the post is, before the dates. Defaults to the weekend deck's own line. */
+  lead?: string;
 }
 
 /**
@@ -125,7 +130,7 @@ export function draftWeekendCaption(seed: CaptionSeed): string {
   const tags = draftHashtags(seed.genres).join(' ');
   return scrubLines(
     [
-      `Where to rave and dance in New York, ${seed.when}.`,
+      `${seed.lead ?? 'Where to rave and dance in New York'}, ${seed.when}.`,
       '',
       list,
       '',
