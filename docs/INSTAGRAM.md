@@ -257,6 +257,12 @@ which is what publishing a deck used to fail with. So both kinds wait: every car
 carousel itself (45 s budget), then `media_publish`, which is itself retried three times on 9007 because
 FINISHED and publishable can be a second or two apart.
 
+Before any of that, the publish fetches every render URL itself. `/api/render` renders on demand, so the
+first fetch of a slide is the slow one and Meta's fetcher is less patient than a browser; fetching them
+first warms the edge cache and turns a render that fails into a failure that names the slide. And when
+`media_publish` still refuses, the error reports what each container said about itself, which is what
+separates "Meta never fetched the images" from "Meta has them and refused anyway".
+
 For a reel, waiting can outlast the function, which leaves two bad options and one good one:
 
 - hold the lambda until it is killed — and being killed between `media_publish` and the row update is the

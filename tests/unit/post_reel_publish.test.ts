@@ -10,8 +10,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   awaitContainer, CAROUSEL_BUDGET_MS, MediaNotReady, POLL_BUDGET_MS, POLL_STEPS_MS, publishCarousel,
-  publishReel, PublishError, PUBLISH_RETRY_MS, resumeCarousel, resumeReel,
+  publishReel, PublishError, PUBLISH_RETRY_MS, resumeCarousel, resumeReel, warmMedia,
 } from '../../src/post/publish.js';
+import { publicOrigin } from '../../api/publish.js';
 import { forgetHostPacing } from '../../src/lib/http.js';
 import type { Logger } from '../../src/lib/log.js';
 
@@ -352,4 +353,108 @@ describe('resumeCarousel', () => {
     expect(err).toBeInstanceOf(MediaNotReady);
     expect((err as MediaNotReady).containerId).toBe('deck-1');
   }, SLOW);
+});
+
+/**
+ * What Meta actually says when it refuses.
+ *
+ * The Graph API answers a refusal with HTTP 400 and the reason as JSON, and politeFetch resolves only for
+ * 2xx -- so the code has to be dug back out of the failed response. Without that, `Media ID is not
+ * available` arrived in the studio as "HTTP 400 for https://graph.instagram.com/..." and never reached the
+ * retry written for exactly that code.
+ */
+describe('a Graph API refusal', () => {
+  it('keeps the code and subcode from a 400, and says what Meta said', async () => {
+    vi.stubGlobal('fetch', async (input: string | URL) => {
+      const url = String(input);
+      const json = (v: unknown, status = 200) =>
+        new Response(JSON.stringify(v), { status, headers: { 'content-type': 'application/json' } });
+      if (url.includes('media_publish')) {
+        return json({ error: { message: 'Media ID is not available', code: 9007, error_subcode: 2207027 } }, 400);
+      }
+      if (url.includes('status_code')) return json({ status_code: 'FINISHED', status: 'Finished' });
+      return json({ id: 'container-1' });
+    });
+    const err = await publishCarousel(['https://noct.pro/api/render?p=1'], 'x', creds, quiet).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PublishError);
+    expect((err as PublishError).code).toBe(9007);
+    expect((err as PublishError).subcode).toBe(2207027);
+    expect((err as PublishError).message).toContain('Media ID is not available');
+    // And it says what the containers themselves reported, which is where the next answer comes from.
+    expect((err as PublishError).message).toMatch(/carousel reports .*slides report/);
+  }, SLOW);
+
+  it('passes through a failure that is not a Graph error as the HTTP failure it was', async () => {
+    // An edge or gateway error page: there is no code to recover, and the HTTP message is the honest one.
+    vi.stubGlobal('fetch', async (input: string | URL) => {
+      const url = String(input);
+      if (url.includes('media_publish')) return new Response('<html>gateway</html>', { status: 502 });
+      if (url.includes('status_code')) {
+        return new Response(JSON.stringify({ status_code: 'FINISHED' }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({ id: 'container-1' }), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+    const err = await publishCarousel(['https://noct.pro/api/render?p=1'], 'x', creds, quiet).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PublishError);
+    expect((err as PublishError).code).toBeUndefined();
+    expect((err as PublishError).message).toMatch(/HTTP 502/);
+  }, SLOW);
+});
+
+/**
+ * Rendering the slides before Instagram is told about them.
+ *
+ * /api/render renders on demand, so the first fetch of a slide is the slow one, and Meta's fetcher is less
+ * patient than a browser. Fetching them here warms the edge cache and, just as usefully, turns a render
+ * that fails into a failure that names the slide.
+ */
+describe('warmMedia', () => {
+  it('fetches every slide and reads it, so the cache keeps it', async () => {
+    const asked: string[] = [];
+    vi.stubGlobal('fetch', async (input: string | URL) => {
+      asked.push(String(input));
+      return new Response('jpeg-bytes', { status: 200, headers: { 'content-type': 'image/jpeg' } });
+    });
+    await warmMedia(['https://noct.pro/api/render?p=1', 'https://noct.pro/api/render?p=2'], quiet);
+    expect(asked).toEqual(['https://noct.pro/api/render?p=1', 'https://noct.pro/api/render?p=2']);
+  }, SLOW);
+
+  it('names the slide when a render fails, rather than letting Meta discover it', async () => {
+    vi.stubGlobal('fetch', async (input: string | URL) =>
+      new Response(JSON.stringify({ error: 'bad signature' }), {
+        status: String(input).includes('p=2') ? 403 : 200,
+        headers: { 'content-type': String(input).includes('p=2') ? 'application/json' : 'image/jpeg' },
+      }));
+    const err = await warmMedia(['https://noct.pro/api/render?p=1', 'https://noct.pro/api/render?p=2'], quiet)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PublishError);
+    expect((err as PublishError).step).toBe('render 2');
+    expect((err as PublishError).message).toMatch(/slide 2 did not render/);
+  }, SLOW);
+
+  it('refuses anything that is not a JPEG, which is all Instagram takes', async () => {
+    vi.stubGlobal('fetch', async () => new Response('<html>', { status: 200, headers: { 'content-type': 'text/html' } }));
+    const err = await warmMedia(['https://noct.pro/api/render?p=1'], quiet).catch((e: unknown) => e);
+    expect((err as PublishError).message).toMatch(/rather than a JPEG/);
+  }, SLOW);
+});
+
+describe('the origin Meta is pointed at', () => {
+  const req = (host: string) => ({ headers: { 'x-forwarded-host': host, 'x-forwarded-proto': 'https' } } as never);
+
+  it('uses the configured origin above everything else', () => {
+    expect(publicOrigin(req('noct.pro'), { NOCT_PUBLIC_ORIGIN: 'https://noct.pro/', VERCEL_URL: 'dep.vercel.app' }))
+      .toBe('https://noct.pro');
+  });
+
+  it('prefers the domain the studio is being used on over the deployment hostname', () => {
+    // The previews have already warmed this domain's cache, and on a preview deploy VERCEL_URL is a
+    // hostname nobody else has ever fetched.
+    expect(publicOrigin(req('noct.pro'), { VERCEL_URL: 'noct-abc123.vercel.app' })).toBe('https://noct.pro');
+  });
+
+  it('falls back to the deployment hostname when there is no usable host header', () => {
+    expect(publicOrigin({ headers: {} } as never, { VERCEL_URL: 'noct-abc123.vercel.app' }))
+      .toBe('https://noct-abc123.vercel.app');
+  });
 });

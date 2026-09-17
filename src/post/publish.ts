@@ -27,7 +27,7 @@
  */
 import { requireEnv } from '../lib/env.js';
 import type { Logger } from '../lib/log.js';
-import { politeFetch } from '../lib/http.js';
+import { HttpError, politeFetch } from '../lib/http.js';
 import { CAROUSEL_MAX } from './types.js';
 
 /** Pinned rather than floating: a version bump that changes a field should be a deliberate edit here. */
@@ -96,7 +96,7 @@ async function graphPost<T>(path: string, params: Record<string, string>, token:
     retries: 1,
     minIntervalMs: 250,
   }).catch((err: unknown) => {
-    throw new PublishError(messageOf(err), step);
+    throw graphFailure(err, step);
   });
   const text = await res.text();
   let parsed: T & GraphError;
@@ -115,6 +115,28 @@ async function graphPost<T>(path: string, params: Record<string, string>, token:
 /** HttpError's message already carries the status and a body snippet; anything else gets stringified. */
 function messageOf(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Turn a failed request into a PublishError that still knows what Meta said.
+ *
+ * The Graph API answers a refusal with an HTTP 400 carrying the error as JSON, and politeFetch resolves
+ * only for 2xx -- so without this the code and subcode are lost inside an "HTTP 400 for https://..." string.
+ * That is how `Media ID is not available` (9007 / 2207027) reached the studio as a raw HTTP dump and never
+ * reached the retry that exists for exactly that code.
+ */
+function graphFailure(err: unknown, step: string): PublishError {
+  if (!(err instanceof HttpError)) return new PublishError(messageOf(err), step);
+  try {
+    const body = JSON.parse(err.bodySnippet) as GraphError;
+    const e = body.error;
+    if (e?.message) {
+      return new PublishError(`${e.message} (code ${e.code ?? '?'})`, step, e.code, e.error_subcode);
+    }
+  } catch {
+    // Not JSON: an edge error page, a gateway. The HTTP message is the most honest thing there is.
+  }
+  return new PublishError(err.message, step);
 }
 
 export interface PublishHooks {
@@ -173,7 +195,12 @@ export async function publishCarousel(
   log.info('carousel container created', { container: carousel.id, children: childIds.length });
 
   await awaitContainer(carousel.id, creds, log, Math.max(0, deadline - Date.now()), 'deck');
-  const published = await publishContainer(carousel.id, creds, log);
+  const published = await publishContainer(carousel.id, creds, log).catch(async (err: unknown) => {
+    if (!isNotReady(err)) throw err;
+    const detail = await describeContainers(carousel.id, childIds, creds);
+    const e = err as PublishError;
+    throw new PublishError(`${e.message}. ${detail}`, 'publish', e.code, e.subcode);
+  });
   log.info('carousel published', { media: published.id });
 
   return {
@@ -182,6 +209,59 @@ export async function publishCarousel(
     childIds,
     containerId: carousel.id,
   };
+}
+
+/**
+ * How long one slide may take to render before it is a failure rather than a wait.
+ *
+ * Generous: a cold lambda fetching the webfont and compositing a slide is a few seconds, and this is the
+ * ceiling on that, not the expectation.
+ */
+export const WARM_TIMEOUT_MS = 25_000;
+
+/**
+ * Fetch every slide ourselves before handing the URLs to Instagram.
+ *
+ * Two jobs, and the second is the point. It proves the URL Meta is about to be given actually answers with
+ * a JPEG -- a render that 500s or a signature that does not verify becomes a clear failure here instead of
+ * an opaque `Media ID is not available` three calls later. And it warms the edge cache: /api/render renders
+ * on demand, so the first fetch of a slide is the slow one, and Meta's fetcher does not wait as patiently
+ * as a browser does. After this, Meta's fetch is a cache hit.
+ */
+export async function warmMedia(urls: string[], log: Logger): Promise<void> {
+  const started = Date.now();
+  let slowest = 0;
+  for (const [index, url] of urls.entries()) {
+    const at = Date.now();
+    const res = await politeFetch(url, { timeoutMs: WARM_TIMEOUT_MS, retries: 1, minIntervalMs: 0 })
+      .catch((err: unknown) => {
+        throw new PublishError(`slide ${index + 1} did not render: ${messageOf(err)}`, `render ${index + 1}`);
+      });
+    const type = res.headers.get('content-type') ?? '';
+    if (!type.includes('image/jpeg')) {
+      throw new PublishError(
+        `slide ${index + 1} came back as ${type || 'nothing'} rather than a JPEG`, `render ${index + 1}`,
+      );
+    }
+    // Drained rather than abandoned: a response left unread is not a response the cache has stored.
+    await res.arrayBuffer();
+    slowest = Math.max(slowest, Date.now() - at);
+  }
+  log.info('slides rendered and cached', { slides: urls.length, ms: Date.now() - started, slowest_ms: slowest });
+}
+
+/**
+ * What every container in a deck says about itself, for an error message.
+ *
+ * Reached only when Instagram has refused to publish media it was asked to fetch. Which of the two possible
+ * stories is true -- Meta never got the images, or it has them and refused anyway -- decides where to look
+ * next, and without this the failure says neither.
+ */
+async function describeContainers(carouselId: string, childIds: string[], creds: IgCredentials): Promise<string> {
+  const read = async (id: string): Promise<string> =>
+    containerStatus(id, creds).then((s) => s.detail ?? s.status).catch(() => 'unreadable');
+  const [deck, ...children] = await Promise.all([carouselId, ...childIds].map(read));
+  return `The carousel reports ${deck}; the slides report ${children.join(', ')}.`;
 }
 
 /**
