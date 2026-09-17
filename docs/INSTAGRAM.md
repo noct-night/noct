@@ -91,12 +91,15 @@ type at the top with a photo band at the foot plus a running `VENUES 01 / 04` in
 
 ### One divergence worth knowing about
 
-**The posts use Red Hat Display. The app uses Google Sans** (`--f` in `app.css`). The handoff that
-specified the post system said every value was "already in index.html or derived from it", which is true of
-the colours and not of the typeface. Both surfaces were Archivo once; the app moved first, and the posts
-followed on a later call to drop Archivo altogether. They still do not match, and that remains deliberate —
-the post face is one constant, `FONT_FAMILY` in `src/post/font.ts`. If they are ever meant to match, that is
-the line to change, but it is a brand decision and not a cleanup.
+**Posts are set in two faces** (`src/post/font.ts`), decided in review of the first real decks:
+
+- `BODY_FONT` — **Google Sans**, the app's own face (`--f` in `app.css`), for covers, tables, venue copy and
+  the CTA, so a post reads like the site it points to.
+- `DISPLAY_FONT` — **Archivo**, for the DJ lineup and the NO / CT wordmark. It is the face the logo in
+  `brand/noct-logo.png` is set in, so the wordmark on every slide matches the mark itself.
+
+Red Hat Display was the post face in between. Changing either face is one constant; it is a brand decision,
+not a cleanup.
 
 The greys also differ slightly: the app's `--d1`/`--d2` are `.66`/`.40` against the post system's `.70`/`.44`.
 The post values are used for posts, as specified.
@@ -175,7 +178,7 @@ milliseconds. A reel is tens of megabytes that took minutes, so:
 `drawtext` can put white letters on a video. It cannot put *these* letters there: it has no access to the
 tracking table in `templates.ts`, it needs a font file on the machine where a slide needs none, and every
 value it took would be a second copy of a number the design system already owns. `src/video/title.ts`
-imports the same `FONT_FAMILY` and the same `linearGradient`, and renders one transparent 1080x1920 PNG
+imports the same `DISPLAY_FONT` and the same `linearGradient`, and renders one transparent 1080x1920 PNG
 that ffmpeg overlays. A reel that does not match the deck beside it is the failure worth designing against.
 
 The scrim is in that PNG rather than a separate filter, because white type over unknown club footage is
@@ -375,7 +378,7 @@ NOCT_LIVE=1 npx vitest run tests/live/render.live.test.ts   # the renderer, whic
 NOCT_LIVE=1 npx vitest run tests/live/clip.live.test.ts     # the encoder, which needs ffmpeg on PATH
 ```
 
-The renderer's tests are opt-in because satori needs the real Red Hat Display files, and the alternative was
+The renderer's tests are opt-in because satori needs the real Google Sans and Archivo files, and the alternative was
 vendoring 440 KB of font binaries. Everything that does not need a font — tones, veil, grain, the treatment
 chains, framing — is offline in `tests/unit`. Set `NOCT_FONT_DIR` to run the render tests without network.
 

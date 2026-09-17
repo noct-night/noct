@@ -17,7 +17,7 @@
  */
 import type { Slide } from './types.js';
 import { CANVAS, TABLE_ROWS_MAX } from './types.js';
-import { FONT_FAMILY } from './font.js';
+import { POST_TYPEFACES, type Typefaces } from './font.js';
 
 /** A satori element. Plain objects, so nothing in the render path needs React. */
 export interface Node {
@@ -33,7 +33,7 @@ export interface Node {
  * serving the old design for up to 24 hours, in the studio and to Meta alike. The version rides in the URL
  * so a design change is a new URL.
  */
-export const RENDER_VERSION = 4;
+export const RENDER_VERSION = 5;
 
 const PAD = 54;
 /** The type column, inside the side margins. Every fixed width below is measured against it. */
@@ -85,11 +85,11 @@ const column = (style: Record<string, unknown>, children: Node[]): Node =>
   el({ display: 'flex', flexDirection: 'column', ...style }, children);
 
 /** NO left, CT right, split to the edges. On every slide, at the same place, at the same size. */
-const wordmark = (): Node =>
+const wordmark = (type: Typefaces): Node =>
   spread(
     {
       position: 'absolute', top: 50, left: PAD, right: PAD,
-      fontSize: 96, fontWeight: 700, letterSpacing: track(96, -0.04), lineHeight: 1, color: WHITE,
+      fontFamily: type.display, fontSize: 96, fontWeight: 700, letterSpacing: track(96, -0.04), lineHeight: 1, color: WHITE,
     },
     [text('NO', { fontSize: 96 }), text('CT', { fontSize: 96 })],
   );
@@ -115,9 +115,9 @@ const slab = (
 // ── The seven templates ─────────────────────────────────────────────────────
 
 /** Says plainly what the post is, then the date. One block, one size, the way it is scanned in the feed. */
-function cover(d: { lede: string; date: string; foot: string }): Node[] {
+function cover(d: { lede: string; date: string; foot: string }, type: Typefaces): Node[] {
   return [
-    wordmark(),
+    wordmark(type),
     centred([
       ...lines(d.lede).map((line) => slab(line, 84, -0.042, 1.07)),
       ...(d.date ? [slab(d.date, 84, -0.042, 1.07, G1, { marginTop: 14 })] : []),
@@ -158,15 +158,15 @@ const SWIPE_ARROW = `data:image/svg+xml;base64,${Buffer.from(
 ).toString('base64')}`;
 
 /** Full-bleed photo with the type at the foot. The composition that marks a weekend slide. */
-function event(d: { position: string; name: string; venue: string; time: string; genre: string }): Node[] {
+function event(d: { position: string; name: string; venue: string; time: string; genre: string }, type: Typefaces): Node[] {
   const meta = [d.venue, d.time].filter(Boolean).join('  /  ');
   return [
-    wordmark(),
+    wordmark(type),
     // Sized down from 46/92/48 after review: at the old size a long billing ran five lines up the flyer and
     // sat on its artwork. Three lines is the cap -- the veil darkens exactly the band this block occupies.
     column({ position: 'absolute', left: PAD, right: PAD, bottom: 132, gap: 14 }, [
       ...(d.position ? [text(d.position, { fontSize: 36, fontWeight: 500, letterSpacing: track(36, 0.01) })] : []),
-      text(d.name, { fontSize: 70, fontWeight: 700, letterSpacing: track(70, -0.04), lineHeight: 1.04, width: CONTENT_W }, 3),
+      text(d.name, { fontFamily: type.display, fontSize: 70, fontWeight: 700, letterSpacing: track(70, -0.04), lineHeight: 1.04, width: CONTENT_W }, 3),
       ...(meta ? [text(meta, { fontSize: 38, color: G1, letterSpacing: track(38, -0.01) })] : []),
     ]),
     foot(d.genre, '', 32),
@@ -178,9 +178,9 @@ function event(d: { position: string; name: string; venue: string; time: string;
  * truncating: a name cut mid-word is worse than a deeper row. Seven rows is the most that stays legible at
  * feed size, so an eighth event starts a second table slide instead of shrinking the type.
  */
-function table(d: { kicker: string; when: string; rows: { day: string; time: string; event: string; venue: string }[] }): Node[] {
+function table(d: { kicker: string; when: string; rows: { day: string; time: string; event: string; venue: string }[] }, type: Typefaces): Node[] {
   return [
-    wordmark(),
+    wordmark(type),
     column({ position: 'absolute', top: 186, left: PAD, right: PAD }, [
       ...(d.kicker ? [text(d.kicker, { fontSize: 34, color: G1, letterSpacing: track(34, 0.01), marginBottom: 10 })] : []),
       slab(d.when, 76, -0.045, 0.94),
@@ -198,6 +198,7 @@ function table(d: { kicker: string; when: string; rows: { day: string; time: str
           // rather than wrap it, and a clipped headliner is the one thing this slide must never do.
           column({ width: CONTENT_W - TABLE_GUTTER - TABLE_GAP, flexShrink: 0, gap: 4 }, [
             text(r.event, {
+              fontFamily: type.display,
               fontSize: 37, fontWeight: 600, letterSpacing: track(37, -0.02), lineHeight: 1.08,
               width: CONTENT_W - TABLE_GUTTER - TABLE_GAP,
             }, 2),
@@ -210,9 +211,9 @@ function table(d: { kicker: string; when: string; rows: { day: string; time: str
 }
 
 /** Tonight: four events, more air per row than the table, and a genre line. */
-function listing(d: { kicker: string; when: string; events: { time: string; name: string; venue: string; genre: string }[] }): Node[] {
+function listing(d: { kicker: string; when: string; events: { time: string; name: string; venue: string; genre: string }[] }, type: Typefaces): Node[] {
   return [
-    wordmark(),
+    wordmark(type),
     column({ position: 'absolute', top: 214, left: PAD, right: PAD }, [
       text(d.kicker, { fontSize: 42, color: G1, letterSpacing: track(42, 0.01), marginBottom: 16 }),
       slab(d.when, 110, -0.045, 0.94),
@@ -225,7 +226,7 @@ function listing(d: { kicker: string; when: string; events: { time: string; name
             text(
               e.name,
               {
-                fontSize: 60, fontWeight: 600, letterSpacing: track(60, -0.028), lineHeight: 1.06,
+                fontFamily: type.display, fontSize: 60, fontWeight: 600, letterSpacing: track(60, -0.028), lineHeight: 1.06,
                 width: CONTENT_W - LISTING_TIME_W - LISTING_GAP, flexShrink: 0,
               },
               2,
@@ -242,13 +243,13 @@ function listing(d: { kicker: string; when: string; events: { time: string; name
  * A venue slide inverts the event composition: type at the top, photo in a band at the foot. That, plus the
  * running series index, is the only thing separating the two series -- both live in the same near-black.
  */
-function venue(d: { index: string; name: string; hood: string; note: string; foot: string; image: unknown }): Node[] {
+function venue(d: { index: string; name: string; hood: string; note: string; foot: string; image: unknown }, type: Typefaces): Node[] {
   // With a photo, the address sits above the band at the foot. Without one there is no band at all: an
   // empty grey box reads as a rendering fault on the account, and "Photo of the venue" is a note to the
   // person drafting, not something to publish. The studio's Add photo button is where that note now lives.
   const hasPhoto = Boolean(d.image);
   return [
-    wordmark(),
+    wordmark(type),
     column({ position: 'absolute', top: 192, left: PAD, right: PAD, gap: 16 }, [
       spread({ fontSize: 28, letterSpacing: track(28, 0.2), color: G2 }, [
         text('VENUES', { fontSize: 28, letterSpacing: track(28, 0.2), color: G2 }),
@@ -265,9 +266,9 @@ function venue(d: { index: string; name: string; hood: string; note: string; foo
 }
 
 /** The venues cover. Larger than the weekend cover because it carries no date line. */
-function venueCover(d: { lede: string; sub: string; foot: string }): Node[] {
+function venueCover(d: { lede: string; sub: string; foot: string }, type: Typefaces): Node[] {
   return [
-    wordmark(),
+    wordmark(type),
     centred([
       slab(d.lede, 96, -0.046, 1.04),
       ...(d.sub ? [slab(d.sub, 96, -0.046, 1.04, G1, { marginTop: 14 })] : []),
@@ -277,9 +278,9 @@ function venueCover(d: { lede: string; sub: string; foot: string }): Node[] {
 }
 
 /** One sentence, big. The slide that says something in NOCT's own voice rather than a promoter's. */
-function note(d: { text: string; after: string; foot: string }): Node[] {
+function note(d: { text: string; after: string; foot: string }, type: Typefaces): Node[] {
   return [
-    wordmark(),
+    wordmark(type),
     centred([
       slab(d.text, 94, -0.045, 1.08),
       ...(d.after ? [text(d.after, { fontSize: 42, color: G1, marginTop: 40, maxWidth: 800, lineHeight: 1.42 })] : []),
@@ -303,23 +304,26 @@ const LINK_ICON = `data:image/svg+xml;base64,${Buffer.from(
  * The last slide: why NOCT exists, then where to find it. The question is the hook and gets the size; the
  * answer sits under it in grey; the link and its instruction sit at the foot where a thumb is.
  */
-function cta(d: { question: string; answer: string; link: string; note: string }): Node[] {
+function cta(d: { question: string; answer: string; link: string; note: string }, type: Typefaces): Node[] {
+  // Plain on purpose, after review: the body face at ordinary weights, nothing set heavy. The last slide is
+  // an invitation, and it should read like one rather than like another headline.
   return [
-    wordmark(),
+    wordmark(type),
     centred([
-      ...lines(d.question).map((line) => slab(line, 80, -0.04, 1.08)),
-      ...(d.answer ? [slab(d.answer, 56, -0.03, 1.12, G1, { marginTop: 28 })] : []),
+      ...lines(d.question).map((line) =>
+        text(line, { fontSize: 68, fontWeight: 500, letterSpacing: track(68, -0.02), lineHeight: 1.12 })),
+      ...(d.answer ? [text(d.answer, { fontSize: 46, fontWeight: 400, color: G1, lineHeight: 1.2, marginTop: 24 })] : []),
     ]),
-    // One line, lifted off the edge after review: the link and its instruction read as one thing, and the
-    // bottom 54px is where Instagram's own carousel dots and a thumb both sit.
-    el({ position: 'absolute', left: PAD, right: PAD, bottom: 150, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16 }, [
+    // One line, lifted off the edge: the link and its instruction read as one thing, and the bottom 54px is
+    // where Instagram's own carousel dots and a thumb both sit.
+    el({ position: 'absolute', left: PAD, right: PAD, bottom: 150, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 14 }, [
       ...(d.link
         ? [
-            { type: 'img', props: { src: LINK_ICON, width: 50, height: 50, style: { width: 50, height: 50 } } },
-            text(d.link, { fontSize: 56, fontWeight: 700, letterSpacing: track(56, -0.03) }),
+            { type: 'img', props: { src: LINK_ICON, width: 40, height: 40, style: { width: 40, height: 40 } } },
+            text(d.link, { fontSize: 46, fontWeight: 500 }),
           ]
         : []),
-      ...(d.note ? [text(d.note, { fontSize: 36, color: G2, letterSpacing: track(36, 0.01), marginLeft: 14, marginTop: 10 })] : []),
+      ...(d.note ? [text(d.note, { fontSize: 34, color: G2, marginLeft: 12, marginTop: 6 })] : []),
     ]),
   ];
 }
@@ -331,23 +335,23 @@ export const VENUE_BAND_PLACEHOLDER = { height: 430, color: G3, label: 'Photo of
  * A slide as one satori tree. The root is the canvas: transparent, because everything behind the type is
  * composited by sharp.
  */
-export function slideTree(slide: Slide): Node {
+export function slideTree(slide: Slide, type: Typefaces = POST_TYPEFACES): Node {
   const children = ((): Node[] => {
     switch (slide.template) {
-      case 'cover': return cover(slide.data);
-      case 'event': return event(slide.data);
-      case 'table': return table(slide.data);
-      case 'listing': return listing(slide.data);
-      case 'venue': return venue(slide.data);
-      case 'venuecover': return venueCover(slide.data);
-      case 'note': return note(slide.data);
-      case 'cta': return cta(slide.data);
+      case 'cover': return cover(slide.data, type);
+      case 'event': return event(slide.data, type);
+      case 'table': return table(slide.data, type);
+      case 'listing': return listing(slide.data, type);
+      case 'venue': return venue(slide.data, type);
+      case 'venuecover': return venueCover(slide.data, type);
+      case 'note': return note(slide.data, type);
+      case 'cta': return cta(slide.data, type);
     }
   })();
   return el(
     {
       width: CANVAS.w, height: CANVAS.h, display: 'flex', position: 'relative',
-      fontFamily: FONT_FAMILY, color: WHITE,
+      fontFamily: type.body, color: WHITE,
     },
     children,
   );

@@ -115,7 +115,12 @@ export function draftSpotlights(feed: FeedResponse, limit = SPOTLIGHTS): Edition
     const day = feed.days[ev.d];
     const hero = heroSlide(feed.days, ev);
     const when = day ? `${WEEKDAY_FULL[day.dow] ?? day.label}, ${day.sub}` : '';
-    const slide: Slide = hero.template === 'event' ? { ...hero, data: { ...hero.data, position: when } } : hero;
+    // Date, lineup, venue, and nothing else: a spotlight is about who is playing. The door time and genre
+    // went after review; they live in the caption. With no lineup listed, the event's title stands in.
+    const lineup = ev.lineup.map((n) => n.trim()).filter(Boolean).join(', ');
+    const slide: Slide = hero.template === 'event'
+      ? { ...hero, data: { ...hero.data, position: when, name: lineup || hero.data.name, time: '', genre: '' } }
+      : hero;
 
     const venue = ev.room ? `${ev.venue} / ${ev.room}` : ev.venue;
     const headline = headlineOf(ev);

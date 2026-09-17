@@ -136,6 +136,14 @@ describe('draftSpotlights', () => {
     expect(spots[0]!.slot).toBe('2026-09-19');
   });
 
+  it('puts only the date, the lineup and the venue on the slide', () => {
+    expect(spots[0]!.slides[0]).toMatchObject({
+      data: { position: 'Saturday, Sep 19', name: 'Kangding Ray, Juana', venue: 'Brooklyn Storehouse', time: '', genre: '' },
+    });
+    // No lineup listed: the title stands in rather than leaving the slide blank.
+    expect(spots[1]!.slides[0]).toMatchObject({ data: { name: 'DAY+NIGHT' } });
+  });
+
   it('names the rest of the bill in the caption', () => {
     expect(spots[0]!.caption).toContain('With Juana.');
   });
