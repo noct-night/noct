@@ -143,12 +143,12 @@ describe.skipIf(!process.env.DATABASE_URL)('cross-source dedup (0028)', () => {
     // a room without coordinates borrows its family's for the veto
     const room = await mkVenue('mroom', 'Lantern Terrace', 'nyc', 'room');
     await query(`update venue set parent_venue_id = $1 where venue_id = $2`, [mirage, room]);
-    const roomFar = await query(`select * from resolve_venue('ra', null, $1, 'nyc', 40.71098, -73.936304)`, [`${V}Lantern Terrace Harbor`]);
-    expect(roomFar.rows.map((r: { venue_id: string }) => r.venue_id)).not.toContain(room);
+    const roomFar = await query<{ venue_id: string }>(`select * from resolve_venue('ra', null, $1, 'nyc', 40.71098, -73.936304)`, [`${V}Lantern Terrace Harbor`]);
+    expect(roomFar.rows.map((r) => r.venue_id)).not.toContain(room);
     // a placeholder is never a guess, whatever the words
     const tba = await mkVenue('tbaharbor', 'TBA Harbor', 'nyc', 'tba');
-    const ph = await query(`select * from resolve_venue('ra', null, $1, 'nyc')`, [`${V}TBA Harbor Rooftop`]);
-    expect(ph.rows.map((r: { venue_id: string }) => r.venue_id)).not.toContain(tba);
+    const ph = await query<{ venue_id: string }>(`select * from resolve_venue('ra', null, $1, 'nyc')`, [`${V}TBA Harbor Rooftop`]);
+    expect(ph.rows.map((r) => r.venue_id)).not.toContain(tba);
 
     // ingest: a listing that only trigram-matches (no coordinates) is filed there for now, but nothing is learned
     const l = await upsert(baseListing({

@@ -7,6 +7,7 @@
  * than eyeballed. Anything that needs ffmpeg itself is in tests/live/clip.live.test.ts.
  */
 import { describe, expect, it } from 'vitest';
+import { DISPLAY_FONT } from '../../src/post/font.js';
 import { ffmpegArgs, videoGraph } from '../../src/video/clip.js';
 import { framingFilter, parseFrameRate } from '../../src/video/ffmpeg.js';
 import {
@@ -198,7 +199,7 @@ describe('the title layer', () => {
   it('sets the post typeface rather than naming one of its own', () => {
     const tree = titleTree({ title: 'SACRO' }) as { props: { style: Record<string, unknown> } };
     // The point of drawing this with satori instead of ffmpeg's drawtext: it comes from the design system.
-    expect(tree.props.style.fontFamily).toBe('Red Hat Display');
+    expect(tree.props.style.fontFamily).toBe(DISPLAY_FONT);   // whatever the posts use -- Archivo since a4511f6
     expect(tree.props.style.width).toBe(REEL.w);
     expect(tree.props.style.height).toBe(REEL.h);
   });
