@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { candidateNights, CTA_SLIDE, draftWeekend, HERO_MAX, headlineOf, pickHeroes, spanLabel, supportingCast } from '../../src/post/draft.js';
 import { daysToFriday, weekendRange } from '../../src/post/weekend.js';
-import { slideSchema, CAROUSEL_MAX, TABLE_ROWS_MAX } from '../../src/post/types.js';
+import { slideSchema, CAROUSEL_MAX, TABLE_ROWS_MAX, type Slide } from '../../src/post/types.js';
 import { SITE } from '../../src/post/caption.js';
 import type { FeedDay, FeedEvent, FeedResponse } from '../../src/feed/shape.js';
 
@@ -217,6 +217,13 @@ describe('draftWeekend', () => {
       expect(many.slides.length).toBeLessThanOrEqual(CAROUSEL_MAX);
       expect(many.slides[many.slides.length - 1]).toEqual(CTA_SLIDE);
     });
+  });
+
+  it('closes with the words the studio has, when it is given them', () => {
+    const mine = slideSchema.parse({ template: 'cta', data: { question: 'tired of ten tabs?', answer: 'one place', link: SITE, note: 'link in bio' } }) as Slide;
+    const deck = draftWeekend(feed(events), { cta: mine })!;
+    expect(deck.slides[deck.slides.length - 1]).toEqual(mine);
+    expect(deck.slides.filter((sl) => sl.template === 'cta')).toHaveLength(1);
   });
 
   it('offers every night as a candidate, best first', () => {

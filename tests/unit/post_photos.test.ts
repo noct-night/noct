@@ -125,6 +125,14 @@ describe('redrafting keeps chosen photos', () => {
     expect(photoIdsIn(after)).toEqual([A]);
   });
 
+  it('keeps a rewritten closing slide, which is the same slide on every deck', () => {
+    const mine = s({ template: 'cta', data: { question: 'tired of ten tabs?', answer: 'one place', edited: true } });
+    const drafted = s({ template: 'cta', data: { question: 'sick of checking 10 places for one night out?' } });
+    expect(carryPhotos([cover, mine], [cover, drafted])[1]).toEqual(mine);
+    // An untouched one is left to whatever the draft says, so changing the setting reaches the next draft.
+    expect(carryPhotos([cover, drafted], [cover, mine])[1]).toEqual(mine);
+  });
+
   it('carries a look chosen for a flyer onto the flyer the new draft found', () => {
     const after = carryPhotos([event('MERGE', FLYER, { treatment: 'none', grain: true })], [event('MERGE', 'https://images.ra.co/new.jpg')]);
     expect(after[0]).toMatchObject({ data: { image: { src: 'https://images.ra.co/new.jpg', treatment: 'none', grain: true } } });

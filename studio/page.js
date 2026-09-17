@@ -29,7 +29,7 @@
   };
   var TAKES_IMAGE = { cover: 1, event: 1, venue: 1 };
   /** Slides whose rewritten words survive a redraft (the server marks them `edited`). */
-  var KEEPS_EDITS = { cover: 1, event: 1, venue: 1 };
+  var KEEPS_EDITS = { cover: 1, event: 1, venue: 1, cta: 1 };
   var LOOKS = [
     { k: 'none', t: 'Raw' },
     { k: 'mono', t: 'Mono' },
@@ -246,6 +246,7 @@
         + f.t + '<span class="n">' + n + '</span></button>';
     }).join('');
     byId('filters').innerHTML = chips
+      + '<button type="button" class="chip" data-cta>Last slide</button>'
       + '<div class="draft-menu">'
       +   '<button type="button" class="btn btn-go draft-toggle" aria-haspopup="menu" aria-expanded="false">Draft</button>'
       +   '<div class="draft-list" role="menu" hidden>'
@@ -566,6 +567,57 @@
         say(id, err.message);
         if (btn) { btn.disabled = false; btn.textContent = 'Publish to Instagram'; }
       });
+  }
+
+  // ── the words every deck closes with ──────────────────────────────────────
+  // The last slide is the same on every post, which is the point of it, and it is also the copy most likely
+  // to be rewritten. It is a setting rather than a constant, so this changes what the next draft says --
+  // decks already in the queue keep the words they were drafted with, which is what makes them reviewable.
+
+  function openCtaEditor() {
+    var host = byId('stream');
+    var old = document.querySelector('.cta-form');
+    if (old) { old.remove(); return; }
+    var panel = document.createElement('div');
+    panel.className = 'photo-form panel cta-form';
+    panel.innerHTML = '<p class="photo-name">Loading the closing slide\u2026</p>';
+    host.parentNode.insertBefore(panel, host);
+    api('/api/posts?cta=1').then(function (res) {
+      var c = res.cta || {};
+      panel.innerHTML = '<p class="photo-name">The last slide of every new post</p>'
+        + '<p class="panel-note">Changing this changes what the next draft closes with. Posts already in the'
+        + ' queue keep the words they were drafted with; to update one of those, use Edit text under its'
+        + ' last slide.</p>'
+        + FIELDS.cta.map(function (f) {
+            var id = 'cta-' + f[0];
+            return '<label for="' + id + '">' + f[1] + '</label>'
+              + (f[2]
+                ? '<textarea id="' + id + '" data-field="' + f[0] + '" rows="2" maxlength="' + f[3] + '">' + esc(c[f[0]] || '') + '</textarea>'
+                : '<input type="text" id="' + id + '" data-field="' + f[0] + '" maxlength="' + f[3] + '" value="' + esc(c[f[0]] || '') + '">');
+          }).join('')
+        + '<div class="photo-acts">'
+        +   '<button type="button" class="btn btn-go" data-cta-act="save">Save</button>'
+        +   '<button type="button" class="btn" data-cta-act="cancel">Close</button>'
+        +   '<span class="photo-status"></span>'
+        + '</div>';
+    }).catch(function (err) {
+      panel.innerHTML = '<p class="photo-name">' + esc(err.message) + '</p>'
+        + '<div class="photo-acts"><button type="button" class="btn" data-cta-act="cancel">Close</button></div>';
+    });
+  }
+
+  function saveCta(panel, btn) {
+    var body = {};
+    Array.prototype.forEach.call(panel.querySelectorAll('[data-field]'), function (el) {
+      body[el.getAttribute('data-field')] = el.value.trim();
+    });
+    var status = panel.querySelector('.photo-status');
+    btn.disabled = true;
+    status.textContent = 'Saving\u2026';
+    api('/api/posts?cta=1', { method: 'PUT', body: body })
+      .then(function () { status.textContent = 'Saved. The next draft will use it.'; })
+      .catch(function (err) { status.textContent = err.message; })
+      .finally(function () { btn.disabled = false; });
   }
 
   // ── saving a deck by hand ─────────────────────────────────────────────────
@@ -1036,6 +1088,7 @@
     var stream = byId('stream');
 
     byId('filters').addEventListener('click', function (e) {
+      if (e.target.closest('button[data-cta]')) { openCtaEditor(); return; }
       var chip = e.target.closest('button[data-f]');
       if (chip) { filter = chip.getAttribute('data-f'); render(); return; }
       if (e.target.closest('.draft-toggle')) {
@@ -1049,6 +1102,14 @@
         var main = document.querySelector('.draft-toggle');
         if (main && !main.disabled) draftKind(item.getAttribute('data-draft'), main);
       }
+    });
+
+    document.addEventListener('click', function (e) {
+      var act = e.target.closest('button[data-cta-act]');
+      if (!act) return;
+      var panel = act.closest('.cta-form');
+      if (act.getAttribute('data-cta-act') === 'cancel') panel.remove();
+      else saveCta(panel, act);
     });
 
     stream.addEventListener('click', function (e) {

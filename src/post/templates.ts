@@ -33,7 +33,7 @@ export interface Node {
  * serving the old design for up to 24 hours, in the studio and to Meta alike. The version rides in the URL
  * so a design change is a new URL.
  */
-export const RENDER_VERSION = 6;
+export const RENDER_VERSION = 7;
 
 /** The margin at the top and bottom edges. */
 const PAD = 54;
@@ -143,16 +143,19 @@ const swipeFoot = (left: string): Node =>
   spread(
     {
       position: 'absolute', bottom: PAD, left: SIDE, right: SIDE, alignItems: 'baseline',
-      fontSize: 38, color: G2, letterSpacing: track(38, 0.02),
+      fontSize: FOOT_SIZE, color: G2, letterSpacing: track(FOOT_SIZE, 0.02),
     },
     [
-      text(left, { fontSize: 38, color: G2 }),
-      el({ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 12 }, [
-        text('Swipe', { fontSize: 38, color: G2 }),
-        { type: 'img', props: { src: SWIPE_ARROW, width: 40, height: 28, style: { width: 40, height: 28 } } },
+      text(left, { fontSize: FOOT_SIZE, color: G2 }),
+      el({ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10 }, [
+        text('Swipe', { fontSize: FOOT_SIZE, color: G2 }),
+        { type: 'img', props: { src: SWIPE_ARROW, width: 34, height: 24, style: { width: 34, height: 24 } } },
       ]),
     ],
   );
+
+/** The site and the swipe prompt. Sized down from 38 after review: a footnote, not a second headline. */
+const FOOT_SIZE = 31;
 
 /**
  * The arrow after "Swipe", drawn: the post typeface has no U+2192, and a missing glyph renders as an empty box
