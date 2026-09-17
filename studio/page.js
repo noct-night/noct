@@ -162,6 +162,15 @@
     });
   }
 
+  /**
+   * What a saved slide is called on disk: the post it belongs to and its place in the deck, so a folder of
+   * them still says which weekend they are and which order they go up in.
+   */
+  function fileName(p, n) {
+    var when = p.slot || (p.posted_at || '').slice(0, 10) || 'undated';
+    return ('noct-' + when + '-' + p.series + '-' + pad(n + 1) + '.jpg').replace(/[^a-zA-Z0-9.\-]+/g, '-');
+  }
+
   function paintShots(id) {
     var urls = shots[id];
     var row = document.querySelector('.row[data-id="' + id + '"]');
@@ -175,6 +184,8 @@
         return;
       }
       if (!urls || urls === 'pending' || !urls[n]) return;
+      var link = shot.parentNode.querySelector('[data-save="' + n + '"]');
+      if (link) { link.href = urls[n]; link.hidden = false; }
       var img = new Image();
       img.alt = '';
       img.onload = function () { slot.replaceWith(img); };
@@ -273,7 +284,10 @@
     var locked = p.status === 'posted';
     // Under the slide and always shown. These used to appear only on hover, over the bottom of the preview,
     // and a control you have to already know is there is one people go looking for and do not find.
-    var tools = '';
+    // The rendered JPEG, saved to disk. The href arrives with the preview (paintShots): it is the same
+    // signed URL the preview draws and the one Instagram is handed, so what is saved is what would post.
+    var save = '<a class="save" data-save="' + n + '" download="' + esc(fileName(p, n)) + '" hidden>Save</a>';
+    var tools = '<div class="shot-tools">' + save + '</div>';
     if (!locked) {
       var photo = takesImage
         ? '<button type="button" data-photo="add" data-slide="' + n + '">' + (img ? 'Change photo' : 'Add photo') + '</button>'
@@ -297,7 +311,7 @@
         ? '<a href="' + esc(img.src) + '" target="_blank" rel="noopener noreferrer">Open flyer</a>' : '';
       tools = '<div class="shot-tools">'
         + '<button type="button" data-edit="' + n + '">Edit text</button>'
-        + photo + look + flyer
+        + photo + look + flyer + save
         + '</div>';
     }
     return '<div class="slide-col">'
@@ -405,6 +419,11 @@
               ? '<button type="button" class="btn btn-go" data-act="publish">Publish to Instagram</button>' : '')
         +     (canChooseNights(p)
               ? '<button type="button" class="btn" data-act="nights">Choose nights</button>' : '')
+        +     (isReel(p)
+              ? (p.video_url && p.video_url.indexOf('pending:') !== 0
+                  ? '<a class="btn" href="' + esc(p.video_url) + '" download target="_blank" rel="noopener noreferrer">Save video</a>' : '')
+              : '<button type="button" class="btn" data-act="save">Save slides</button>')
+        +     '<button type="button" class="btn" data-act="copy">Copy caption</button>'
         +     '<span class="state" data-state="' + esc(p.id) + '">'
         +       (p.ig_permalink
                  ? '<a href="' + esc(p.ig_permalink) + '" target="_blank" rel="noopener noreferrer">Published</a>'
@@ -547,6 +566,105 @@
         say(id, err.message);
         if (btn) { btn.disabled = false; btn.textContent = 'Publish to Instagram'; }
       });
+  }
+
+  // ── saving a deck by hand ─────────────────────────────────────────────────
+  // Publishing through the API is the normal path, but it is not the only one: Instagram can refuse a
+  // perfectly good deck, and a post that has to go up tonight should not wait on a Graph API mood. These
+  // save exactly the files the API would have been handed, and the caption exactly as it would have read.
+
+  /** The deck's signed render URLs, signing them first if this post has not been previewed yet. */
+  function urlsFor(id) {
+    var urls = shots[id];
+    if (urls && urls !== 'pending' && !urls.error) return Promise.resolve(urls);
+    var post = find(id);
+    if (!post || !post.slides.length) return Promise.reject(new Error('this post has no slides'));
+    return api('/api/render', {
+      method: 'POST',
+      body: { slides: post.slides, treatment: post.treatment, grain: post.grain },
+    }).then(function (body) { shots[id] = body.urls; return body.urls; });
+  }
+
+  function saveOne(url, name) {
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  function saveDeck(id, btn) {
+    var post = find(id);
+    if (!post) return;
+    var was = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Saving\u2026';
+    urlsFor(id).then(function (urls) {
+      // One at a time, with a gap: a burst of clicks is what a browser reads as a pop-up and blocks. The
+      // first one asks whether this site may save several files; after that they land in Downloads.
+      return urls.reduce(function (chain, url, n) {
+        return chain.then(function () {
+          saveOne(url, fileName(post, n));
+          return new Promise(function (done) { setTimeout(done, 350); });
+        });
+      }, Promise.resolve()).then(function () { btn.textContent = urls.length + ' saved'; });
+    }).catch(function (err) {
+      btn.textContent = err.message;
+    }).finally(function () {
+      setTimeout(function () { btn.disabled = false; btn.textContent = was; }, 2600);
+    });
+  }
+
+  /**
+   * The caption as it would publish, credits included.
+   *
+   * A copy of withCredits in src/post/photos.ts: the credits are added at publish time and are not in the
+   * stored caption, so copying the stored one to post by hand would drop them -- which is the one part of
+   * a caption that is a promise to someone else.
+   */
+  function publishedCaption(p) {
+    var credits = p.credits || [];
+    var caption = p.caption || '';
+    if (!credits.length) return caption;
+    var block = credits.join('\n');
+    var lines = caption.replace(/\s+$/, '').split('\n');
+    var last = lines[lines.length - 1] || '';
+    if (/^\s*#/.test(last)) {
+      return lines.slice(0, -1).join('\n').replace(/\s+$/, '') + '\n\n' + block + '\n\n' + last;
+    }
+    return lines.join('\n') + '\n\n' + block;
+  }
+
+  function copyCaption(id, btn) {
+    var post = find(id);
+    if (!post) return;
+    var text = publishedCaption(post);
+    var was = btn.textContent;
+    var done = function (message) {
+      btn.textContent = message;
+      setTimeout(function () { btn.textContent = was; }, 2000);
+    };
+    var fallback = function () {
+      // Older browsers, and any page the clipboard API refuses: a hidden field and the old command.
+      var field = document.createElement('textarea');
+      field.value = text;
+      field.setAttribute('readonly', '');
+      field.style.position = 'fixed';
+      field.style.opacity = '0';
+      document.body.appendChild(field);
+      field.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (err) { ok = false; }
+      field.remove();
+      done(ok ? 'Copied' : 'Could not copy');
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { done('Copied'); }).catch(fallback);
+      return;
+    }
+    fallback();
   }
 
   // ── events ────────────────────────────────────────────────────────────────
@@ -939,6 +1057,8 @@
         var id = act.closest('.row').getAttribute('data-id');
         var kind = act.getAttribute('data-act');
         if (kind === 'publish') publish(id);
+        else if (kind === 'save') saveDeck(id, act);
+        else if (kind === 'copy') copyCaption(id, act);
         else if (kind === 'nights') openNights(id);
         else setStatus(id, kind === 'approve' ? 'approved' : 'passed');
         return;

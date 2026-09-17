@@ -104,6 +104,16 @@ describe('the page script', () => {
     expect(js).toContain('playsinline');
   });
 
+  it('offers the rendered files and the caption, so a deck can go up by hand', async () => {
+    const js = await asset('page.js');
+    // The same signed URLs the preview draws and Instagram is handed: what is saved is what would post.
+    expect(js).toContain('data-save="');
+    expect(js).toContain('data-act="save"');
+    expect(js).toContain('data-act="copy"');
+    // Credits are added at publish time, so copying the stored caption alone would drop them.
+    expect(js).toContain('function publishedCaption');
+  });
+
   it('treats a 202 from publish as resumable rather than as a failure', async () => {
     const js = await asset('page.js');
     // A reel container that is still transcoding leaves the post approved and the button pressable; the
