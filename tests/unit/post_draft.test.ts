@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CTA_SLIDE, draftWeekend, headlineOf, pickHeroes, spanLabel, supportingCast } from '../../src/post/draft.js';
+import { candidateNights, CTA_SLIDE, draftWeekend, HERO_MAX, headlineOf, pickHeroes, spanLabel, supportingCast } from '../../src/post/draft.js';
 import { daysToFriday, weekendRange } from '../../src/post/weekend.js';
 import { slideSchema, CAROUSEL_MAX, TABLE_ROWS_MAX } from '../../src/post/types.js';
 import { SITE } from '../../src/post/caption.js';
@@ -190,6 +190,38 @@ describe('draftWeekend', () => {
 
   it('returns null rather than an empty deck when the feed has nothing', () => {
     expect(draftWeekend(feed([]))).toBeNull();
+  });
+
+  it('names the feed event behind each event slide', () => {
+    const refs = deck.slides.flatMap((sl) => (sl.template === 'event' ? [sl.data.ref] : []));
+    expect(refs).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  describe('with nights chosen in the studio', () => {
+    const chosen = draftWeekend(feed(events), { heroIds: ['x5', 'c', 'gone'] })!;
+    const heroRefs = chosen.slides.flatMap((sl) => (sl.template === 'event' ? [sl.data.ref] : []));
+
+    it('uses those nights, in the order chosen, skipping any the feed no longer has', () => {
+      expect(heroRefs).toEqual(['x5', 'c']);
+    });
+
+    it('lists the nights that were not chosen in the tables, including the top-ranked ones', () => {
+      const rows = chosen.slides.flatMap((sl) => (sl.template === 'table' ? sl.data.rows.map((r) => r.event) : []));
+      expect(rows).toContain('SACRO by MESTIZA');
+      expect(rows).not.toContain('Night 5');
+    });
+
+    it('never picks more than a deck has room for', () => {
+      const many = draftWeekend(feed(events), { heroIds: events.map((e) => e.id) })!;
+      expect(many.slides.filter((sl) => sl.template === 'event')).toHaveLength(HERO_MAX);
+      expect(many.slides.length).toBeLessThanOrEqual(CAROUSEL_MAX);
+      expect(many.slides[many.slides.length - 1]).toEqual(CTA_SLIDE);
+    });
+  });
+
+  it('offers every night as a candidate, best first', () => {
+    const offered = candidateNights(events, 5).map((e) => e.id);
+    expect(offered).toEqual(['a', 'b', 'c', 'd', 'x0']);
   });
 });
 

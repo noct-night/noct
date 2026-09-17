@@ -139,34 +139,58 @@ export function detachPhoto(slides: Slide[], n: number): Slide[] {
   });
 }
 
-/** What identifies "the same slide" across two drafts of a post. */
-function slideKey(s: Slide): string | null {
+/**
+ * What identifies "the same slide" across two drafts of a post, most specific first. An event slide is known
+ * by its feed event when it has one, and by its name and venue too, so a slide drafted before `ref` existed
+ * still finds its successor.
+ */
+function slideKeys(s: Slide): string[] {
   // A deck has one cover, so its background carries to whatever the new cover says.
-  if (s.template === 'cover') return 'cover';
-  if (s.template === 'event') return `event|${s.data.name}|${s.data.venue}`;
-  if (s.template === 'venue') return `venue|${s.data.name}`;
-  return null;
+  if (s.template === 'cover') return ['cover'];
+  if (s.template === 'event') {
+    const byName = `event|${s.data.name}|${s.data.venue}`;
+    return s.data.ref ? [`ref|${s.data.ref}`, byName] : [byName];
+  }
+  if (s.template === 'venue') return [`venue|${s.data.name}`];
+  return [];
 }
 
+/** Whether an image carries a choice someone made: a photo they added, or a look they set for the slide. */
+const chosen = (image: SlideImage | null): image is SlideImage =>
+  Boolean(image && (photoIdOf(image.src) || image.treatment || image.grain !== undefined));
+
 /**
- * Keep the photos someone chose when a post is drafted again.
+ * Keep what someone did by hand when a post is drafted again.
  *
- * Redrafting rebuilds the slides from the feed, and without this every hand-added photo would silently
- * vanish. A photo carries over to the slide for the same night at the same venue, or the same venue.
+ * Redrafting rebuilds the slides from the feed, and without this every hand-added photo, per-slide look and
+ * rewritten title would silently vanish. A slide whose words were edited comes back exactly as it was left;
+ * otherwise a photo, or a look on the flyer, carries to the slide for the same night or the same venue.
  */
 export function carryPhotos(previous: Slide[], next: Slide[]): Slide[] {
+  const edited = new Map<string, Slide>();
   const kept = new Map<string, SlideImage>();
   for (const s of previous) {
-    const key = slideKey(s);
-    const image = 'image' in s.data ? (s.data.image as SlideImage | null) : null;
-    if (key && image && photoIdOf(image.src)) kept.set(key, image);
+    if (!hasPhoto(s)) continue;
+    for (const key of slideKeys(s)) {
+      if (s.data.edited) edited.set(key, s);
+      else if (chosen(s.data.image)) kept.set(key, s.data.image);
+    }
   }
-  if (kept.size === 0) return next;
+  if (edited.size === 0 && kept.size === 0) return next;
   return next.map((s) => {
-    const key = slideKey(s);
-    const image = key ? kept.get(key) : undefined;
-    if (!image || !hasPhoto(s)) return s;
-    const flyer = s.data.image && !photoIdOf(s.data.image.src) ? s.data.image.src : image.flyer;
+    if (!hasPhoto(s)) return s;
+    const keys = slideKeys(s);
+    const whole = keys.map((k) => edited.get(k)).find((x) => x?.template === s.template);
+    if (whole) return whole;
+    const image = keys.map((k) => kept.get(k)).find(Boolean);
+    if (!image) return s;
+    const current = s.data.image;
+    if (!photoIdOf(image.src)) {
+      // Only a look was chosen. It applies to whatever flyer the new draft found.
+      if (!current) return s;
+      return { ...s, data: { ...s.data, image: { ...current, treatment: image.treatment, grain: image.grain } } } as Slide;
+    }
+    const flyer = current && !photoIdOf(current.src) ? current.src : image.flyer;
     return { ...s, data: { ...s.data, image: { ...image, ...(flyer ? { flyer } : {}) } } } as Slide;
   });
 }

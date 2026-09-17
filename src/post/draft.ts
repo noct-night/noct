@@ -16,6 +16,11 @@ import { CAROUSEL_MAX, TABLE_ROWS_MAX, type Slide, type Tone } from './types.js'
 
 /** How many events get a slide of their own. Four plus a cover plus two tables is the seven-slide deck. */
 const HERO_SLIDES = 4;
+/**
+ * The most nights a person may pick for a deck by hand. Six, a cover and the CTA is eight, which still leaves
+ * room for one table under Instagram's ten.
+ */
+export const HERO_MAX = 6;
 /** Rows across all table slides. Two slides at seven rows is the most the deck has room for. */
 const TABLE_ROWS_TOTAL = TABLE_ROWS_MAX * 2;
 
@@ -100,6 +105,14 @@ export function namesNotIn(headline: string, names: string[]): string[] {
   return names.filter((n) => key(n) && !said.includes(key(n)));
 }
 
+/**
+ * The nights offered when choosing a deck's events by hand: everything in the window, best first. Not
+ * filtered to nights out -- the automatic pick is, but a person choosing is allowed to disagree with it.
+ */
+export function candidateNights(events: FeedEvent[], limit = 40): FeedEvent[] {
+  return rank(events).slice(0, limit);
+}
+
 export function pickHeroes(events: FeedEvent[], limit = HERO_SLIDES): FeedEvent[] {
   const seen = new Set<string>();
   const out: FeedEvent[] = [];
@@ -156,6 +169,7 @@ export function heroSlide(days: FeedDay[], ev: FeedEvent): Slide {
       genre: genreOf(ev),
       tex: toneOf(ev),
       image: ev.image ? { src: ev.image, fit: 'cover' } : null,
+      ref: ev.id,
     },
   };
 }
@@ -226,6 +240,8 @@ export interface DeckOptions {
   lede?: string;
   /** The caption's first sentence, before the dates. */
   captionLead?: string;
+  /** Feed event ids chosen in the studio, in the order they should appear. Unset means pick automatically. */
+  heroIds?: string[];
 }
 
 /**
@@ -236,7 +252,9 @@ export function draftWeekend(feed: FeedResponse, opts: DeckOptions = {}): Weeken
   const { days, events } = feed;
   if (days.length === 0 || events.length === 0) return null;
 
-  const heroes = pickHeroes(events);
+  const heroes = opts.heroIds
+    ? opts.heroIds.flatMap((id) => events.filter((e) => e.id === id).slice(0, 1)).slice(0, HERO_MAX)
+    : pickHeroes(events);
   const used = new Set(heroes.map((e) => e.id));
   const when = spanLabel(days);
 

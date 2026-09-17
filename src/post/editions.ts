@@ -68,6 +68,17 @@ export const EDITIONS_PER_WEEKEND = 3;
  * shape, restricted to one family. Ranked by how many nights that family has, which is how much there is to
  * say about it.
  */
+/** A genre family's nights, out of a feed covering every genre. */
+export function inFamily(feed: FeedResponse, family: string): FeedResponse {
+  return { ...feed, events: feed.events.filter((ev) => familyOf(ev) === family) };
+}
+
+/** What a genre edition's cover and caption say, for drafting it and for rebuilding it with chosen nights. */
+export function genreDeckOptions(family: string): { lede: string; captionLead: string } {
+  const phrase = FAMILY_PHRASE[family] ?? family;
+  return { lede: `Where to hear ${phrase}\nin New York`, captionLead: `Where to hear ${phrase} in New York` };
+}
+
 export function draftGenreEditions(
   feed: FeedResponse, limit = EDITIONS_PER_WEEKEND, minEvents = EDITION_MIN_EVENTS,
 ): EditionDraft[] {
@@ -83,11 +94,7 @@ export function draftGenreEditions(
     .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
     .slice(0, limit)
     .flatMap(([family, evs]) => {
-      const phrase = FAMILY_PHRASE[family]!;
-      const deck = draftWeekend({ ...feed, events: evs }, {
-        lede: `Where to hear ${phrase}\nin New York`,
-        captionLead: `Where to hear ${phrase} in New York`,
-      });
+      const deck = draftWeekend({ ...feed, events: evs }, genreDeckOptions(family));
       return deck ? [{ series: 'genre' as const, slot: deck.slot, edition: family, slides: deck.slides, caption: deck.caption }] : [];
     });
 }
