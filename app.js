@@ -960,26 +960,28 @@ function watchPlan(){
    genres (or "Your taste": a taste genre among the card's lead genres), areas. */
 const BORO_ORDER=['Manhattan','Brooklyn','Queens','Bronx','Staten Island','New Jersey'];
 const tasteHit=e=>TASTE.length>0&&(e.genre_codes||[]).slice(0,LEAD_GENRES).some(c=>TASTE.includes(c));
-const leadGenre=e=>e.primary||(e.genre&&e.genre[0])||'';
 function deckPool(d){return EV.filter(e=>e.d===d&&e.uuid&&(!e.status||e.status==='scheduled'))}
 function deckFor(d,f){
   f=f||{genres:new Set(),taste:false,areas:new Set()};
   const pool=deckPool(d)
-    .filter(e=>(!f.genres.size&&!f.taste)||f.genres.has(leadGenre(e))||(f.taste&&tasteHit(e)))
+    .filter(e=>(!f.genres.size&&!f.taste)||(e.genre||[]).some(g=>f.genres.has(g))||(f.taste&&tasteHit(e)))
     .filter(e=>!f.areas.size||f.areas.has(vInfo(e.venue).boro))
     .sort((a,b)=>(b.image?1:0)-(a.image?1:0)||(b.interested||0)-(a.interested||0)||rank(b)-rank(a));
   const out=[],venues=new Set();
   for(const e of pool){if(out.length>=DECK_SIZE)break;if(venues.has(e.venue))continue;venues.add(e.venue);out.push(e.uuid)}
   return out;
 }
-/* the chips a night offers: its lead genres by how many nights carry them, and the boroughs its rooms are in */
-/* the genres worth a chip: the night's most common lead genres, at most ten -- a genre one card carries
-   narrows a group deck to nothing */
+/* the chips a night offers: every genre its cards carry, not only the lead one (a Thursday has nine lead
+   genres and twenty in all -- UK Garage or Jungle is usually a card's second genre), counted over enriched
+   cards only so raw source tags ("Edm", "Dragshow") stay out, most common first. A genre one card carries
+   narrows a group deck to nothing, so two cards is the floor while there are enough such genres; sixteen chips
+   is the ceiling, so Start swiping stays on the screen. */
+const DECK_GENRES=16;
 function deckGenres(d){
-  const t={};deckPool(d).forEach(e=>{const g=leadGenre(e);if(g)t[g]=(t[g]||0)+1});
+  const t={};deckPool(d).forEach(e=>{if(!(e.genre_codes||[]).length)return;(e.genre||[]).forEach(g=>{if(g)t[g]=(t[g]||0)+1})});
   const all=Object.keys(t).sort((a,b)=>t[b]-t[a]||a.localeCompare(b));
   const common=all.filter(g=>t[g]>=2);
-  return (common.length>=6?common:all).slice(0,10);
+  return (common.length>=6?common:all).slice(0,DECK_GENRES);
 }
 function deckAreas(d){
   const set=new Set(deckPool(d).map(e=>vInfo(e.venue).boro).filter(Boolean));

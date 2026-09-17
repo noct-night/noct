@@ -133,8 +133,11 @@ under it (the phone's own share sheet via `navigator.share`, the clipboard where
 a small deck builder:
 **Night** (Tonight, Tomorrow and the coming Fri/Sat/Sun on one line; a night with fewer than three events is
 greyed out, from the same counts the calendar uses; picking a night that is not loaded loads it, so the feed
-moves to the night the group is about), **Genre** (All, *Your taste* when a taste is set, then the night's ten
-most common lead genres; several may be on), **Area** (All, then the boroughs the night's rooms are in). The deck
+moves to the night the group is about), **Genre** (All, *Your taste* when a taste is set, then every genre the
+night's cards carry — not only the lead one, since UK Garage or Jungle is usually a card's second genre — counted
+over enriched cards so raw source tags stay out, most common first, two cards the floor while there are enough
+such genres, sixteen the ceiling; a chip matches a card carrying that genre anywhere; several may be on),
+**Area** (All, then the boroughs the night's rooms are in). The deck
 is dealt from what passes the chips, **neutral on purpose** — flyers first, then how many people are
 interested, one card per venue, at most seven (`deckFor()`, `DECK_SIZE`); the owner's own ranking is only a
 tiebreak, because friends have different tastes and the owner's order would just reproduce "she hates techno"; the `group_session` row is inserted through PostgREST only when a step is taken
