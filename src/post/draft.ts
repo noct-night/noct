@@ -223,7 +223,13 @@ export interface WeekendDraft {
   caption: string;
 }
 
-/** The closing slide. Copy as written for it; the link is SITE so it can never drift from the cover. */
+/**
+ * The closing slide, as a deck gets it when nobody has rewritten the words.
+ *
+ * The wording itself now lives in a setting so it can be changed in the studio (src/post/cta.ts); this is
+ * the default that setting falls back to, and what the pure drafting functions use when they are called
+ * without one, which is what keeps them testable without a database.
+ */
 export const CTA_SLIDE: Slide = {
   template: 'cta',
   data: {
@@ -242,6 +248,8 @@ export interface DeckOptions {
   captionLead?: string;
   /** Feed event ids chosen in the studio, in the order they should appear. Unset means pick automatically. */
   heroIds?: string[];
+  /** The closing slide, as the studio has it worded. Unset means the default. */
+  cta?: Slide;
 }
 
 /**
@@ -270,9 +278,10 @@ export function draftWeekend(feed: FeedResponse, opts: DeckOptions = {}): Weeken
 
   // The CTA always closes the deck, so the content is trimmed to leave its slot rather than the CTA being
   // the thing a long weekend pushes past Instagram's ten.
+  const cta = opts.cta ?? CTA_SLIDE;
   const slides = [
     ...[cover, ...heroes.map((ev) => heroSlide(days, ev)), ...tableSlides(days, events, used)].slice(0, CAROUSEL_MAX - 1),
-    CTA_SLIDE,
+    cta,
   ];
 
   const caption = draftWeekendCaption({

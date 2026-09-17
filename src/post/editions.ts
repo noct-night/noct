@@ -80,7 +80,7 @@ export function genreDeckOptions(family: string): { lede: string; captionLead: s
 }
 
 export function draftGenreEditions(
-  feed: FeedResponse, limit = EDITIONS_PER_WEEKEND, minEvents = EDITION_MIN_EVENTS,
+  feed: FeedResponse, limit = EDITIONS_PER_WEEKEND, minEvents = EDITION_MIN_EVENTS, cta: Slide = CTA_SLIDE,
 ): EditionDraft[] {
   const byFamily = new Map<string, FeedEvent[]>();
   for (const ev of feed.events) {
@@ -94,7 +94,7 @@ export function draftGenreEditions(
     .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
     .slice(0, limit)
     .flatMap(([family, evs]) => {
-      const deck = draftWeekend({ ...feed, events: evs }, genreDeckOptions(family));
+      const deck = draftWeekend({ ...feed, events: evs }, { ...genreDeckOptions(family), cta });
       return deck ? [{ series: 'genre' as const, slot: deck.slot, edition: family, slides: deck.slides, caption: deck.caption }] : [];
     });
 }
@@ -117,7 +117,7 @@ const WEEKDAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'F
  * The full line-up goes in the caption. The slide leads with the headliner, and a spotlight is exactly the
  * post where the rest of the bill deserves to be named.
  */
-export function draftSpotlights(feed: FeedResponse, limit = SPOTLIGHTS): EditionDraft[] {
+export function draftSpotlights(feed: FeedResponse, limit = SPOTLIGHTS, cta: Slide = CTA_SLIDE): EditionDraft[] {
   return pickHeroes(feed.events, limit).map((ev) => {
     const day = feed.days[ev.d];
     const hero = heroSlide(feed.days, ev);
@@ -143,7 +143,7 @@ export function draftSpotlights(feed: FeedResponse, limit = SPOTLIGHTS): Edition
       ].join('\n'),
     );
 
-    return { series: 'single' as const, slot: day?.date ?? null, edition: ev.id, slides: [slide, CTA_SLIDE], caption };
+    return { series: 'single' as const, slot: day?.date ?? null, edition: ev.id, slides: [slide, cta], caption };
   });
 }
 
@@ -192,7 +192,9 @@ export function venueVibe(events: FeedEvent[]): string {
  * person, and a venue post prints an address in public, so each slide carries `verified` and the studio
  * warns before approval. The photo band is empty until someone adds a photo in the studio.
  */
-export function draftVenuePosts(feed: FeedResponse, limit = VENUE_POSTS, minNights = VENUE_MIN_NIGHTS): EditionDraft[] {
+export function draftVenuePosts(
+  feed: FeedResponse, limit = VENUE_POSTS, minNights = VENUE_MIN_NIGHTS, cta: Slide = CTA_SLIDE,
+): EditionDraft[] {
   const byVenue = new Map<string, FeedEvent[]>();
   for (const ev of feed.events) {
     if (!ev.venue || NOT_A_VENUE.test(ev.venue)) continue;
@@ -231,7 +233,7 @@ export function draftVenuePosts(feed: FeedResponse, limit = VENUE_POSTS, minNigh
             })),
           },
         },
-        CTA_SLIDE,
+        cta,
       ];
 
       const caption = scrubLines(

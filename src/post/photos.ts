@@ -152,6 +152,8 @@ function slideKeys(s: Slide): string[] {
     return s.data.ref ? [`ref|${s.data.ref}`, byName] : [byName];
   }
   if (s.template === 'venue') return [`venue|${s.data.name}`];
+  // A deck has one closing slide, so words rewritten on it carry to whatever the next draft builds.
+  if (s.template === 'cta') return ['cta'];
   return [];
 }
 
@@ -170,18 +172,17 @@ export function carryPhotos(previous: Slide[], next: Slide[]): Slide[] {
   const edited = new Map<string, Slide>();
   const kept = new Map<string, SlideImage>();
   for (const s of previous) {
-    if (!hasPhoto(s)) continue;
     for (const key of slideKeys(s)) {
-      if (s.data.edited) edited.set(key, s);
-      else if (chosen(s.data.image)) kept.set(key, s.data.image);
+      if ('edited' in s.data && s.data.edited) edited.set(key, s);
+      else if (hasPhoto(s) && chosen(s.data.image)) kept.set(key, s.data.image);
     }
   }
   if (edited.size === 0 && kept.size === 0) return next;
   return next.map((s) => {
-    if (!hasPhoto(s)) return s;
     const keys = slideKeys(s);
     const whole = keys.map((k) => edited.get(k)).find((x) => x?.template === s.template);
     if (whole) return whole;
+    if (!hasPhoto(s)) return s;
     const image = keys.map((k) => kept.get(k)).find(Boolean);
     if (!image) return s;
     const current = s.data.image;

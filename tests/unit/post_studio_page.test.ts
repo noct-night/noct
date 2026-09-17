@@ -104,6 +104,13 @@ describe('the page script', () => {
     expect(js).toContain('playsinline');
   });
 
+  it('can rewrite the words every new deck closes with', async () => {
+    const js = await asset('page.js');
+    expect(js).toContain("api('/api/posts?cta=1'");
+    // Saying which posts it reaches matters: a queued deck keeps the words it was drafted with.
+    expect(js).toContain('what the next draft closes with');
+  });
+
   it('offers the rendered files and the caption, so a deck can go up by hand', async () => {
     const js = await asset('page.js');
     // The same signed URLs the preview draws and Instagram is handed: what is saved is what would post.

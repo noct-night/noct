@@ -143,7 +143,10 @@ export const ctaDataSchema = z.object({
   answer: text.default(''),
   link: shortText.default(''),
   note: shortText.default(''),
+  edited: z.boolean().optional(),
 });
+/** The words on the closing slide, which are a setting as well as slide data. See src/post/cta.ts. */
+export type CtaData = z.infer<typeof ctaDataSchema>;
 
 export const noteDataSchema = z.object({
   text: text,

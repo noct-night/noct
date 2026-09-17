@@ -9,6 +9,8 @@
  *   POST   /api/posts?draft=venue      draft a post for each of the four busiest venues of the next two weeks
  *   GET    /api/posts?candidates=<uuid> the nights a weekend deck or genre edition can be built from
  *   POST   /api/posts?rebuild=<uuid>   rebuild that deck around chosen nights: {events: [feed event id, ...]}
+ *   GET    /api/posts?cta=1            the words every new draft closes with
+ *   PUT    /api/posts?cta=1            change them: {question, answer, link, note}
  *   PATCH  /api/posts?id=<uuid>        caption, status, slides, treatment, grain
  *
  * Read-only for the account: nothing here reaches Instagram. Publishing is /api/publish and takes a
@@ -18,13 +20,14 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { z } from 'zod';
 import { buildFeed } from '../src/feed/query.js';
 import { candidatesFor, cannotChoose, deckSource, deckWindow } from '../src/post/choose.js';
+import { ctaSlide, currentCta, saveCta } from '../src/post/cta.js';
 import type { FeedResponse } from '../src/feed/shape.js';
 import { draftWeekend, HERO_MAX, type DeckOptions } from '../src/post/draft.js';
 import { draftGenreEditions, draftSpotlights, draftVenuePosts, type EditionDraft } from '../src/post/editions.js';
 import { attachCredits } from '../src/post/photos.js';
 import { localDatePlus } from '../src/lib/time.js';
 import { getPost, listPosts, patchPost, PostConflict, upsertDraft } from '../src/post/store.js';
-import { postPatchSchema, STATUSES, type Post, type PostStatus } from '../src/post/types.js';
+import { ctaDataSchema, postPatchSchema, STATUSES, type Post, type PostStatus } from '../src/post/types.js';
 import { weekendRange } from '../src/post/weekend.js';
 import { createLogger } from '../src/lib/log.js';
 import { firstParam, sendJson } from './_lib/respond.js';
@@ -52,7 +55,7 @@ async function draft(req: VercelRequest, res: VercelResponse): Promise<void> {
   const log = createLogger('api:posts');
   const { from, to } = weekendRange();
   const feed = await buildFeed({ from, to });
-  const deck = draftWeekend(feed);
+  const deck = draftWeekend(feed, { cta: ctaSlide(await currentCta()) });
   if (!deck) {
     sendJson(res, 200, { post: null, note: `the feed has no events for ${from} to ${to}` }, NO_STORE);
     return;
@@ -83,7 +86,10 @@ async function draftEditions(res: VercelResponse, kind: 'genre' | 'spotlight' | 
   const log = createLogger('api:posts');
   const { from, to } = kind === 'genre' ? weekendRange() : { from: localDatePlus(0), to: localDatePlus(SPOTLIGHT_DAYS - 1) };
   const feed = await buildFeed({ from, to });
-  const drafts: EditionDraft[] = kind === 'genre' ? draftGenreEditions(feed) : kind === 'venue' ? draftVenuePosts(feed) : draftSpotlights(feed);
+  const cta = ctaSlide(await currentCta());
+  const drafts: EditionDraft[] = kind === 'genre'
+    ? draftGenreEditions(feed, undefined, undefined, cta)
+    : kind === 'venue' ? draftVenuePosts(feed, undefined, undefined, cta) : draftSpotlights(feed, undefined, cta);
   if (drafts.length === 0) {
     const note = kind === 'genre'
       ? `no genre has enough nights for an edition between ${from} and ${to}`
@@ -164,7 +170,7 @@ async function rebuild(req: VercelRequest, res: VercelResponse): Promise<void> {
     sendJson(res, 400, { error: `${missing.length} of those nights are no longer in the feed; reload the list` }, NO_STORE);
     return;
   }
-  const draft = draftWeekend(deck.feed, { ...deck.opts, heroIds: body.data.events });
+  const draft = draftWeekend(deck.feed, { ...deck.opts, heroIds: body.data.events, cta: ctaSlide(await currentCta()) });
   if (!draft) {
     sendJson(res, 409, { error: 'the feed has no events for this weekend any more' }, NO_STORE);
     return;
@@ -182,6 +188,26 @@ async function rebuild(req: VercelRequest, res: VercelResponse): Promise<void> {
     }
     throw err;
   }
+}
+
+/**
+ * The closing slide's words, read and written.
+ *
+ * A setting rather than a constant because it is the one piece of copy on every post that gets rewritten,
+ * and rewriting it should not need a deploy. Changing it changes what the *next* draft closes with; decks
+ * already in the queue keep the words they were drafted with, which is also what makes them reviewable.
+ */
+async function cta(req: VercelRequest, res: VercelResponse): Promise<void> {
+  if (req.method === 'GET') {
+    sendJson(res, 200, { cta: await currentCta() }, NO_STORE);
+    return;
+  }
+  const body = ctaDataSchema.safeParse(req.body);
+  if (!body.success) {
+    sendJson(res, 400, { error: body.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }, NO_STORE);
+    return;
+  }
+  sendJson(res, 200, { cta: await saveCta(body.data) }, NO_STORE);
 }
 
 async function patch(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -210,6 +236,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   if (!requireStudio(req, res)) return;
   const log = createLogger('api:posts');
   try {
+    if (firstParam(req.query.cta) && (req.method === 'GET' || req.method === 'PUT')) return await cta(req, res);
     if (req.method === 'GET' && firstParam(req.query.candidates)) return await candidates(req, res);
     if (req.method === 'GET') return await list(req, res);
     if (req.method === 'POST' && firstParam(req.query.rebuild)) return await rebuild(req, res);
@@ -218,7 +245,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     if (req.method === 'POST' && firstParam(req.query.draft) === 'spotlight') return await draftEditions(res, 'spotlight');
     if (req.method === 'POST' && firstParam(req.query.draft) === 'venue') return await draftEditions(res, 'venue');
     if (req.method === 'PATCH') return await patch(req, res);
-    sendJson(res, 405, { error: 'method not allowed' }, { allow: 'GET, POST, PATCH' });
+    sendJson(res, 405, { error: 'method not allowed' }, { allow: 'GET, POST, PUT, PATCH' });
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     log.error('posts endpoint failed', { error, method: req.method });
