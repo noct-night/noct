@@ -33,8 +33,8 @@ is opened, the deck is reviewed, a button is pressed. That is the whole product.
 | `supabase/migrations/0026_ig_posts.sql` | `ig_post` and `ig_publish_run`. |
 | `supabase/migrations/0027_ig_token.sql` | `ig_token`, the one row holding the live credential. |
 | `src/video/` | The reel pipeline: spec, ffmpeg, the title layer, storage, the `clip` command. |
-| `supabase/migrations/0030_ig_reels.sql` | `kind`, `video_url`, `cover_url`, `video_meta` on `ig_post`. |
-| `supabase/migrations/0031_ig_reel_pending.sql` | `ig_publish_run.status = 'pending'`, the resumable state. |
+| `supabase/migrations/0032_ig_reels.sql` | `kind`, `video_url`, `cover_url`, `video_meta` on `ig_post`. |
+| `supabase/migrations/0033_ig_reel_pending.sql` | `ig_publish_run.status = 'pending'`, the resumable state. |
 
 ## Why the studio lives here
 
@@ -318,7 +318,7 @@ to anyone looking at the account is the wrong default; it is one parameter in `p
 ## Setting it up
 
 1. `supabase db push` (or `npm run db:local`) to apply `0026_ig_posts.sql`, `0027_ig_token.sql`,
-   `0030_ig_reels.sql` and `0031_ig_reel_pending.sql`.
+   `0032_ig_reels.sql` and `0033_ig_reel_pending.sql`.
 2. In the Meta app dashboard: **Use cases -> Customize -> Permissions and features**, add
    `instagram_business_basic` and `instagram_business_content_publish`. Both show *Ready for testing*,
    meaning they work in Development mode against an account holding the **Instagram Tester** role — so no

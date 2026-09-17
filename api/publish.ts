@@ -16,7 +16,7 @@
  * its container is transcoded asynchronously and `media_publish` refuses it until that finishes, which for
  * a long clip can outlast this function. So a reel publish can end in a third way -- 202, container
  * recorded as 'pending', resumable by pressing Publish again -- and that is a normal outcome rather than a
- * failure. See `ReelNotReady` in src/post/publish.ts and supabase/migrations/0031_ig_reel_pending.sql.
+ * failure. See `ReelNotReady` in src/post/publish.ts and supabase/migrations/0033_ig_reel_pending.sql.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { checkCaption } from '../src/post/caption.js';

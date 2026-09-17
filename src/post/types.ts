@@ -153,7 +153,7 @@ export const TAKES_IMAGE: ReadonlySet<Template> = new Set<Template>(['event', 'v
  * What Meta is handed at the end. A carousel is N `image_url` children with is_carousel_item; a reel is
  * one `video_url` with media_type=REELS. Everything before that -- drafting, the caption rules, the review
  * states, the publish claim -- is shared, which is why this is a discriminator on ig_post and not a second
- * table. See supabase/migrations/0030_ig_reels.sql.
+ * table. See supabase/migrations/0032_ig_reels.sql.
  */
 export const KINDS = ['carousel', 'reel'] as const;
 export type PostKind = (typeof KINDS)[number];
