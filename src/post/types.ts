@@ -240,7 +240,9 @@ export const postPatchSchema = z.object({
   caption: z.string().max(CAPTION_MAX).optional(),
   status: z.enum(STATUSES).optional(),
   slides: z.array(slideSchema).max(CAROUSEL_MAX).optional(),
-  treatment: treatmentSchema.optional(),
+  // Not treatmentSchema: its default('mono') fills in a treatment on every patch that does not send one, so
+  // saving a caption or approving a post silently reset the look chosen for it.
+  treatment: z.enum(TREATMENTS).optional(),
   grain: z.boolean().optional(),
 }).strict();
 export type PostPatch = z.infer<typeof postPatchSchema>;

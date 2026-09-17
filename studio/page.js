@@ -27,6 +27,13 @@
     venue: 'venue', venuecover: 'venues', note: 'note', cta: 'cta',
   };
   var TAKES_IMAGE = { event: 1, venue: 1 };
+  /** What the Draft menu offers, in the order a week is usually worked through. */
+  var DRAFT_KINDS = [
+    { k: 'weekend', t: 'This weekend', hint: 'The weekend guide: cover, top nights, tables' },
+    { k: 'genre', t: 'Genre editions', hint: 'Up to 3, one per strong genre this weekend' },
+    { k: 'spotlight', t: 'Spotlights', hint: 'The 3 most anticipated nights, next 2 weeks' },
+    { k: 'venue', t: 'Venue posts', hint: 'The 4 busiest venues, next 2 weeks' },
+  ];
 
   var posts = [];
   var filter = 'queued';
@@ -90,7 +97,7 @@
       if (s.data && s.data.verified === false) {
         out.push('Check the address: nobody has verified the details for ' + (s.data.name || 'this venue') + ' yet.');
       }
-      if (!s.data || !s.data.image) out.push('No venue photo yet. Use Add photo on the venue slide.');
+      if (!s.data || !s.data.image) out.push('No venue photo yet. Use Add photo under the venue slide.');
     });
     return out;
   }
@@ -196,11 +203,24 @@
         + f.t + '<span class="n">' + n + '</span></button>';
     }).join('');
     byId('filters').innerHTML = chips
-      + '<span class="spacer"></span>'
-      + '<button type="button" class="chip" data-draft="weekend">Draft the coming weekend</button>'
-      + '<button type="button" class="chip" data-draft="genre">Draft genre editions</button>'
-      + '<button type="button" class="chip" data-draft="spotlight">Draft spotlights</button>'
-      + '<button type="button" class="chip" data-draft="venue">Draft venue posts</button>';
+      + '<div class="draft-menu">'
+      +   '<button type="button" class="btn btn-go draft-toggle" aria-haspopup="menu" aria-expanded="false">Draft</button>'
+      +   '<div class="draft-list" role="menu" hidden>'
+      +     DRAFT_KINDS.map(function (d) {
+              return '<button type="button" role="menuitem" data-draft="' + d.k + '">'
+                + '<b>' + d.t + '</b><span>' + d.hint + '</span></button>';
+            }).join('')
+      +   '</div>'
+      + '</div>';
+  }
+
+  function setDraftMenu(open) {
+    var menu = document.querySelector('.draft-list');
+    var toggle = document.querySelector('.draft-toggle');
+    if (!menu || !toggle) return;
+    menu.hidden = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+    if (open) { var first = menu.querySelector('button'); if (first) first.focus(); }
   }
 
   function renderReady() {
@@ -216,20 +236,27 @@
     var takesImage = !!TAKES_IMAGE[s.template];
     var img = (s.data || {}).image;
     var locked = p.status === 'posted';
-    var ui = takesImage && !locked
-      ? '<div class="shot-ui">'
+    // Under the slide and always shown. These used to appear only on hover, over the bottom of the preview,
+    // and a control you have to already know is there is one people go looking for and do not find.
+    var tools = takesImage && !locked
+      ? '<div class="shot-tools">'
+        + '<button type="button" data-photo="add" data-slide="' + n + '">' + (img ? 'Change photo' : 'Add photo') + '</button>'
+        + (isStudioPhoto(img) ? '<button type="button" data-photo="remove" data-slide="' + n + '">'
+            + (img.flyer ? 'Back to flyer' : 'Remove photo') + '</button>' : '')
+        + (img
+          ? '<span class="fit" role="group" aria-label="Framing">'
+            + '<button type="button" data-fit="cover" data-slide="' + n + '" aria-pressed="' + (img.fit !== 'contain') + '">Fill</button>'
+            + '<button type="button" data-fit="contain" data-slide="' + n + '" aria-pressed="' + (img.fit === 'contain') + '">Fit whole</button>'
+            + '</span>'
+          : '')
         + (img && !isStudioPhoto(img)
           ? '<a href="' + esc(img.src) + '" target="_blank" rel="noopener noreferrer">Open flyer</a>' : '')
-        + (img
-          ? '<button type="button" data-fit="cover" data-slide="' + n + '" aria-pressed="' + (img.fit !== 'contain') + '">Fill</button>'
-            + '<button type="button" data-fit="contain" data-slide="' + n + '" aria-pressed="' + (img.fit === 'contain') + '">Fit whole</button>'
-          : '')
-        + '<button type="button" data-photo="add" data-slide="' + n + '">' + (isStudioPhoto(img) ? 'Replace photo' : 'Add photo') + '</button>'
-        + (isStudioPhoto(img) ? '<button type="button" data-photo="remove" data-slide="' + n + '">Remove photo</button>' : '')
         + '</div>'
       : '';
-    return '<div class="shot" data-slide="' + n + '">'
-      + '<div class="pending">Rendering</div>' + ui + '</div>';
+    return '<div class="slide-col">'
+      + '<div class="shot" data-slide="' + n + '"><div class="pending">Rendering</div></div>'
+      + tools
+      + '</div>';
   }
 
   /**
@@ -262,7 +289,7 @@
       var name = FILTERS.filter(function (f) { return f.k === filter; })[0].t;
       host.innerHTML = '<p class="empty">' + (posts.length
         ? 'Nothing under <strong>' + esc(name) + '</strong> right now.'
-        : 'Nothing here yet. <strong>Draft the coming weekend</strong> builds a deck from the live feed.')
+        : 'Nothing here yet. Use <strong>Draft</strong> to build posts from the live feed.')
         + '</p>';
       return;
     }
@@ -435,8 +462,7 @@
    * Draft one kind of post. The weekend answers with one post; genre editions and spotlights answer with
    * several, so both shapes are folded into the list the same way: replace a post already shown, else add it.
    */
-  function draftKind(btn) {
-    var kind = btn.getAttribute('data-draft');
+  function draftKind(kind, btn) {
     var was = btn.textContent;
     btn.textContent = 'Drafting…';
     btn.disabled = true;
@@ -568,8 +594,17 @@
     byId('filters').addEventListener('click', function (e) {
       var chip = e.target.closest('button[data-f]');
       if (chip) { filter = chip.getAttribute('data-f'); render(); return; }
-      var draftBtn = e.target.closest('button[data-draft]');
-      if (draftBtn && !draftBtn.disabled) draftKind(draftBtn);
+      if (e.target.closest('.draft-toggle')) {
+        var toggle = e.target.closest('.draft-toggle');
+        if (!toggle.disabled) setDraftMenu(toggle.getAttribute('aria-expanded') !== 'true');
+        return;
+      }
+      var item = e.target.closest('button[data-draft]');
+      if (item) {
+        setDraftMenu(false);
+        var main = document.querySelector('.draft-toggle');
+        if (main && !main.disabled) draftKind(item.getAttribute('data-draft'), main);
+      }
     });
 
     stream.addEventListener('click', function (e) {
@@ -654,6 +689,15 @@
         return patch(p.id, { treatment: treatment, grain: grain });
       })).then(render);
     }
+    // The Draft menu closes on a click anywhere else, and on Escape, handing focus back to its button.
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest('.draft-menu')) setDraftMenu(false);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      var toggle = document.querySelector('.draft-toggle');
+      if (toggle && toggle.getAttribute('aria-expanded') === 'true') { setDraftMenu(false); toggle.focus(); }
+    });
     byId('tx').addEventListener('change', applyLook);
     byId('gr').addEventListener('change', applyLook);
   }

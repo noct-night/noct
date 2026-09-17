@@ -14,7 +14,9 @@
  */
 import satori from 'satori';
 import sharp from 'sharp';
-import { loadFonts, FONT_FAMILY } from '../post/font.js';
+import { DISPLAY_FONT, loadFonts } from '../post/font.js';
+/** The deck's display face, so a reel title and the lineup on the carousel beside it are set alike. */
+const TITLE_FONT = DISPLAY_FONT;
 import { GROUND, linearGradient } from '../post/layers.js';
 import { REEL, type TitlePosition } from './spec.js';
 
@@ -119,7 +121,7 @@ export function titleTree(input: TitleInput): Node {
   );
 
   return el(
-    { width: REEL.w, height: REEL.h, display: 'flex', position: 'relative', fontFamily: FONT_FAMILY, color: WHITE },
+    { width: REEL.w, height: REEL.h, display: 'flex', position: 'relative', fontFamily: TITLE_FONT, color: WHITE },
     children,
   );
 }
@@ -160,7 +162,7 @@ export function scrimSvg(position: TitlePosition): Buffer {
  * (Instagram rejects PNG on the media endpoints -- but this never reaches an endpoint, only ffmpeg).
  */
 export async function renderTitle(input: TitleInput): Promise<Buffer> {
-  const fonts = await loadFonts();
+  const fonts = await loadFonts({ body: TITLE_FONT, display: TITLE_FONT });
   const svg = await satori(titleTree(input) as never, { width: REEL.w, height: REEL.h, fonts });
   const type = await sharp(Buffer.from(svg)).png().toBuffer();
   return sharp(scrimSvg(input.position ?? 'low'))

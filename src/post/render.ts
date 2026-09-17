@@ -15,7 +15,7 @@
  */
 import satori from 'satori';
 import sharp from 'sharp';
-import { loadFonts } from './font.js';
+import { loadFonts, POST_TYPEFACES, type Typefaces } from './font.js';
 import { fetchImage, treatImage } from './image.js';
 import { loadPhoto, photoIdOf } from './photos.js';
 import { GROUND, grainSvg, toneSvg, veilSvg } from './layers.js';
@@ -32,9 +32,9 @@ export interface RenderOptions {
 }
 
 /** The type layer: transparent PNG at canvas size, glyphs already outlined by satori. */
-export async function renderType(slide: Slide): Promise<Buffer> {
-  const fonts = await loadFonts();
-  const svg = await satori(slideTree(slide) as never, { width: CANVAS.w, height: CANVAS.h, fonts });
+export async function renderType(slide: Slide, type: Typefaces = POST_TYPEFACES): Promise<Buffer> {
+  const fonts = await loadFonts(type);
+  const svg = await satori(slideTree(slide, type) as never, { width: CANVAS.w, height: CANVAS.h, fonts });
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
