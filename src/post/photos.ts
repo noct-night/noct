@@ -14,7 +14,8 @@ import { PHOTO_SRC } from './types.js';
 const PREFIX = 'photo:';
 
 /** Slides that can show a photo: the cover's background, an event's flyer, a venue's band. */
-const HAS_PHOTO: ReadonlySet<string> = new Set(['cover', 'event', 'venue']);
+type PhotoSlide = Extract<Slide, { template: 'cover' | 'event' | 'venue' }>;
+const hasPhoto = (s: Slide): s is PhotoSlide => s.template === 'cover' || s.template === 'event' || s.template === 'venue';
 
 /** The uuid in a `photo:<uuid>` src, or null for a flyer URL. */
 export function photoIdOf(src: string | undefined | null): string | null {
@@ -117,7 +118,7 @@ export function withCredits(caption: string, credits: string[]): string {
 export function attachPhoto(slides: Slide[], n: number, photoId: string): Slide[] {
   return slides.map((s, i) => {
     if (i !== n) return s;
-    if (!HAS_PHOTO.has(s.template)) {
+    if (!hasPhoto(s)) {
       throw new PhotoError(400, `a ${s.template} slide has no photo`);
     }
     const before = s.data.image;
@@ -130,7 +131,7 @@ export function attachPhoto(slides: Slide[], n: number, photoId: string): Slide[
 /** The slides with slide n's studio photo removed: back to its flyer if it had one, else no image. */
 export function detachPhoto(slides: Slide[], n: number): Slide[] {
   return slides.map((s, i) => {
-    if (i !== n || !HAS_PHOTO.has(s.template)) return s;
+    if (i !== n || !hasPhoto(s)) return s;
     const before = s.data.image;
     if (!before || !photoIdOf(before.src)) return s;
     const image: SlideImage | null = before.flyer ? { src: before.flyer, fit: 'cover' } : null;
@@ -164,7 +165,7 @@ export function carryPhotos(previous: Slide[], next: Slide[]): Slide[] {
   return next.map((s) => {
     const key = slideKey(s);
     const image = key ? kept.get(key) : undefined;
-    if (!image || !HAS_PHOTO.has(s.template)) return s;
+    if (!image || !hasPhoto(s)) return s;
     const flyer = s.data.image && !photoIdOf(s.data.image.src) ? s.data.image.src : image.flyer;
     return { ...s, data: { ...s.data, image: { ...image, ...(flyer ? { flyer } : {}) } } } as Slide;
   });
