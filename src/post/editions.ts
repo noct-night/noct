@@ -135,3 +135,110 @@ export function draftSpotlights(feed: FeedResponse, limit = SPOTLIGHTS): Edition
   });
 }
 
+
+// ── Venue posts ────────────────────────────────────────────────────────────
+
+/** Venue posts per run. Each is a standalone feature, so a handful at a time is plenty to review. */
+export const VENUE_POSTS = 4;
+/** A venue needs this many nights in the window for "coming up" to be worth a slide. */
+export const VENUE_MIN_NIGHTS = 3;
+
+/** "Location TBA" is a placeholder the sources use, not a venue, and it has no address to print. */
+const NOT_A_VENUE = /\blocation\s+tba\b|\btba\b|secret location/i;
+
+/**
+ * What a venue is like, in NOCT's own words: the vibe tags and genres of the nights actually booked there.
+ *
+ * Built from listings rather than written, because a venue post is read as fact and the only facts NOCT has
+ * about a room are what it programmes. Time-of-night tags ("Ends early") describe a party, not the room, so
+ * they are left out.
+ */
+export function venueVibe(events: FeedEvent[]): string {
+  const count = <T extends string>(items: T[]): T[] => {
+    const tally = new Map<T, number>();
+    for (const x of items) tally.set(x, (tally.get(x) ?? 0) + 1);
+    return [...tally.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([x]) => x);
+  };
+  const vibes = count(events.flatMap((e) => (e.vibes ?? []).filter((v) => v.kind !== 'time').map((v) => v.label))).slice(0, 3);
+  const genres = count(events.flatMap((e) => (e.primary ? [e.primary] : []))).slice(0, 2);
+
+  // Lowercase for running prose, except acronyms: "UK garage" and "IDM", not "uk garage" and "idm".
+  const inProse = (label: string): string =>
+    label.split(' ').map((w) => (/^[A-Z0-9&]{2,}$/.test(w) ? w : w.toLowerCase())).join(' ');
+  const parts: string[] = [];
+  if (vibes.length) {
+    parts.push(`${vibes.map((v, i) => (i === 0 ? v : inProse(v))).join(', ')}.`);
+  }
+  if (genres.length) parts.push(`Mostly ${genres.map(inProse).join(' and ')}.`);
+  return parts.join(' ');
+}
+
+/**
+ * One post per busy venue: who they are, what the room is like, and what is on there soon.
+ *
+ * Venues come from the listings, ranked by nights booked in the window. Almost none have been checked by a
+ * person, and a venue post prints an address in public, so each slide carries `verified` and the studio
+ * warns before approval. The photo band is empty until someone adds a photo in the studio.
+ */
+export function draftVenuePosts(feed: FeedResponse, limit = VENUE_POSTS, minNights = VENUE_MIN_NIGHTS): EditionDraft[] {
+  const byVenue = new Map<string, FeedEvent[]>();
+  for (const ev of feed.events) {
+    if (!ev.venue || NOT_A_VENUE.test(ev.venue)) continue;
+    byVenue.set(ev.venue, [...(byVenue.get(ev.venue) ?? []), ev]);
+  }
+
+  return [...byVenue.entries()]
+    .filter(([name, evs]) => evs.length >= minNights && Boolean(feed.venues[name]?.addr))
+    .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([name, evs]) => {
+      const info = feed.venues[name]!;
+      const hood = [info.hood, info.boro].filter(Boolean).join(', ');
+      const vibe = venueVibe(evs);
+      const upcoming = [...evs].sort((a, b) => a.d - b.d || a.door.localeCompare(b.door));
+      const dayOf = (e: FeedEvent): string => {
+        const day = feed.days[e.d];
+        return day ? `${day.label} ${day.sub.split(' ')[1] ?? ''}`.trim() : '';
+      };
+
+      const slides: Slide[] = [
+        {
+          template: 'venue',
+          data: {
+            index: '', name, hood, note: vibe, foot: info.addr ?? '', image: null,
+            verified: Boolean(info.verified),
+          },
+        },
+        {
+          template: 'table',
+          data: {
+            kicker: `Coming up at ${name}`,
+            when: 'Next two weeks',
+            rows: upcoming.slice(0, 7).map((e) => ({
+              day: dayOf(e), time: e.door, event: headlineOf(e), venue: e.primary ?? e.genre[0] ?? '',
+            })),
+          },
+        },
+        CTA_SLIDE,
+      ];
+
+      const caption = scrubLines(
+        [
+          `${name}${hood ? `, ${hood}` : ''}.`,
+          ...(vibe ? ['', vibe] : []),
+          '',
+          'Coming up:',
+          ...upcoming.slice(0, 5).map((e) => {
+            const day = feed.days[e.d];
+            return `- ${day ? `${day.label} ${day.sub}` : ''}: ${headlineOf(e)}`;
+          }),
+          '',
+          `Listings and tickets at ${SITE}`,
+          '',
+          draftHashtags(evs.flatMap((e) => (e.primary ? [e.primary] : []))).join(' '),
+        ].join('\n'),
+      );
+
+      return { series: 'venues' as const, slot: null, edition: name, slides, caption };
+    });
+}

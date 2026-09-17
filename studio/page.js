@@ -73,6 +73,28 @@
 
   function tagCount(s) { return (String(s).match(/#[^\s#]+/g) || []).length; }
 
+  /**
+   * The caption's length as it will publish: credits are added after the text (src/post/photos.ts
+   * withCredits), and Instagram's 2200 counts them.
+   */
+  function publishedLength(caption, credits) {
+    if (!credits.length) return caption.length;
+    return caption.replace(/\s+$/, '').length + 2 + credits.join('\n').length;
+  }
+
+  /** Things to check before approving that are about the post, not the caption's wording. */
+  function reviewNotes(p) {
+    var out = [];
+    (p.slides || []).forEach(function (s) {
+      if (s.template !== 'venue') return;
+      if (s.data && s.data.verified === false) {
+        out.push('Check the address: nobody has verified the details for ' + (s.data.name || 'this venue') + ' yet.');
+      }
+      if (!s.data || !s.data.image) out.push('No venue photo yet. Use Add photo on the venue slide.');
+    });
+    return out;
+  }
+
   function captionWarnings(caption) {
     var out = [];
     if (caption.length > IG_MAX) out.push((caption.length - IG_MAX) + ' characters over Instagram’s limit.');
@@ -177,7 +199,8 @@
       + '<span class="spacer"></span>'
       + '<button type="button" class="chip" data-draft="weekend">Draft the coming weekend</button>'
       + '<button type="button" class="chip" data-draft="genre">Draft genre editions</button>'
-      + '<button type="button" class="chip" data-draft="spotlight">Draft spotlights</button>';
+      + '<button type="button" class="chip" data-draft="spotlight">Draft spotlights</button>'
+      + '<button type="button" class="chip" data-draft="venue">Draft venue posts</button>';
   }
 
   function renderReady() {
@@ -187,14 +210,22 @@
       : '<b>' + a + '</b> ' + (a === 1 ? 'post' : 'posts') + ' ready to publish';
   }
 
+  function isStudioPhoto(img) { return !!img && /^photo:/.test(img.src); }
+
   function slideMarkup(p, s, n) {
     var takesImage = !!TAKES_IMAGE[s.template];
     var img = (s.data || {}).image;
-    var ui = takesImage && img
+    var locked = p.status === 'posted';
+    var ui = takesImage && !locked
       ? '<div class="shot-ui">'
-        + '<a href="' + esc(img.src) + '" target="_blank" rel="noopener noreferrer">Open flyer</a>'
-        + '<button type="button" data-fit="cover" data-slide="' + n + '" aria-pressed="' + (img.fit !== 'contain') + '">Fill</button>'
-        + '<button type="button" data-fit="contain" data-slide="' + n + '" aria-pressed="' + (img.fit === 'contain') + '">Fit whole flyer</button>'
+        + (img && !isStudioPhoto(img)
+          ? '<a href="' + esc(img.src) + '" target="_blank" rel="noopener noreferrer">Open flyer</a>' : '')
+        + (img
+          ? '<button type="button" data-fit="cover" data-slide="' + n + '" aria-pressed="' + (img.fit !== 'contain') + '">Fill</button>'
+            + '<button type="button" data-fit="contain" data-slide="' + n + '" aria-pressed="' + (img.fit === 'contain') + '">Fit whole</button>'
+          : '')
+        + '<button type="button" data-photo="add" data-slide="' + n + '">' + (isStudioPhoto(img) ? 'Replace photo' : 'Add photo') + '</button>'
+        + (isStudioPhoto(img) ? '<button type="button" data-photo="remove" data-slide="' + n + '">Remove photo</button>' : '')
         + '</div>'
       : '';
     return '<div class="shot" data-slide="' + n + '">'
@@ -241,6 +272,8 @@
       var locked = p.status === 'posted';
       var sl = slidesOf(p);
       var warnings = captionWarnings(cap);
+      var credits = p.credits || [];
+      var notes = reviewNotes(p);
 
       var strip = isReel(p) ? reelMarkup(p) : sl.map(function (s, n) { return slideMarkup(p, s, n); }).join('');
       var dots = !isReel(p) && sl.length > 1
@@ -259,6 +292,7 @@
         +       '<span class="tag">' + esc(p.series) + '</span></div>'
         +     '<h2 class="title">' + esc(headline(p)) + '</h2>'
         +     '<p class="sub">' + esc(subline(p)) + '</p>'
+        +     notes.map(function (w) { return '<p class="warn">' + esc(w) + '</p>'; }).join('')
         +   '</div>'
         +   '<div class="field">'
         +     '<label for="cap-' + esc(p.id) + '">Caption</label>'
@@ -267,9 +301,11 @@
         +     '<div class="counts">'
         +       '<span class="count' + (tagCount(cap) > TAG_MAX ? ' over' : '') + '" data-tags="' + esc(p.id) + '">'
         +         tagCount(cap) + ' / ' + TAG_MAX + ' tags</span>'
-        +       '<span class="count' + (cap.length > IG_MAX ? ' over' : '') + '" data-count="' + esc(p.id) + '">'
-        +         cap.length + ' / ' + IG_MAX + '</span>'
+        +       '<span class="count' + (publishedLength(cap, credits) > IG_MAX ? ' over' : '') + '" data-count="' + esc(p.id) + '">'
+        +         publishedLength(cap, credits) + ' / ' + IG_MAX + '</span>'
         +     '</div>'
+        +     (credits.length
+              ? '<p class="credits">Added to the caption when published:<br>' + credits.map(esc).join('<br>') + '</p>' : '')
         +     '<ul class="rules" data-rules="' + esc(p.id) + '">'
         +       warnings.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul>'
         +   '</div>'
@@ -422,6 +458,106 @@
       });
   }
 
+  // ── photos ──────────────────────────────────────────────────────────────────
+  // Human in the loop: a person picks the photo and says where it is from. The source is credited in the
+  // caption on publish. Resized here first, so a phone photo fits under the request size limit; the server
+  // re-encodes it anyway, which is what strips the location data a phone writes into the file.
+
+  var picker = null;
+  function choosePhoto(postId, n) {
+    if (!picker) {
+      picker = document.createElement('input');
+      picker.type = 'file';
+      picker.accept = 'image/*';
+      picker.hidden = true;
+      document.body.appendChild(picker);
+    }
+    picker.value = '';
+    picker.onchange = function () {
+      var file = picker.files && picker.files[0];
+      if (file) openPhotoForm(postId, n, file);
+    };
+    picker.click();
+  }
+
+  function resizeToJpeg(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () {
+        var k = Math.min(1, 2400 / Math.max(img.naturalWidth, img.naturalHeight));
+        var c = document.createElement('canvas');
+        c.width = Math.round(img.naturalWidth * k);
+        c.height = Math.round(img.naturalHeight * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL('image/jpeg', 0.9));
+      };
+      img.onerror = function () {
+        URL.revokeObjectURL(url);
+        reject(new Error('That file could not be opened. Use a JPEG or PNG.'));
+      };
+      img.src = url;
+    });
+  }
+
+  function openPhotoForm(postId, n, file) {
+    var row = document.querySelector('.row[data-id="' + postId + '"]');
+    if (!row) return;
+    var old = row.querySelector('.photo-form');
+    if (old) old.remove();
+    var form = document.createElement('div');
+    form.className = 'photo-form';
+    form.setAttribute('data-post', postId);
+    form.setAttribute('data-slide', n);
+    form.innerHTML = '<p class="photo-name">Slide ' + (n + 1) + ': ' + esc(file.name) + '</p>'
+      + '<label>Where is this photo from? It is credited in the caption.</label>'
+      + '<input type="text" maxlength="200" placeholder="e.g. Nowadays / @nowadaysnyc" data-photo-source>'
+      + '<div class="photo-acts">'
+      +   '<button type="button" class="btn btn-go" data-photo-act="use">Use photo</button>'
+      +   '<button type="button" class="btn" data-photo-act="cancel">Cancel</button>'
+      +   '<span class="photo-status"></span>'
+      + '</div>';
+    form._file = file;
+    row.querySelector('.meta').prepend(form);
+    form.querySelector('[data-photo-source]').focus();
+  }
+
+  function submitPhoto(form) {
+    var source = form.querySelector('[data-photo-source]').value.trim();
+    var status = form.querySelector('.photo-status');
+    if (!source) { status.textContent = 'Say where the photo is from first.'; return; }
+    var postId = form.getAttribute('data-post');
+    var n = +form.getAttribute('data-slide');
+    status.textContent = 'Uploading\u2026';
+    Array.prototype.forEach.call(form.querySelectorAll('button'), function (b) { b.disabled = true; });
+    resizeToJpeg(form._file)
+      .then(function (data) {
+        return api('/api/photos?post=' + encodeURIComponent(postId) + '&slide=' + n, {
+          method: 'POST', body: { data: data, source: source },
+        });
+      })
+      .then(function (res) { replacePost(res.post); })
+      .catch(function (err) {
+        status.textContent = err.message;
+        Array.prototype.forEach.call(form.querySelectorAll('button'), function (b) { b.disabled = false; });
+      });
+  }
+
+  function removePhoto(postId, n) {
+    api('/api/photos?post=' + encodeURIComponent(postId) + '&slide=' + n, { method: 'DELETE' })
+      .then(function (res) { replacePost(res.post); })
+      .catch(function (err) { say(postId, err.message); });
+  }
+
+  /** Swap in the server's copy of a post and re-render, dropping its cached slide previews. */
+  function replacePost(post) {
+    var i = posts.findIndex(function (p) { return p.id === post.id; });
+    if (i >= 0) posts[i] = post; else posts.unshift(post);
+    delete shots[post.id];
+    render();
+  }
+
   /**
    * Wire the studio half of the page. Only called when that half was actually served: signed out, none of
    * these elements exist, and reaching for them would throw before the sign-in form could be used.
@@ -443,6 +579,22 @@
         var kind = act.getAttribute('data-act');
         if (kind === 'publish') publish(id);
         else setStatus(id, kind === 'approve' ? 'approved' : 'passed');
+        return;
+      }
+      var photoBtn = e.target.closest('button[data-photo]');
+      if (photoBtn) {
+        var prow = photoBtn.closest('.row');
+        var pid = prow.getAttribute('data-id');
+        var slideN = +photoBtn.getAttribute('data-slide');
+        if (photoBtn.getAttribute('data-photo') === 'remove') removePhoto(pid, slideN);
+        else choosePhoto(pid, slideN);
+        return;
+      }
+      var photoAct = e.target.closest('button[data-photo-act]');
+      if (photoAct) {
+        var form = photoAct.closest('.photo-form');
+        if (photoAct.getAttribute('data-photo-act') === 'cancel') form.remove();
+        else submitPhoto(form);
         return;
       }
       var fit = e.target.closest('button[data-fit]');
@@ -467,8 +619,9 @@
 
       var count = stream.querySelector('[data-count="' + id + '"]');
       if (count) {
-        count.textContent = v.length + ' / ' + IG_MAX;
-        count.classList.toggle('over', v.length > IG_MAX);
+        var total = publishedLength(v, (find(id) || {}).credits || []);
+        count.textContent = total + ' / ' + IG_MAX;
+        count.classList.toggle('over', total > IG_MAX);
       }
       var tags = stream.querySelector('[data-tags="' + id + '"]');
       if (tags) {

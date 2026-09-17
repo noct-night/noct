@@ -33,7 +33,7 @@ export interface Node {
  * serving the old design for up to 24 hours, in the studio and to Meta alike. The version rides in the URL
  * so a design change is a new URL.
  */
-export const RENDER_VERSION = 3;
+export const RENDER_VERSION = 4;
 
 const PAD = 54;
 /** The type column, inside the side margins. Every fixed width below is measured against it. */
@@ -243,31 +243,24 @@ function listing(d: { kicker: string; when: string; events: { time: string; name
  * running series index, is the only thing separating the two series -- both live in the same near-black.
  */
 function venue(d: { index: string; name: string; hood: string; note: string; foot: string; image: unknown }): Node[] {
+  // With a photo, the address sits above the band at the foot. Without one there is no band at all: an
+  // empty grey box reads as a rendering fault on the account, and "Photo of the venue" is a note to the
+  // person drafting, not something to publish. The studio's Add photo button is where that note now lives.
+  const hasPhoto = Boolean(d.image);
   return [
-    // Venue photography still has to be shot or licensed, so a slide without one says so plainly rather
-    // than showing an empty band that reads as a rendering fault.
-    ...(d.image
-      ? []
-      : [
-          el(
-            {
-              position: 'absolute', left: 0, right: 0, bottom: 0, height: VENUE_BAND_PLACEHOLDER.height,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            },
-            [text(VENUE_BAND_PLACEHOLDER.label, { fontSize: 32, color: G3, letterSpacing: track(32, 0.06) })],
-          ),
-        ]),
     wordmark(),
     column({ position: 'absolute', top: 192, left: PAD, right: PAD, gap: 16 }, [
       spread({ fontSize: 28, letterSpacing: track(28, 0.2), color: G2 }, [
         text('VENUES', { fontSize: 28, letterSpacing: track(28, 0.2), color: G2 }),
         text(d.index.toUpperCase(), { fontSize: 28, letterSpacing: track(28, 0.2), color: G2 }),
       ]),
-      slab(d.name, 104, -0.046, 0.97, WHITE, {}),
+      text(d.name, { fontSize: 104, fontWeight: 700, letterSpacing: track(104, -0.046), lineHeight: 0.97, width: CONTENT_W }, 2),
       ...(d.hood ? [text(d.hood, { fontSize: 44, fontWeight: 500, color: G1, letterSpacing: track(44, -0.005) })] : []),
-      ...(d.note ? [text(d.note, { fontSize: 40, color: G1, lineHeight: 1.38, maxWidth: 900, marginTop: 10 }, 5)] : []),
+      ...(d.note ? [text(d.note, { fontSize: 40, color: G1, lineHeight: 1.38, width: 900, marginTop: 10 }, hasPhoto ? 5 : 9)] : []),
     ]),
-    ...(d.foot ? [text(d.foot, { position: 'absolute', left: PAD, bottom: 472, fontSize: 34, color: G2 })] : []),
+    ...(d.foot
+      ? [text(d.foot, { position: 'absolute', left: PAD, bottom: hasPhoto ? VENUE_BAND_PLACEHOLDER.height + 42 : PAD, fontSize: 34, color: G2 })]
+      : []),
   ];
 }
 

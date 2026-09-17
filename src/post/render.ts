@@ -17,6 +17,7 @@ import satori from 'satori';
 import sharp from 'sharp';
 import { loadFonts } from './font.js';
 import { fetchImage, treatImage } from './image.js';
+import { loadPhoto, photoIdOf } from './photos.js';
 import { GROUND, grainSvg, toneSvg, veilSvg } from './layers.js';
 import { slideTree, VENUE_BAND_PLACEHOLDER } from './templates.js';
 import { CANVAS, type Slide, type SlideImage, type Tone, type Treatment } from './types.js';
@@ -37,6 +38,13 @@ export async function renderType(slide: Slide): Promise<Buffer> {
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
+/** A slide's image bytes: a studio photo from the database, or a flyer fetched from its allowlisted host. */
+async function imageBytes(src: string, opts: RenderOptions): Promise<Buffer> {
+  if (opts.fetchBytes) return opts.fetchBytes(src);
+  const id = photoIdOf(src);
+  return id ? loadPhoto(id) : fetchImage(src);
+}
+
 /** A flat rectangle of the ground, the base every slide starts from. */
 function ground(): sharp.Sharp {
   return sharp({
@@ -49,8 +57,7 @@ async function eventBase(
   image: SlideImage | null, tone: Tone, opts: RenderOptions,
 ): Promise<{ base: Buffer; hasPhoto: boolean }> {
   if (image) {
-    const get = opts.fetchBytes ?? fetchImage;
-    const bytes = await get(image.src);
+    const bytes = await imageBytes(image.src, opts);
     const treated = await treatImage(bytes, opts.treatment, image.fit);
     return { base: await treated.png().toBuffer(), hasPhoto: true };
   }
@@ -59,13 +66,9 @@ async function eventBase(
 }
 
 /** The band of photograph at the foot of a venue slide, or the placeholder that stands in for one. */
-async function venueBand(image: SlideImage | null, opts: RenderOptions): Promise<Buffer> {
+async function venueBand(image: SlideImage, opts: RenderOptions): Promise<Buffer> {
   const { height } = VENUE_BAND_PLACEHOLDER;
-  if (!image) {
-    return sharp({ create: { width: CANVAS.w, height, channels: 3, background: '#121212' } }).png().toBuffer();
-  }
-  const get = opts.fetchBytes ?? fetchImage;
-  const bytes = await get(image.src);
+  const bytes = await imageBytes(image.src, opts);
   // Framed straight to the band's own proportions. Framing to the full canvas first and cropping that to
   // the band would crop twice, throwing away more of the photograph than either step intended.
   const treated = await treatImage(bytes, opts.treatment, image.fit, { w: CANVAS.w, h: height });
@@ -87,7 +90,9 @@ export async function renderSlide(slide: Slide, opts: RenderOptions): Promise<Bu
     layers.push({ input: veilSvg(), blend: 'over' });
   } else if (slide.template === 'venue') {
     canvas = ground();
-    layers.push({ input: await venueBand(slide.data.image, opts), top: CANVAS.h - VENUE_BAND_PLACEHOLDER.height, left: 0 });
+    if (slide.data.image) {
+      layers.push({ input: await venueBand(slide.data.image, opts), top: CANVAS.h - VENUE_BAND_PLACEHOLDER.height, left: 0 });
+    }
   } else {
     canvas = ground();
   }

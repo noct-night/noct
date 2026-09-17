@@ -6,6 +6,7 @@
  *   POST   /api/posts?draft=weekend    draft the coming weekend from the feed, or return the existing draft
  *   POST   /api/posts?draft=genre      draft up to three genre editions of the coming weekend
  *   POST   /api/posts?draft=spotlight  draft the three most anticipated nights of the next two weeks
+ *   POST   /api/posts?draft=venue      draft a post for each of the four busiest venues of the next two weeks
  *   PATCH  /api/posts?id=<uuid>        caption, status, slides, treatment, grain
  *
  * Read-only for the account: nothing here reaches Instagram. Publishing is /api/publish and takes a
@@ -14,7 +15,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { buildFeed } from '../src/feed/query.js';
 import { draftWeekend } from '../src/post/draft.js';
-import { draftGenreEditions, draftSpotlights, type EditionDraft } from '../src/post/editions.js';
+import { draftGenreEditions, draftSpotlights, draftVenuePosts, type EditionDraft } from '../src/post/editions.js';
+import { attachCredits } from '../src/post/photos.js';
 import { localDatePlus } from '../src/lib/time.js';
 import { listPosts, patchPost, PostConflict, upsertDraft } from '../src/post/store.js';
 import { postPatchSchema, STATUSES, type PostStatus } from '../src/post/types.js';
@@ -31,7 +33,7 @@ async function list(req: VercelRequest, res: VercelResponse): Promise<void> {
     sendJson(res, 400, { error: `status must be one of ${STATUSES.join(', ')}` }, NO_STORE);
     return;
   }
-  sendJson(res, 200, { posts: await listPosts(status as PostStatus | undefined) }, NO_STORE);
+  sendJson(res, 200, { posts: await attachCredits(await listPosts(status as PostStatus | undefined)) }, NO_STORE);
 }
 
 /**
@@ -53,7 +55,7 @@ async function draft(req: VercelRequest, res: VercelResponse): Promise<void> {
   try {
     const post = await upsertDraft({ series: 'weekend', slot: deck.slot, slides: deck.slides, caption: deck.caption });
     log.info('weekend drafted', { slot: deck.slot, slides: deck.slides.length });
-    sendJson(res, 200, { post }, NO_STORE);
+    sendJson(res, 200, { post: (await attachCredits([post]))[0] }, NO_STORE);
   } catch (err) {
     if (err instanceof PostConflict) {
       sendJson(res, 409, { error: err.message }, NO_STORE);
@@ -72,11 +74,11 @@ const SPOTLIGHT_DAYS = 14;
  * One edition already approved, passed or published is a decision, so it is skipped and reported rather than
  * failing the whole batch -- the other two genre editions should still be drafted.
  */
-async function draftEditions(res: VercelResponse, kind: 'genre' | 'spotlight'): Promise<void> {
+async function draftEditions(res: VercelResponse, kind: 'genre' | 'spotlight' | 'venue'): Promise<void> {
   const log = createLogger('api:posts');
   const { from, to } = kind === 'genre' ? weekendRange() : { from: localDatePlus(0), to: localDatePlus(SPOTLIGHT_DAYS - 1) };
   const feed = await buildFeed({ from, to });
-  const drafts: EditionDraft[] = kind === 'genre' ? draftGenreEditions(feed) : draftSpotlights(feed);
+  const drafts: EditionDraft[] = kind === 'genre' ? draftGenreEditions(feed) : kind === 'venue' ? draftVenuePosts(feed) : draftSpotlights(feed);
   if (drafts.length === 0) {
     const note = kind === 'genre'
       ? `no genre has enough nights for an edition between ${from} and ${to}`
@@ -96,7 +98,7 @@ async function draftEditions(res: VercelResponse, kind: 'genre' | 'spotlight'): 
     }
   }
   log.info(`${kind} editions drafted`, { drafted: posts.length, skipped: skipped.length, from, to });
-  sendJson(res, 200, { posts, skipped }, NO_STORE);
+  sendJson(res, 200, { posts: await attachCredits(posts), skipped }, NO_STORE);
 }
 
 async function patch(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -111,7 +113,7 @@ async function patch(req: VercelRequest, res: VercelResponse): Promise<void> {
     return;
   }
   try {
-    sendJson(res, 200, { post: await patchPost(id, body.data) }, NO_STORE);
+    sendJson(res, 200, { post: (await attachCredits([await patchPost(id, body.data)]))[0] }, NO_STORE);
   } catch (err) {
     if (err instanceof PostConflict) {
       sendJson(res, 409, { error: err.message }, NO_STORE);
@@ -129,6 +131,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     if (req.method === 'POST' && firstParam(req.query.draft) === 'weekend') return await draft(req, res);
     if (req.method === 'POST' && firstParam(req.query.draft) === 'genre') return await draftEditions(res, 'genre');
     if (req.method === 'POST' && firstParam(req.query.draft) === 'spotlight') return await draftEditions(res, 'spotlight');
+    if (req.method === 'POST' && firstParam(req.query.draft) === 'venue') return await draftEditions(res, 'venue');
     if (req.method === 'PATCH') return await patch(req, res);
     sendJson(res, 405, { error: 'method not allowed' }, { allow: 'GET, POST, PATCH' });
   } catch (err) {
