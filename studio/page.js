@@ -14,15 +14,23 @@
 
   var IG_MAX = 2200;
   var TAG_MAX = 5;
-  var FILTERS = [
-    { k: 'queued', t: 'Queue' },
-    { k: 'approved', t: 'Approved' },
-    { k: 'posted', t: 'Published' },
-    { k: 'passed', t: 'Passed' },
-    { k: 'all', t: 'Everything' },
-    { k: 'calendar', t: 'Calendar' },
-    { k: 'traffic', t: 'Traffic' },
+  /**
+   * The top bar, in three groups: the posts being worked on, the record of what went out, and the site's own
+   * traffic. Three different questions, and reading them as one row of eight made the bar a list rather than
+   * a place. Last slide and Draft belong with the posts, so they sit in that group.
+   */
+  var TABS = [
+    [
+      { k: 'queued', t: 'Queue' },
+      { k: 'approved', t: 'Approved' },
+      { k: 'posted', t: 'Published' },
+      { k: 'passed', t: 'Passed' },
+      { k: 'all', t: 'Everything' },
+    ],
+    [{ k: 'calendar', t: 'Calendar' }],
+    [{ k: 'traffic', t: 'Traffic' }],
   ];
+  var FILTERS = TABS.reduce(function (all, group) { return all.concat(group); }, []);
   var LABEL = { queued: 'In queue', approved: 'Approved', passed: 'Passed', posted: 'Published' };
   var TPL_LABEL = {
     cover: 'carousel', event: 'event', table: 'table', listing: 'listing',
@@ -245,17 +253,24 @@
     return filter === 'all' ? posts : posts.filter(function (p) { return p.status === filter; });
   }
 
+  function chipFor(f) {
+    var n = f.k === 'all' ? posts.length
+      : f.k === 'calendar' ? posts.filter(function (p) { return p.status === 'posted'; }).length
+      : f.k === 'traffic' ? (traffic.data ? traffic.data.visits.recent : null)   /* the week's visits, once read */
+      : posts.filter(function (p) { return p.status === f.k; }).length;
+    return '<button type="button" class="chip" data-f="' + f.k + '" aria-current="' + (filter === f.k) + '">'
+      + f.t + (n == null ? '' : '<span class="n">' + n + '</span>') + '</button>';
+  }
+
   function renderFilters() {
-    var chips = FILTERS.map(function (f) {
-      var n = f.k === 'all' ? posts.length
-        : f.k === 'calendar' ? posts.filter(function (p) { return p.status === 'posted'; }).length
-        : f.k === 'traffic' ? (traffic.data ? traffic.data.visits.recent : null)   /* the week's visits, once read */
-        : posts.filter(function (p) { return p.status === f.k; }).length;
-      return '<button type="button" class="chip" data-f="' + f.k + '" aria-current="' + (filter === f.k) + '">'
-        + f.t + (n == null ? '' : '<span class="n">' + n + '</span>') + '</button>';
+    var groups = TABS.map(function (group, i) {
+      return '<div class="tabs">'
+        + group.map(chipFor).join('')
+        // The posts group carries what is done to posts: the closing slide's words, and drafting new ones.
+        + (i === 0 ? '<button type="button" class="chip" data-cta>Last slide</button>' : '')
+        + '</div>';
     }).join('');
-    byId('filters').innerHTML = chips
-      + '<button type="button" class="chip" data-cta>Last slide</button>'
+    byId('filters').innerHTML = groups
       + '<div class="draft-menu">'
       +   '<button type="button" class="btn btn-go draft-toggle" aria-haspopup="menu" aria-expanded="false">Draft</button>'
       +   '<div class="draft-list" role="menu" hidden>'

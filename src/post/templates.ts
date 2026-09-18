@@ -33,7 +33,7 @@ export interface Node {
  * serving the old design for up to 24 hours, in the studio and to Meta alike. The version rides in the URL
  * so a design change is a new URL.
  */
-export const RENDER_VERSION = 7;
+export const RENDER_VERSION = 8;
 
 /** The margin at the top and bottom edges. */
 const PAD = 54;
@@ -249,28 +249,50 @@ function listing(d: { kicker: string; when: string; events: { time: string; name
 }
 
 /**
- * A venue slide inverts the event composition: type at the top, photo in a band at the foot. That, plus the
- * running series index, is the only thing separating the two series -- both live in the same near-black.
+ * A venue slide, in two compositions.
+ *
+ * With a photograph it is an event slide: the room full bleed, the type at the foot under the same veil. The
+ * band across the bottom this used to draw was a compromise from before there was a way to add photos at
+ * all, and a room is the thing being sold -- it deserves the frame rather than a third of it.
+ *
+ * Without a photograph the type takes the whole canvas from the top, which is also why there is no grey
+ * placeholder: an empty box reads as a rendering fault on the account, and "Photo of the venue" is a note to
+ * the person drafting rather than something to publish. The studio's Add photo button is where it lives.
  */
 function venue(d: { index: string; name: string; hood: string; note: string; foot: string; image: unknown }, type: Typefaces): Node[] {
-  // With a photo, the address sits above the band at the foot. Without one there is no band at all: an
-  // empty grey box reads as a rendering fault on the account, and "Photo of the venue" is a note to the
-  // person drafting, not something to publish. The studio's Add photo button is where that note now lives.
-  const hasPhoto = Boolean(d.image);
+  // The running series index. Spread across the full width, so it needs the width: inside a plain flex box
+  // it shrinks to its contents and "VENUES" and "01 / 04" end up printed against each other.
+  const kicker = { fontSize: 28, letterSpacing: track(28, 0.2), color: G2 };
+  const indexRow = (extra: Record<string, unknown> = {}): Node =>
+    spread({ ...kicker, ...extra }, [
+      text('VENUES', kicker),
+      text(d.index.toUpperCase(), kicker),
+    ]);
+
+  if (d.image) {
+    return [
+      wordmark(type),
+      indexRow({ position: 'absolute', top: 192, left: SIDE, right: SIDE }),
+      // The same block an event slide sets, at the same place: the veil darkens exactly this band. The note
+      // is three lines here rather than nine -- over a photograph, a paragraph stops being readable.
+      column({ position: 'absolute', left: SIDE, right: SIDE, bottom: 132, gap: 12 }, [
+        text(d.name, { fontSize: 84, fontWeight: 700, letterSpacing: track(84, -0.045), lineHeight: 1, width: CONTENT_W }, 2),
+        ...(d.hood ? [text(d.hood, { fontSize: 40, fontWeight: 500, color: G1, letterSpacing: track(40, -0.005) })] : []),
+        ...(d.note ? [text(d.note, { fontSize: 34, color: G1, lineHeight: 1.34, width: CONTENT_W }, 3)] : []),
+      ]),
+      ...(d.foot ? [foot(d.foot, '', 32, G2)] : []),
+    ];
+  }
+
   return [
     wordmark(type),
     column({ position: 'absolute', top: 192, left: SIDE, right: SIDE, gap: 16 }, [
-      spread({ fontSize: 28, letterSpacing: track(28, 0.2), color: G2 }, [
-        text('VENUES', { fontSize: 28, letterSpacing: track(28, 0.2), color: G2 }),
-        text(d.index.toUpperCase(), { fontSize: 28, letterSpacing: track(28, 0.2), color: G2 }),
-      ]),
+      indexRow(),
       text(d.name, { fontSize: 104, fontWeight: 700, letterSpacing: track(104, -0.046), lineHeight: 0.97, width: CONTENT_W }, 2),
       ...(d.hood ? [text(d.hood, { fontSize: 44, fontWeight: 500, color: G1, letterSpacing: track(44, -0.005) })] : []),
-      ...(d.note ? [text(d.note, { fontSize: 40, color: G1, lineHeight: 1.38, width: 900, marginTop: 10 }, hasPhoto ? 5 : 9)] : []),
+      ...(d.note ? [text(d.note, { fontSize: 40, color: G1, lineHeight: 1.38, width: 900, marginTop: 10 }, 9)] : []),
     ]),
-    ...(d.foot
-      ? [text(d.foot, { position: 'absolute', left: SIDE, bottom: hasPhoto ? VENUE_BAND_PLACEHOLDER.height + 42 : PAD, fontSize: 34, color: G2 })]
-      : []),
+    ...(d.foot ? [text(d.foot, { position: 'absolute', left: SIDE, bottom: PAD, fontSize: 34, color: G2 })] : []),
   ];
 }
 
@@ -336,9 +358,6 @@ function cta(d: { question: string; answer: string; link: string; note: string }
     ]),
   ];
 }
-
-/** The placeholder a venue band shows before there is a photograph of the venue to put in it. */
-export const VENUE_BAND_PLACEHOLDER = { height: 430, color: G3, label: 'Photo of the venue' };
 
 /**
  * A slide as one satori tree. The root is the canvas: transparent, because everything behind the type is
