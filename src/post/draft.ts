@@ -12,7 +12,7 @@
  */
 import type { FeedDay, FeedEvent, FeedResponse } from '../feed/shape.js';
 import { draftWeekendCaption, SITE } from './caption.js';
-import { CAROUSEL_MAX, TABLE_ROWS_MAX, type Slide, type Tone } from './types.js';
+import { CAROUSEL_MAX, TABLE_ROWS_MAX, TABLE_ROWS_TOTAL, type Slide, type Tone } from './types.js';
 
 /** How many events get a slide of their own. Four plus a cover plus two tables is the seven-slide deck. */
 const HERO_SLIDES = 4;
@@ -21,8 +21,6 @@ const HERO_SLIDES = 4;
  * room for one table under Instagram's ten.
  */
 export const HERO_MAX = 6;
-/** Rows across all table slides. Two slides at seven rows is the most the deck has room for. */
-const TABLE_ROWS_TOTAL = TABLE_ROWS_MAX * 2;
 
 /** Separators RA and DICE use to glue a promoter or series onto its lineup. */
 const FEATURING = /\s+(?:ft\.?|feat\.?|featuring|w\/|with|presents?|pres\.?)\s+/i;
@@ -175,21 +173,57 @@ export function heroSlide(days: FeedDay[], ev: FeedEvent): Slide {
 }
 
 /**
+ * How the table rows are shared between the nights.
+ *
+ * Friday alone lists a hundred events in New York, so taking the best fourteen in night order filled every
+ * row with Friday and a weekend guide never reached Saturday. Each night gets an equal share, handed out a
+ * row at a time; what a quiet night cannot use goes back to the busy ones, so the tables are never short.
+ */
+export function shareRows(available: number[], total = TABLE_ROWS_TOTAL): number[] {
+  const share = available.map(() => 0);
+  let left = Math.min(total, available.reduce((a, b) => a + b, 0));
+  while (left > 0) {
+    let handed = 0;
+    for (let i = 0; i < available.length && left > 0; i += 1) {
+      if (share[i]! >= available[i]!) continue;
+      share[i] = share[i]! + 1;
+      left -= 1;
+      handed += 1;
+    }
+    if (handed === 0) break;
+  }
+  return share;
+}
+
+/** One table row, as a night reads on the slide. */
+const rowOf = (day: FeedDay, ev: FeedEvent): { day: string; time: string; event: string; venue: string } => ({
+  day: day.label,
+  time: ev.door,
+  event: headlineOf(ev),
+  venue: venueOf(ev),
+});
+
+/**
  * Table slides for the rest of the weekend, seven rows each.
  *
  * Rows are ordered by night and then by rank, so the tables read as a chronological guide rather than a
- * popularity list. Events that already have a hero slide are left out: a deck that shows the same party
- * twice wastes one of ten slides.
+ * popularity list, and every night of the weekend gets its share (shareRows). Events that already have a
+ * hero slide are left out: a deck that shows the same party twice wastes one of ten slides.
+ *
+ * `chosen` is the studio's own list of event ids. When it is given, those are the rows -- in night order,
+ * and in the order they were chosen within a night.
  */
-function tableSlides(days: FeedDay[], events: FeedEvent[], used: Set<string>): Slide[] {
-  const rows = days.flatMap((day, index) =>
-    rank(events.filter((e) => e.d === index && !used.has(e.id))).map((ev) => ({
-      day: day.label,
-      time: ev.door,
-      event: headlineOf(ev),
-      venue: venueOf(ev),
-    })),
-  ).slice(0, TABLE_ROWS_TOTAL);
+function tableSlides(days: FeedDay[], events: FeedEvent[], used: Set<string>, chosen?: string[]): Slide[] {
+  const byDay = days.map((_, index) => rank(events.filter((e) => e.d === index && !used.has(e.id))));
+  const rows = chosen
+    ? days.flatMap((day, index) => chosen
+        .flatMap((id) => byDay[index]!.filter((e) => e.id === id))
+        .map((ev) => rowOf(day, ev)))
+      .slice(0, TABLE_ROWS_TOTAL)
+    : (() => {
+        const share = shareRows(byDay.map((list) => list.length));
+        return days.flatMap((day, index) => byDay[index]!.slice(0, share[index]).map((ev) => rowOf(day, ev)));
+      })();
 
   const slides: Slide[] = [];
   for (let i = 0; i < rows.length; i += TABLE_ROWS_MAX) {
@@ -250,6 +284,8 @@ export interface DeckOptions {
   heroIds?: string[];
   /** The closing slide, as the studio has it worded. Unset means the default. */
   cta?: Slide;
+  /** Feed event ids chosen for the tables. Unset means the busiest of each night, share by share. */
+  rowIds?: string[];
 }
 
 /**
@@ -280,7 +316,8 @@ export function draftWeekend(feed: FeedResponse, opts: DeckOptions = {}): Weeken
   // the thing a long weekend pushes past Instagram's ten.
   const cta = opts.cta ?? CTA_SLIDE;
   const slides = [
-    ...[cover, ...heroes.map((ev) => heroSlide(days, ev)), ...tableSlides(days, events, used)].slice(0, CAROUSEL_MAX - 1),
+    ...[cover, ...heroes.map((ev) => heroSlide(days, ev)), ...tableSlides(days, events, used, opts.rowIds)]
+      .slice(0, CAROUSEL_MAX - 1),
     cta,
   ];
 

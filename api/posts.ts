@@ -8,7 +8,8 @@
  *   POST   /api/posts?draft=spotlight  draft the three most anticipated nights of the next two weeks
  *   POST   /api/posts?draft=venue      draft a post for each of the four busiest venues of the next two weeks
  *   GET    /api/posts?candidates=<uuid> the nights a weekend deck or genre edition can be built from
- *   POST   /api/posts?rebuild=<uuid>   rebuild that deck around chosen nights: {events: [feed event id, ...]}
+ *   POST   /api/posts?rebuild=<uuid>   rebuild that deck around chosen nights:
+ *                                      {events: [id, ...], rows?: [id, ...]} -- slides, and the table rows
  *   GET    /api/posts?cta=1            the words every new draft closes with
  *   PUT    /api/posts?cta=1            change them: {question, answer, link, note}
  *   PATCH  /api/posts?id=<uuid>        caption, status, slides, treatment, grain
@@ -27,7 +28,9 @@ import { draftGenreEditions, draftSpotlights, draftVenuePosts, type EditionDraft
 import { attachCredits } from '../src/post/photos.js';
 import { localDatePlus } from '../src/lib/time.js';
 import { getPost, listPosts, patchPost, PostConflict, upsertDraft } from '../src/post/store.js';
-import { ctaDataSchema, postPatchSchema, STATUSES, type Post, type PostStatus } from '../src/post/types.js';
+import {
+  ctaDataSchema, postPatchSchema, STATUSES, TABLE_ROWS_TOTAL, type Post, type PostStatus,
+} from '../src/post/types.js';
 import { weekendRange } from '../src/post/weekend.js';
 import { createLogger } from '../src/lib/log.js';
 import { firstParam, sendJson } from './_lib/respond.js';
@@ -141,10 +144,17 @@ async function deckFor(res: VercelResponse, id: string | undefined): Promise<Dec
 async function candidates(req: VercelRequest, res: VercelResponse): Promise<void> {
   const deck = await deckFor(res, firstParam(req.query.candidates));
   if (!deck) return;
-  sendJson(res, 200, { ...candidatesFor(deck.feed, deck.post.slides), max: HERO_MAX }, NO_STORE);
+  sendJson(res, 200, {
+    ...candidatesFor(deck.feed, deck.post.slides), max: HERO_MAX, rowsMax: TABLE_ROWS_TOTAL,
+  }, NO_STORE);
 }
 
-const rebuildSchema = z.object({ events: z.array(z.string().min(1).max(200)).min(1).max(HERO_MAX) }).strict();
+const eventIds = z.array(z.string().min(1).max(200));
+const rebuildSchema = z.object({
+  events: eventIds.min(1).max(HERO_MAX),
+  /** The nights listed in the tables. Unset means the busiest of each night. */
+  rows: eventIds.max(TABLE_ROWS_TOTAL).optional(),
+}).strict();
 
 /**
  * Rebuild a deck around the nights she chose. Same path as a redraft (upsertDraft), so photos, per-slide
@@ -165,12 +175,14 @@ async function rebuild(req: VercelRequest, res: VercelResponse): Promise<void> {
     return;
   }
   const known = new Set(deck.feed.events.map((e) => e.id));
-  const missing = body.data.events.filter((id) => !known.has(id));
+  const missing = [...body.data.events, ...(body.data.rows ?? [])].filter((id) => !known.has(id));
   if (missing.length) {
     sendJson(res, 400, { error: `${missing.length} of those nights are no longer in the feed; reload the list` }, NO_STORE);
     return;
   }
-  const draft = draftWeekend(deck.feed, { ...deck.opts, heroIds: body.data.events, cta: ctaSlide(await currentCta()) });
+  const draft = draftWeekend(deck.feed, {
+    ...deck.opts, heroIds: body.data.events, rowIds: body.data.rows, cta: ctaSlide(await currentCta()),
+  });
   if (!draft) {
     sendJson(res, 409, { error: 'the feed has no events for this weekend any more' }, NO_STORE);
     return;

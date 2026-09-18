@@ -942,24 +942,32 @@
     if (!panel) return;
     api('/api/posts?candidates=' + encodeURIComponent(postId)).then(function (res) {
       panel._chosen = res.chosen.slice();
+      panel._rows = (res.rows || []).slice();
       panel._max = res.max;
+      panel._rowsMax = res.rowsMax || 14;
       var queued = post.status === 'queued';
       panel.innerHTML = '<p class="photo-name">Choose the nights that get their own slide</p>'
-        + '<p class="panel-note">Up to ' + res.max + ', in the order you tick them. The rest of the weekend goes in the'
-        + ' tables. Rebuilding redraws the slides and the caption; photos, looks and edited words stay with the'
-        + ' nights you keep.</p>'
+        + '<p class="panel-note">Slide gives a night its own slide, up to ' + res.max + ', in the order you press them.'
+        + ' List puts it in the tables instead, up to ' + panel._rowsMax + '. Leave the lists alone and the tables fill'
+        + ' themselves with the busiest nights, share and share alike between Friday, Saturday and Sunday.'
+        + ' Rebuilding redraws the slides and the caption; photos, looks and edited words stay with the nights you'
+        + ' keep.</p>'
         + '<ol class="nights-list">'
         + res.candidates.map(function (c) {
             var meta = [c.day + (c.door ? ' ' + c.door : ''), c.venue, c.genre, c.interested ? c.interested + ' interested' : '']
               .filter(Boolean).join('  /  ');
-            return '<li><label>'
-              + '<input type="checkbox" value="' + esc(c.id) + '"' + (res.chosen.indexOf(c.id) >= 0 ? ' checked' : '') + '>'
+            return '<li>'
               + '<span class="nights-order"></span>'
               + '<span class="nights-text"><b>' + esc(c.name) + '</b><span>' + esc(meta) + '</span></span>'
-              + '</label></li>';
+              + '<span class="nights-pick" role="group" aria-label="What to do with ' + esc(c.name) + '">'
+              +   '<button type="button" data-pick="slide" data-id="' + esc(c.id) + '" aria-pressed="false">Slide</button>'
+              +   '<button type="button" data-pick="row" data-id="' + esc(c.id) + '" aria-pressed="false">List</button>'
+              + '</span>'
+              + '</li>';
           }).join('')
         + '</ol>'
         + '<div class="photo-acts">'
+        +   '<span class="nights-counts"></span>'
         +   '<button type="button" class="btn btn-go" data-nights-act="rebuild"' + (queued ? '' : ' disabled') + '>Rebuild deck</button>'
         +   '<button type="button" class="btn" data-nights-act="cancel">Cancel</button>'
         +   '<span class="photo-status">' + (queued ? '' : 'Take the approval back first: press Approved, then rebuild.') + '</span>'
@@ -972,25 +980,47 @@
   }
 
   function paintNights(panel) {
-    Array.prototype.forEach.call(panel.querySelectorAll('.nights-list input'), function (box) {
-      var at = panel._chosen.indexOf(box.value);
-      box.checked = at >= 0;
-      box.closest('li').querySelector('.nights-order').textContent = at >= 0 ? String(at + 1) : '';
+    Array.prototype.forEach.call(panel.querySelectorAll('.nights-list li'), function (li) {
+      var slide = li.querySelector('[data-pick="slide"]');
+      var row = li.querySelector('[data-pick="row"]');
+      var at = panel._chosen.indexOf(slide.getAttribute('data-id'));
+      var listed = panel._rows.indexOf(row.getAttribute('data-id')) >= 0;
+      slide.setAttribute('aria-pressed', at >= 0);
+      row.setAttribute('aria-pressed', listed);
+      li.querySelector('.nights-order').textContent = at >= 0 ? String(at + 1) : '';
     });
+    var counts = panel.querySelector('.nights-counts');
+    if (counts) {
+      counts.textContent = panel._chosen.length + ' of ' + panel._max + ' slides'
+        + (panel._rows.length ? '  /  ' + panel._rows.length + ' of ' + panel._rowsMax + ' listed' : '');
+    }
   }
 
-  function toggleNight(panel, box) {
-    var at = panel._chosen.indexOf(box.value);
+  /**
+   * A night is a slide, a line in the tables, or neither. Pressing one role turns the other off: the deck
+   * would otherwise show the same party twice, which wastes one of ten slides.
+   */
+  function pickNight(panel, btn) {
+    var id = btn.getAttribute('data-id');
+    var role = btn.getAttribute('data-pick');
+    var mine = role === 'slide' ? panel._chosen : panel._rows;
+    var other = role === 'slide' ? panel._rows : panel._chosen;
+    var max = role === 'slide' ? panel._max : panel._rowsMax;
     var status = panel.querySelector('.photo-status');
-    if (box.checked && at < 0) {
-      if (panel._chosen.length >= panel._max) {
-        status.textContent = 'That is ' + panel._max + ' already. Untick one first.';
-      } else {
-        panel._chosen.push(box.value);
-        status.textContent = '';
-      }
-    } else if (!box.checked && at >= 0) {
-      panel._chosen.splice(at, 1);
+    var at = mine.indexOf(id);
+    if (at >= 0) {
+      mine.splice(at, 1);
+    } else if (mine.length >= max) {
+      status.textContent = role === 'slide'
+        ? 'That is ' + max + ' slides already. Take one off first.'
+        : 'The tables hold ' + max + ' nights. Take one off first.';
+      paintNights(panel);
+      return;
+    } else {
+      mine.push(id);
+      var elsewhere = other.indexOf(id);
+      if (elsewhere >= 0) other.splice(elsewhere, 1);
+      status.textContent = '';
     }
     paintNights(panel);
   }
@@ -1001,7 +1031,10 @@
     if (!panel._chosen.length) { status.textContent = 'Choose at least one night.'; return; }
     btn.disabled = true;
     status.textContent = 'Rebuilding…';
-    api('/api/posts?rebuild=' + encodeURIComponent(postId), { method: 'POST', body: { events: panel._chosen } })
+    api('/api/posts?rebuild=' + encodeURIComponent(postId), {
+      method: 'POST',
+      body: panel._rows.length ? { events: panel._chosen, rows: panel._rows } : { events: panel._chosen },
+    })
       .then(function (res) { replacePost(res.post); })
       .catch(function (err) { status.textContent = err.message; btn.disabled = false; });
   }
@@ -1158,6 +1191,8 @@
         else if (!nightsAct.disabled) rebuildNights(npanel, nightsAct);
         return;
       }
+      var pick = e.target.closest('button[data-pick]');
+      if (pick) { pickNight(pick.closest('.panel'), pick); return; }
       var grain = e.target.closest('button[data-grain]');
       if (grain) {
         var gn = +grain.getAttribute('data-grain');
@@ -1182,8 +1217,6 @@
         setLook(look.closest('.row').getAttribute('data-id'), +look.getAttribute('data-look'), { treatment: look.value });
         return;
       }
-      var night = e.target.closest('.nights-list input');
-      if (night) toggleNight(night.closest('.panel'), night);
     });
 
     /** Set one slide's own treatment or grain. The post's values stay as the default for the other slides. */

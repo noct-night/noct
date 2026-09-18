@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { candidateNights, CTA_SLIDE, draftWeekend, HERO_MAX, headlineOf, pickHeroes, spanLabel, supportingCast } from '../../src/post/draft.js';
+import {
+  candidateNights, CTA_SLIDE, draftWeekend, HERO_MAX, headlineOf, pickHeroes, shareRows, spanLabel, supportingCast,
+} from '../../src/post/draft.js';
 import { daysToFriday, weekendRange } from '../../src/post/weekend.js';
 import { slideSchema, CAROUSEL_MAX, TABLE_ROWS_MAX, type Slide } from '../../src/post/types.js';
 import { SITE } from '../../src/post/caption.js';
@@ -224,6 +226,55 @@ describe('draftWeekend', () => {
     const deck = draftWeekend(feed(events), { cta: mine })!;
     expect(deck.slides[deck.slides.length - 1]).toEqual(mine);
     expect(deck.slides.filter((sl) => sl.template === 'cta')).toHaveLength(1);
+  });
+
+  describe('the tables', () => {
+    // New York's Friday alone lists a hundred events, so the weekend the drafter sees is lopsided.
+    const lopsided = [
+      ...Array.from({ length: 40 }, (_, i) => ev({ id: `f${i}`, d: 0, venue: `Friday venue ${i}`, head: `Friday night ${i}`, interested: 500 - i })),
+      ...Array.from({ length: 9 }, (_, i) => ev({ id: `s${i}`, d: 1, venue: `Saturday venue ${i}`, head: `Saturday night ${i}`, interested: 400 - i })),
+      ...Array.from({ length: 3 }, (_, i) => ev({ id: `u${i}`, d: 2, venue: `Sunday venue ${i}`, head: `Sunday night ${i}`, interested: 300 - i })),
+    ];
+    const rowsOf = (deck: ReturnType<typeof draftWeekend>) =>
+      deck!.slides.flatMap((sl) => (sl.template === 'table' ? sl.data.rows : []));
+
+    it('gives every night of the weekend a share, rather than filling up on Friday', () => {
+      const rows = rowsOf(draftWeekend(feed(lopsided)));
+      const nights = new Set(rows.map((r) => r.day));
+      expect(nights).toEqual(new Set(['Fri', 'Sat', 'Sun']));
+      expect(rows).toHaveLength(14);
+    });
+
+    it('hands a quiet night’s unused rows back to the busy ones, so the tables are never short', () => {
+      // Sunday has three listings; the fourteen rows are still filled.
+      const rows = rowsOf(draftWeekend(feed(lopsided)));
+      expect(rows.filter((r) => r.day === 'Sun')).toHaveLength(3);
+      expect(rows.filter((r) => r.day === 'Fri').length).toBeGreaterThan(3);
+    });
+
+    it('still reads as a diary: each night’s rows together, in night order', () => {
+      const days = rowsOf(draftWeekend(feed(lopsided))).map((r) => r.day);
+      expect(days).toEqual([...days].sort((a, b) => ['Fri', 'Sat', 'Sun'].indexOf(a) - ['Fri', 'Sat', 'Sun'].indexOf(b)));
+    });
+
+    it('shares the rows out a row at a time, and never more than a night has', () => {
+      expect(shareRows([40, 9, 3], 14)).toEqual([6, 5, 3]);
+      expect(shareRows([100, 100, 100], 14)).toEqual([5, 5, 4]);
+      expect(shareRows([2, 1, 0], 14)).toEqual([2, 1, 0]);
+      expect(shareRows([], 14)).toEqual([]);
+    });
+
+    it('lists exactly the nights the studio chose, when it chooses', () => {
+      const deck = draftWeekend(feed(lopsided), { heroIds: ['f0'], rowIds: ['u1', 's2', 'f9'] })!;
+      const rows = deck.slides.flatMap((sl) => (sl.template === 'table' ? sl.data.rows : []));
+      expect(rows.map((r) => r.event)).toEqual(['Friday night 9', 'Saturday night 2', 'Sunday night 1']);
+    });
+
+    it('never lists a night that already has its own slide', () => {
+      const deck = draftWeekend(feed(lopsided), { heroIds: ['f0'], rowIds: ['f0', 'f1'] })!;
+      const rows = deck.slides.flatMap((sl) => (sl.template === 'table' ? sl.data.rows : []));
+      expect(rows.map((r) => r.event)).toEqual(['Friday night 1']);
+    });
   });
 
   it('offers every night as a candidate, best first', () => {

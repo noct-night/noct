@@ -70,11 +70,34 @@ export function chosenIds(slides: Slide[], events: FeedEvent[]): string[] {
   return ids;
 }
 
+/**
+ * The events a deck's table rows are about.
+ *
+ * Table rows carry no event id -- they are display strings, deliberately (see types.ts) -- so they are
+ * matched the way a deck drafted before `ref` existed is: by the headline and the venue as they were
+ * printed. A row whose event has since left the feed simply is not found, which is the right answer.
+ */
+export function listedIds(slides: Slide[], events: FeedEvent[]): string[] {
+  const ids: string[] = [];
+  for (const s of slides) {
+    if (s.template !== 'table') continue;
+    for (const row of s.data.rows) {
+      const match = events.find((e) => headlineOf(e) === row.event && venueLine(e) === row.venue);
+      if (match && !ids.includes(match.id)) ids.push(match.id);
+    }
+  }
+  return ids;
+}
+
 /** What the studio offers: the ranked nights, plus any already in the deck that fell outside the top of it. */
-export function candidatesFor(feed: FeedResponse, slides: Slide[], limit = 40): { candidates: Candidate[]; chosen: string[] } {
+export function candidatesFor(
+  feed: FeedResponse, slides: Slide[], limit = 40,
+): { candidates: Candidate[]; chosen: string[]; rows: string[] } {
   const chosen = chosenIds(slides, feed.events);
+  const rows = listedIds(slides, feed.events);
   const offered = candidateNights(feed.events, limit);
-  const extra = feed.events.filter((e) => chosen.includes(e.id) && !offered.includes(e));
+  const inDeck = new Set([...chosen, ...rows]);
+  const extra = feed.events.filter((e) => inDeck.has(e.id) && !offered.includes(e));
   const candidates = [...offered, ...extra].map((ev) => ({
     id: ev.id,
     name: headlineOf(ev),
@@ -84,5 +107,5 @@ export function candidatesFor(feed: FeedResponse, slides: Slide[], limit = 40): 
     genre: ev.primary ?? ev.genre[0] ?? '',
     interested: ev.interested,
   }));
-  return { candidates, chosen };
+  return { candidates, chosen, rows };
 }

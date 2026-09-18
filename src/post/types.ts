@@ -21,6 +21,8 @@ export const CAPTION_MAX = 2200;
 export const HASHTAG_MAX = 5;
 /** Beyond seven rows the type has to shrink to fit, so the deck gets a second table slide instead. */
 export const TABLE_ROWS_MAX = 7;
+/** Rows across all of a deck's table slides: two slides at seven rows is the most a deck has room for. */
+export const TABLE_ROWS_TOTAL = TABLE_ROWS_MAX * 2;
 
 /** The prototype's placeholder tones, `.x1`..`.x6` in app.css. Used when a slide has no photo. */
 export const TONES = ['x1', 'x2', 'x3', 'x4', 'x5', 'x6'] as const;

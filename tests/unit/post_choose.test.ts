@@ -84,6 +84,14 @@ describe('what is offered', () => {
     expect(chosenIds(old, events)).toEqual(['a', 'b', 'x0', 'x1']);
   });
 
+  it('knows which nights the tables already list, so they come back ticked', () => {
+    const deck = draftWeekend(feed(events), { heroIds: ['a'] })!;
+    const { rows } = candidatesFor(feed(events), deck.slides, 10);
+    const listed = deck.slides.flatMap((s) => (s.template === 'table' ? s.data.rows.map((r) => r.event) : []));
+    expect(rows.length).toBe(listed.length);
+    expect(rows).not.toContain('a');
+  });
+
   it('offers every kind of listing, best first, and keeps chosen nights that fell below the cut', () => {
     const picked = draftWeekend(feed(events), { heroIds: ['x49'] })!;
     const { candidates, chosen } = candidatesFor(feed(events), picked.slides, 10);
