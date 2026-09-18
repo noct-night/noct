@@ -145,7 +145,10 @@ tiebreak, because friends have different tastes and the owner's order would just
 Once a group exists the menu entry opens the votes; *Start another* on the result sheet drops this device's
 group and deals the night on screen. The event sheet's action row is *Save · Directions · Add to calendar ·
 Share* — one line; *Open listing* went, since every ticket row already opens the listing, and *Venues* left the
-menu, since the map does that.
+menu, since the map does that. *Share* opens the phone's own share sheet where there is one and copies the
+link otherwise, and **answers on the button itself** — *Shared* or *Copied* for two seconds (`said()`) — because
+the top-bar note sits under an open sheet, so a toast there is a confirmation nobody sees; the plan sheet's
+*Send the link* answers the same way.
 The deck is the image view: `results()` returns the deck's cards in dealt order, the seg hides, the swipe pill
 reads *← Pass · Like →* and **its arrows do exactly that** (`arrow()`; they used to page through the deck like
 the feed's arrows, so a tap on "→" showed card 2, 3 … 7, 1, 2 — the "repeating cards" report), a swipe or the

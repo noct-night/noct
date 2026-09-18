@@ -770,7 +770,7 @@ function openDet(eid){
       <button class="lnk" onclick="toggleSave(${e.id});openDet(${e.id})">${isSaved(e.id)?'Saved':'Save'}</button>
       ${directionsUrl(e.venue)?`<a class="lnk" href="${directionsUrl(e.venue)}" target="_blank" rel="noopener" onclick="act('directions','${e.uuid||''}')">Directions</a>`:''}
       ${e.uuid?`<a class="lnk" href="${API_BASE}/api/ics?e=${encodeURIComponent(e.uuid)}" rel="noopener" onclick="act('calendar','${e.uuid}')">Add to calendar</a>`:''}
-      <button class="lnk" onclick="shareEvent(${e.id})">Share</button>
+      <button class="lnk" onclick="shareEvent(${e.id},this)">Share</button>
     </div>
   </div>`;
   /* Opened from the venue sheet (a map dot, then a row): the event goes OVER the venue, and its ✕ returns
@@ -1106,7 +1106,7 @@ async function ensureGroup(){
   return true;
 }
 /* the phone's own share sheet where there is one (Messages, WhatsApp, Kakao, AirDrop); the clipboard otherwise */
-async function shareGroupLink(){
+async function shareGroupLink(btn){
   const url=groupLink();
   if(navigator.share){
     try{await navigator.share({title:'Swipe with friends on NOCT',url});act('group_link');planSent();return 'shared'}
@@ -1114,7 +1114,9 @@ async function shareGroupLink(){
   }
   const ok=await copyText(url);
   if(ok){act('group_link');planSent()}
-  toast(ok?'Link copied — paste it to your friends':'Could not copy — '+url,4000);
+  /* on the button, where it can be seen with the sheet open; planSent() re-rendered the sheet, so find the
+     button again rather than the one that was tapped */
+  said(document.querySelector('#group .gsend button')||btn,ok?'Copied — paste it to your friends':'Could not copy',3000);
   return ok?'copied':'failed';
 }
 async function groupStart(){if(await ensureGroup())startDeck()}
@@ -1226,7 +1228,7 @@ function renderGroup(){
   b.innerHTML=`<button class="sx" onclick="closeGroup()" aria-label="Close">✕</button>`
     +`<div class="sh2">${head}</div>`
     +`<div class="gsub">${sub}</div>`
-    +(j?`<div class="foot gsend"><button class="lnk" onclick="shareGroupLink()">Send the link</button></div>`:'')
+    +(j?`<div class="foot gsend"><button class="lnk" onclick="shareGroupLink(this)">Send the link</button></div>`:'')
     +rows.map(x=>`<button class="frow" onclick="closeAll();openDet(${x.e.id})"><div><div class="fn">${x.e.head}</div>`
       +`<div class="fm">${x.e.venue}${x.e.door?' · '+x.e.door:''}${GRP.mine[x.e.uuid]===true?' · You liked this':GRP.mine[x.e.uuid]===false?' · You passed':''}</div></div>`
       +`<span class="gcount ${m&&x.likes===m?'all':''}">${m?`${x.likes} of ${m}`:'—'}</span></button>`).join('')
@@ -1239,14 +1241,28 @@ function renderGroup(){
  * Share a night. NOCT has no per-event route, so the link carries the event's uuid AND its date: the recipient
  * lands on that night's feed with the sheet already open, instead of on whatever is on tonight.
  */
-function shareEvent(id){
+/* The answer is said on the button itself -- "Copied" for two seconds -- because the top-bar note sits under
+   the open sheet and a toast there is invisible. On a phone the OS share sheet opens first (Messages, Kakao,
+   AirDrop); where there is none, or it is dismissed without sending, the link is copied. */
+function said(btn,text,ms){
+  if(!btn){toast(text,ms||2200);return}
+  const was=btn.dataset.was||btn.textContent;btn.dataset.was=was;
+  btn.textContent=text;btn.disabled=true;
+  clearTimeout(btn._said);btn._said=setTimeout(()=>{btn.textContent=was;btn.disabled=false},ms||2200);
+}
+function shareEvent(id,btn){
   const e=evById(id);if(!e)return;
   const date=(DAYS[e.d]||[])[3]||'';
   const q=new URLSearchParams({e:e.uuid||'',city:S.city||'nyc'});
   if(date){q.set('from',date);q.set('to',date)}
   const url=`${location.origin}${location.pathname}?${q}`;
   act('share',e.uuid);
-  copyText(url).then(ok=>toast(ok?'Link copied':'Could not copy — '+url));
+  const copy=()=>copyText(url).then(ok=>said(btn,ok?'Copied':'Could not copy',ok?2200:3000));
+  if(navigator.share){
+    navigator.share({title:e.head,text:`${e.head} · ${e.venue}`,url}).then(()=>said(btn,'Shared')).catch(err=>{if(!(err&&err.name==='AbortError'))copy()});
+    return;
+  }
+  copy();
 }
 /** Clipboard API needs https and a gesture; the textarea path covers the browsers that refuse it. */
 function copyText(t){
