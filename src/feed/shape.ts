@@ -249,7 +249,7 @@ export interface FeedSourceStatus {
   last_run: { status: string; finished_at: string | null; seen: number; error: string | null } | null;
 }
 
-export interface FeedCity { key: string; name: string; tz: string; events: number; enabled: boolean }
+export interface FeedCity { key: string; name: string; tz: string; events: number; enabled: boolean; lat: number; lng: number }
 
 export interface FeedResponse {
   generated_at: string;

@@ -26,19 +26,21 @@ export interface City {
   dice: DiceTarget | null;
   /** short aliases accepted by the API (`?city=`) */
   aliases: string[];
+  /** the city's centre, [lat, lng]: what "Use my location" measures a visitor's distance to */
+  centre: [number, number];
 }
 
 export const CITIES: readonly City[] = [
-  { key: 'nyc', name: 'New York', country: 'US', tz: 'America/New_York', raAreaId: 8, hzRegion: null, dice: { names: ['New York', 'Brooklyn'], state: 'New York', bbox: { latMin: 40.49, latMax: 40.92, lngMin: -74.27, lngMax: -73.68 } }, aliases: ['new york', 'new-york', 'new_york', 'new york city', 'ny'] },
-  { key: 'la', name: 'Los Angeles', country: 'US', tz: 'America/Los_Angeles', raAreaId: 23, hzRegion: 'LosAngeles', dice: { names: ['Los Angeles'], state: 'California', bbox: { latMin: 33.60, latMax: 34.34, lngMin: -118.70, lngMax: -117.60 } }, aliases: ['los angeles', 'los-angeles', 'losangeles'] },
-  { key: 'sf', name: 'San Francisco', country: 'US', tz: 'America/Los_Angeles', raAreaId: 218, hzRegion: 'BayArea', dice: null, aliases: ['san francisco', 'bay area', 'bayarea', 'oakland'] },
-  { key: 'chi', name: 'Chicago', country: 'US', tz: 'America/Chicago', raAreaId: 17, hzRegion: 'CHI', dice: { names: ['Chicago'], state: 'Illinois', bbox: { latMin: 41.55, latMax: 42.16, lngMin: -88.10, lngMax: -87.44 } }, aliases: ['chicago'] },
-  { key: 'mia', name: 'Miami', country: 'US', tz: 'America/New_York', raAreaId: 38, hzRegion: 'Miami', dice: null, aliases: ['miami'] },
-  { key: 'dc', name: 'Washington DC', country: 'US', tz: 'America/New_York', raAreaId: 22, hzRegion: 'DC', dice: null, aliases: ['washington', 'washington dc', 'washingtondc'] },
-  { key: 'det', name: 'Detroit', country: 'US', tz: 'America/New_York', raAreaId: 19, hzRegion: 'Detroit', dice: null, aliases: ['detroit'] },
-  { key: 'tor', name: 'Toronto', country: 'CA', tz: 'America/Toronto', raAreaId: 28, hzRegion: 'Toronto', dice: null, aliases: ['toronto'] },
-  { key: 'ldn', name: 'London', country: 'UK', tz: 'Europe/London', raAreaId: 13, hzRegion: null, dice: null, aliases: ['london'] },
-  { key: 'ber', name: 'Berlin', country: 'DE', tz: 'Europe/Berlin', raAreaId: 34, hzRegion: null, dice: null, aliases: ['berlin'] },
+  { key: 'nyc', centre: [40.7128, -74.006], name: 'New York', country: 'US', tz: 'America/New_York', raAreaId: 8, hzRegion: null, dice: { names: ['New York', 'Brooklyn'], state: 'New York', bbox: { latMin: 40.49, latMax: 40.92, lngMin: -74.27, lngMax: -73.68 } }, aliases: ['new york', 'new-york', 'new_york', 'new york city', 'ny'] },
+  { key: 'la', centre: [34.0522, -118.2437], name: 'Los Angeles', country: 'US', tz: 'America/Los_Angeles', raAreaId: 23, hzRegion: 'LosAngeles', dice: { names: ['Los Angeles'], state: 'California', bbox: { latMin: 33.60, latMax: 34.34, lngMin: -118.70, lngMax: -117.60 } }, aliases: ['los angeles', 'los-angeles', 'losangeles'] },
+  { key: 'sf', centre: [37.7749, -122.4194], name: 'San Francisco', country: 'US', tz: 'America/Los_Angeles', raAreaId: 218, hzRegion: 'BayArea', dice: null, aliases: ['san francisco', 'bay area', 'bayarea', 'oakland'] },
+  { key: 'chi', centre: [41.8781, -87.6298], name: 'Chicago', country: 'US', tz: 'America/Chicago', raAreaId: 17, hzRegion: 'CHI', dice: { names: ['Chicago'], state: 'Illinois', bbox: { latMin: 41.55, latMax: 42.16, lngMin: -88.10, lngMax: -87.44 } }, aliases: ['chicago'] },
+  { key: 'mia', centre: [25.7617, -80.1918], name: 'Miami', country: 'US', tz: 'America/New_York', raAreaId: 38, hzRegion: 'Miami', dice: null, aliases: ['miami'] },
+  { key: 'dc', centre: [38.9072, -77.0369], name: 'Washington DC', country: 'US', tz: 'America/New_York', raAreaId: 22, hzRegion: 'DC', dice: null, aliases: ['washington', 'washington dc', 'washingtondc'] },
+  { key: 'det', centre: [42.3314, -83.0458], name: 'Detroit', country: 'US', tz: 'America/New_York', raAreaId: 19, hzRegion: 'Detroit', dice: null, aliases: ['detroit'] },
+  { key: 'tor', centre: [43.6532, -79.3832], name: 'Toronto', country: 'CA', tz: 'America/Toronto', raAreaId: 28, hzRegion: 'Toronto', dice: null, aliases: ['toronto'] },
+  { key: 'ldn', centre: [51.5074, -0.1278], name: 'London', country: 'UK', tz: 'Europe/London', raAreaId: 13, hzRegion: null, dice: null, aliases: ['london'] },
+  { key: 'ber', centre: [52.52, 13.405], name: 'Berlin', country: 'DE', tz: 'Europe/Berlin', raAreaId: 34, hzRegion: null, dice: null, aliases: ['berlin'] },
 ];
 
 export const DEFAULT_CITY = 'nyc';

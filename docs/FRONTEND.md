@@ -351,6 +351,25 @@ Open `http://localhost:3000/?demo=1` to compare against the sample weekend. To t
 serve the repo root with any static server and stub `/api/feed` with the JSON that
 `npx tsx -e "..."` calling `buildFeed()` prints (that is what the runtime smoke test in the unit report did).
 
+## Use my location (2026-09-18)
+
+The *Where* sheet's toggle used to flip a label from Off to On and do nothing. Now `useGeo()` asks the browser
+once (`getCurrentPosition`, low accuracy, 10 s, a five-minute cached fix is fine) and does three things with
+the answer, none of them a filter or a re-rank — standing in Manhattan at six is no reason to hide Brooklyn:
+
+- **The nearest city NOCT is in.** Every city in the registry carries a `centre` (`src/lib/cities.ts`, passed
+  through `/api/feed cities[]` as `lat`/`lng`); the closest one within 120 km wins. A live city that is not the
+  one on screen moves the feed there (*Showing Los Angeles*); a "soon" city says so (*NOCT is not in San
+  Francisco yet — showing New York*); nothing within reach says *NOCT is not where you are yet*.
+- **A "you" dot on the map** (`.youdot`, a hollow ring with a halo, not a room), inside the fit when it is in
+  the metro core.
+- **A "From you" line on the event sheet** (*Under 1 km*, *2.3 km*, *14 km*) for rooms with coordinates; the
+  toggle's own label names where you are when a room with coordinates is within 4 km (*On · Brooklyn*).
+
+The position lives in `S.pos` for this visit only — not stored, not sent; the toggle, *Reset* and a closed tab
+drop it. Denied permission reads *Location is blocked for noct.pro — allow it in your browser settings*; a
+browser without the API says so; the tap is counted as the action `locate`.
+
 ## Known gaps
 
 - Per-tag evidence (`event_tag.sources`) and set times are not in the feed.

@@ -211,7 +211,7 @@ export async function buildFeed(params: FeedParams = {}): Promise<FeedResponse> 
     generated_at: new Date().toISOString(),
     range: { from, to },
     city: { key: city.key, name: city.name, tz: city.tz },
-    cities: CITIES.map((c) => ({ key: c.key, name: c.name, tz: c.tz, events: counts.get(c.key) ?? 0, enabled: (counts.get(c.key) ?? 0) > 0 })),
+    cities: CITIES.map((c) => ({ key: c.key, name: c.name, tz: c.tz, events: counts.get(c.key) ?? 0, enabled: (counts.get(c.key) ?? 0) > 0, lat: c.centre[0], lng: c.centre[1] })),
     days,
     venues: Object.fromEntries(vs.map((v) => [v.name, shapeVenue(v)])),
     events,

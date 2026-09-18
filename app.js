@@ -369,13 +369,22 @@ function renderMap(){
     mk.addTo(MAP_LAYER);
     pts.push([g.lat,g.lng]);
   });
+  /* you, when the browser was asked: a small hollow ring, not a venue, and part of the fit when it is in town */
+  let youPt=null;
+  if(S.geo&&S.pos){
+    const icon=L.divIcon({className:'',html:`<div class="youdot" title="You"></div>`,iconSize:[18,18],iconAnchor:[9,9]});
+    L.marker([S.pos.lat,S.pos.lng],{icon,interactive:false,keyboard:false}).addTo(MAP_LAYER);
+    youPt=[S.pos.lat,S.pos.lng];
+  }
   if(pts.length&&!renderMap.fitted){
     /* Fit to where the nights are, not to the furthest room RA filed under the city. The median point is
        immune to a lone dot in Elk Grove or Catskill; 0.2 degrees (~20 km) around it is the metro core. */
     const med=a=>{const x=[...a].sort((p,q)=>p-q);return x[Math.floor(x.length/2)]};
     const c=[med(pts.map(p=>p[0])),med(pts.map(p=>p[1]))];
     const near=pts.filter(p=>Math.abs(p[0]-c[0])<.2&&Math.abs(p[1]-c[1])<.25);
-    m.fitBounds(near.length>=3?near:pts,{padding:[40,40],maxZoom:14});renderMap.fitted=true;
+    const fit=near.length>=3?near.slice():pts.slice();
+    if(youPt&&Math.abs(youPt[0]-c[0])<.2&&Math.abs(youPt[1]-c[1])<.25)fit.push(youPt);
+    m.fitBounds(fit,{padding:[40,40],maxZoom:14});renderMap.fitted=true;
   }
   const note=$('#mapNote');
   /* a pick at a secret location is a fact about the night, not a gap in the map: say which pick it is */
@@ -741,6 +750,7 @@ function openDet(eid){
       ${(e.vibes||[]).length?`<div class="k">Vibe</div><div>${e.vibes.map(v=>v.label).join(' · ')}</div>`:''}
       <div class="k">Venue</div><div><button class="go" onclick="openVenue('${esc(e.venue)}')">${e.venue} →</button></div>
       ${vInfo(e.venue).hood?`<div class="k">Area</div><div>${vInfo(e.venue).hood}${vInfo(e.venue).boro?', '+vInfo(e.venue).boro:''}</div>`:''}
+      ${fromYou(vInfo(e.venue))?`<div class="k">From you</div><div>${fromYou(vInfo(e.venue))}</div>`:''}
       ${e.age?`<div class="k">Ages</div><div>${e.age}</div>`:''}
       ${e.interested?`<div class="k">Interested</div><div>${e.interested.toLocaleString()}</div>`:''}
     </div>
@@ -1532,8 +1542,51 @@ function buildAll(){
   renderCal();renderCalList();
 }
 function clearAll(){S.gen.clear();S.door.clear();S.avail.clear();S.sortTaste=TASTE.length>0;S.i=0;buildAll();render()}
-function useGeo(){S.geo=!S.geo;$('#geoState').textContent=S.geo?'On':'Off';render()}
-function resetLoc(){const was=S.city;S.city='nyc';S.area='All';S.geo=false;if(was!=='nyc'){closeAll();loadFeed();return}buildAll();render()}
+/* ---------- Your location ----------
+   "Use my location" asks the browser once and does three things with the answer: moves the feed to the nearest
+   city NOCT is in (within 120 km), puts a "you" dot on the map, and adds a "From you" line to the event sheet.
+   It never filters or re-ranks -- standing in Manhattan at six is no reason to hide Brooklyn. The position lives
+   in S.pos for this visit only: nothing is stored, nothing is sent anywhere. (It used to flip a label from Off
+   to On and do nothing at all.) */
+const kmBetween=(a,b)=>{const r=Math.PI/180,dLat=(b.lat-a.lat)*r,dLng=(b.lng-a.lng)*r,h=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLng/2)**2;return 12742*Math.asin(Math.sqrt(h))};
+const NEAR_CITY_KM=120;
+function geoLabel(t){const el=$('#geoState');if(el)el.textContent=t}
+/** the closest city in the registry, live or not, and how far it is */
+function nearestCity(pos){let best=null;CITIES.forEach(c=>{if(typeof c[3]!=='number'||typeof c[4]!=='number')return;const km=kmBetween(pos,{lat:c[3],lng:c[4]});if(!best||km<best.km)best={key:c[0],name:c[1],live:!!c[2],km}});return best}
+/** the borough (or area) of the nearest room with coordinates, when it is close enough to mean "here" */
+function hereLabel(){
+  if(!S.pos)return '';
+  let best=null;Object.keys(VENUES).forEach(k=>{const v=VENUES[k];if(typeof v.lat!=='number'||typeof v.lng!=='number')return;const km=kmBetween(S.pos,v);if(!best||km<best.km)best={km,boro:v.boro,hood:v.hood}});
+  return best&&best.km<=4?(best.boro||best.hood||''):'';
+}
+/** "From you" for a room, or '' when either side has no coordinates */
+function fromYou(i){
+  if(!S.pos||!i||typeof i.lat!=='number'||typeof i.lng!=='number'||!i.lat||!i.lng)return '';
+  const km=kmBetween(S.pos,i);
+  return km<1?'Under 1 km':km<10?`${km.toFixed(1)} km`:`${Math.round(km)} km`;
+}
+function useGeo(){
+  if(S.geo){S.geo=false;S.pos=null;geoLabel('Off');renderMap.fitted=false;render();return}
+  if(!navigator.geolocation){toast('This browser cannot share a location',4000);return}
+  geoLabel('Locating…');
+  navigator.geolocation.getCurrentPosition(p=>{
+    S.pos={lat:p.coords.latitude,lng:p.coords.longitude};S.geo=true;act('locate');
+    const near=nearestCity(S.pos);
+    let note='',moved=false;
+    if(near&&near.km<=NEAR_CITY_KM&&near.live){if(near.key!==S.city){S.city=near.key;S.area='All';moved=true;note=`Showing ${near.name}`}}
+    else if(near&&near.km<=NEAR_CITY_KM)note=`NOCT is not in ${near.name} yet — showing ${cityName()}`;
+    else note=`NOCT is not where you are yet — showing ${cityName()}`;
+    if(note)toast(note,4500);
+    renderMap.fitted=false;
+    if(moved){geoLabel('On');if(MAP)MAP.setView(CITY_CENTRE[S.city]||CITY_CENTRE.nyc,12);closeAll();loadFeed();return}
+    const here=hereLabel();geoLabel(here?`On · ${here}`:'On');
+    render();
+  },err=>{
+    geoLabel('Off');
+    toast(err&&err.code===1?'Location is blocked for noct.pro — allow it in your browser settings':'Could not get your location',4500);
+  },{enableHighAccuracy:false,timeout:10000,maximumAge:300000});
+}
+function resetLoc(){const was=S.city;S.city='nyc';S.area='All';S.geo=false;S.pos=null;geoLabel('Off');renderMap.fitted=false;if(was!=='nyc'){closeAll();loadFeed();return}buildAll();render()}
 
 function renderMenu(){
   const tasteLbl=TASTE.length?TASTE.map(c=>genreLabel(c)).slice(0,2).join(', ')+(TASTE.length>2?` +${TASTE.length-2}`:''):'Not set';
@@ -1955,7 +2008,7 @@ function applyFeed(f){
   VENUES=vs;
   GENRES=(f.genres||[]).map(clean);
   AREAS=['All',...new Set(EV.map(e=>vInfo(e.venue).boro).filter(Boolean))];
-  if(Array.isArray(f.cities)&&f.cities.length){CITIES=f.cities.map(c=>[c.key,clean(c.name),!!c.enabled]);
+  if(Array.isArray(f.cities)&&f.cities.length){CITIES=f.cities.map(c=>[c.key,clean(c.name),!!c.enabled,typeof c.lat==='number'?c.lat:null,typeof c.lng==='number'?c.lng:null]);
     f.cities.forEach(c=>{if(c.key&&c.tz)CITY_TZ[clean(c.key)]=clean(c.tz)})}
   if(f.city&&f.city.key&&f.city.tz)CITY_TZ[clean(f.city.key)]=clean(f.city.tz);
   if(f.city&&f.city.key)S.city=f.city.key;
@@ -1998,6 +2051,7 @@ async function loadFeed(range){
     invalidateRecs();
     applyFeed(feed);
     if(first){logVisit();planRestore()}   /* a visit is a session that saw the calendar; a plan from before comes back */
+    if(S.geo&&S.pos){const here=hereLabel();geoLabel(here?`On · ${here}`:'On')}
     liveNote('');
     syncMine();                      /* restore this account's going/saved; renders again when it lands */
     if(tasteRestore()){S.sortTaste=TASTE.length>0;render()}else{maybeOnboard()}
