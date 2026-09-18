@@ -36,7 +36,10 @@ img{max-width:100%}
 .ready b{font-weight:600;font-variant-numeric:tabular-nums}
 
 .tools{position:sticky;top:0;z-index:50;display:flex;gap:8px;flex-wrap:wrap;align-items:center;
-  padding:14px 0;margin-bottom:32px;background:var(--bg);border-bottom:1px solid var(--hair)}
+  padding:14px 0;margin-bottom:32px;background:var(--bg);border-bottom:.7px solid var(--hair)}
+/* Three groups, hairline-separated: the posts, the record of what went out, the site's own traffic. */
+.tabs{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tabs+.tabs{padding-left:14px;border-left:.7px solid var(--hair)}
 .chip{font-size:13px;font-weight:500;color:var(--g1);padding:7px 14px;border:.7px solid var(--hair);
   border-radius:0;display:inline-flex;align-items:center;gap:7px;
   transition:border-color .18s ease,background .18s ease,color .18s ease}

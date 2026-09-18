@@ -7,7 +7,7 @@
  * machine doing the rasterising -- and sharp stacks everything else underneath it.
  *
  *   event   photo (treated, cover) or tone -> grain -> veil -> type
- *   venue   ground -> photo band at the foot -> type
+ *   venue   the same, with the room's photograph; without one, ground -> type
  *   rest    ground -> type
  *
  * JPEG, not PNG: Instagram rejects PNG on the media endpoints, and a deck that renders beautifully and then
@@ -19,7 +19,7 @@ import { loadFonts, POST_TYPEFACES, type Typefaces } from './font.js';
 import { fetchImage, treatImage } from './image.js';
 import { loadPhoto, photoIdOf } from './photos.js';
 import { coverVeilSvg, GROUND, grainSvg, toneSvg, veilSvg } from './layers.js';
-import { slideTree, VENUE_BAND_PLACEHOLDER } from './templates.js';
+import { slideTree } from './templates.js';
 import { CANVAS, type Slide, type SlideImage, type Tone, type Treatment } from './types.js';
 
 export interface RenderOptions {
@@ -70,16 +70,6 @@ async function eventBase(
   return { base, hasPhoto: false };
 }
 
-/** The band of photograph at the foot of a venue slide, or the placeholder that stands in for one. */
-async function venueBand(image: SlideImage, opts: RenderOptions): Promise<Buffer> {
-  const { height } = VENUE_BAND_PLACEHOLDER;
-  const bytes = await imageBytes(image.src, opts);
-  // Framed straight to the band's own proportions. Framing to the full canvas first and cropping that to
-  // the band would crop twice, throwing away more of the photograph than either step intended.
-  const treated = await treatImage(bytes, lookOf(image, opts).treatment, image.fit, { w: CANVAS.w, h: height });
-  return treated.png().toBuffer();
-}
-
 /** Compose one slide and encode it. */
 export async function renderSlide(slide: Slide, opts: RenderOptions): Promise<Buffer> {
   const type = await renderType(slide);
@@ -99,11 +89,14 @@ export async function renderSlide(slide: Slide, opts: RenderOptions): Promise<Bu
     canvas = sharp(await treated.png().toBuffer());
     if (look.grain) layers.push({ input: grainSvg(), blend: 'overlay' });
     layers.push({ input: coverVeilSvg(), blend: 'over' });
-  } else if (slide.template === 'venue') {
-    canvas = ground();
-    if (slide.data.image) {
-      layers.push({ input: await venueBand(slide.data.image, opts), top: CANVAS.h - VENUE_BAND_PLACEHOLDER.height, left: 0 });
-    }
+  } else if (slide.template === 'venue' && slide.data.image) {
+    // A room gets the whole frame, like an event's flyer, under the same veil: the type block sits in the
+    // band that veil darkens.
+    const look = lookOf(slide.data.image, opts);
+    const treated = await treatImage(await imageBytes(slide.data.image.src, opts), look.treatment, slide.data.image.fit);
+    canvas = sharp(await treated.png().toBuffer());
+    if (look.grain) layers.push({ input: grainSvg(), blend: 'overlay' });
+    layers.push({ input: veilSvg(), blend: 'over' });
   } else {
     canvas = ground();
   }
