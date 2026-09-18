@@ -9,7 +9,7 @@
  */
 import { GENRES } from '../enrich/taxonomy.js';
 import type { FeedEvent, FeedResponse } from '../feed/shape.js';
-import { draftHashtags, SITE, scrubLines } from './caption.js';
+import { draftHashtags, HOUSE_LINES, scrubLines, withHouseLines, type HouseLines } from './caption.js';
 import { CTA_SLIDE, draftWeekend, headlineOf, heroSlide, namesNotIn, pickHeroes, supportingCast } from './draft.js';
 import type { Series, Slide } from './types.js';
 
@@ -81,6 +81,7 @@ export function genreDeckOptions(family: string): { lede: string; captionLead: s
 
 export function draftGenreEditions(
   feed: FeedResponse, limit = EDITIONS_PER_WEEKEND, minEvents = EDITION_MIN_EVENTS, cta: Slide = CTA_SLIDE,
+  house: HouseLines = HOUSE_LINES,
 ): EditionDraft[] {
   const byFamily = new Map<string, FeedEvent[]>();
   for (const ev of feed.events) {
@@ -94,7 +95,7 @@ export function draftGenreEditions(
     .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
     .slice(0, limit)
     .flatMap(([family, evs]) => {
-      const deck = draftWeekend({ ...feed, events: evs }, { ...genreDeckOptions(family), cta });
+      const deck = draftWeekend({ ...feed, events: evs }, { ...genreDeckOptions(family), cta, house });
       return deck ? [{ series: 'genre' as const, slot: deck.slot, edition: family, slides: deck.slides, caption: deck.caption }] : [];
     });
 }
@@ -117,7 +118,9 @@ const WEEKDAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'F
  * The full line-up goes in the caption. The slide leads with the headliner, and a spotlight is exactly the
  * post where the rest of the bill deserves to be named.
  */
-export function draftSpotlights(feed: FeedResponse, limit = SPOTLIGHTS, cta: Slide = CTA_SLIDE): EditionDraft[] {
+export function draftSpotlights(
+  feed: FeedResponse, limit = SPOTLIGHTS, cta: Slide = CTA_SLIDE, house: HouseLines = HOUSE_LINES,
+): EditionDraft[] {
   return pickHeroes(feed.events, limit).map((ev) => {
     const day = feed.days[ev.d];
     const hero = heroSlide(feed.days, ev);
@@ -132,16 +135,15 @@ export function draftSpotlights(feed: FeedResponse, limit = SPOTLIGHTS, cta: Sli
     const venue = ev.room ? `${ev.venue} / ${ev.room}` : ev.venue;
     const headline = headlineOf(ev);
     const cast = namesNotIn(headline, supportingCast(ev));
-    const caption = scrubLines(
+    const caption = scrubLines(withHouseLines(
       [
         `${headline}, ${venue}${when ? `, ${when}` : ''}${ev.door ? ` from ${ev.door}` : ''}.`,
         ...(cast.length ? ['', `With ${cast.join(', ')}.`] : []),
         '',
-        `Tickets and details at ${SITE}`,
-        '',
         draftHashtags(ev.primary ? [ev.primary] : ev.genre.slice(0, 2)).join(' '),
       ].join('\n'),
-    );
+      house,
+    ));
 
     return { series: 'single' as const, slot: day?.date ?? null, edition: ev.id, slides: [slide, cta], caption };
   });
@@ -194,6 +196,7 @@ export function venueVibe(events: FeedEvent[]): string {
  */
 export function draftVenuePosts(
   feed: FeedResponse, limit = VENUE_POSTS, minNights = VENUE_MIN_NIGHTS, cta: Slide = CTA_SLIDE,
+  house: HouseLines = HOUSE_LINES,
 ): EditionDraft[] {
   const byVenue = new Map<string, FeedEvent[]>();
   for (const ev of feed.events) {
@@ -236,7 +239,7 @@ export function draftVenuePosts(
         cta,
       ];
 
-      const caption = scrubLines(
+      const caption = scrubLines(withHouseLines(
         [
           `${name}${hood ? `, ${hood}` : ''}.`,
           ...(vibe ? ['', vibe] : []),
@@ -247,11 +250,10 @@ export function draftVenuePosts(
             return `- ${day ? `${day.label} ${day.sub}` : ''}: ${headlineOf(e)}`;
           }),
           '',
-          `Listings and tickets at ${SITE}`,
-          '',
           draftHashtags(evs.flatMap((e) => (e.primary ? [e.primary] : []))).join(' '),
         ].join('\n'),
-      );
+        house,
+      ));
 
       return { series: 'venues' as const, slot: null, edition: name, slides, caption };
     });

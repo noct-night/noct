@@ -104,11 +104,14 @@ describe('the page script', () => {
     expect(js).toContain('playsinline');
   });
 
-  it('can rewrite the words every new deck closes with', async () => {
+  it('can rewrite the words every new post carries', async () => {
     const js = await asset('page.js');
     expect(js).toContain("api('/api/posts?cta=1'");
+    // Both halves: the caption's own lines and the closing slide.
+    expect(js).toContain('Every caption');
+    expect(js).toContain('The last slide');
     // Saying which posts it reaches matters: a queued deck keeps the words it was drafted with.
-    expect(js).toContain('what the next draft closes with');
+    expect(js).toContain('Changing these changes the next draft');
   });
 
   it('offers the rendered files and the caption, so a deck can go up by hand', async () => {

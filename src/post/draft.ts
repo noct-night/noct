@@ -11,7 +11,7 @@
  * they stay off the post face entirely.
  */
 import type { FeedDay, FeedEvent, FeedResponse } from '../feed/shape.js';
-import { draftWeekendCaption, SITE } from './caption.js';
+import { draftWeekendCaption, SITE, type HouseLines } from './caption.js';
 import { CAROUSEL_MAX, TABLE_ROWS_MAX, TABLE_ROWS_TOTAL, type Slide, type Tone } from './types.js';
 
 /** How many events get a slide of their own. Four plus a cover plus two tables is the seven-slide deck. */
@@ -286,6 +286,8 @@ export interface DeckOptions {
   cta?: Slide;
   /** Feed event ids chosen for the tables. Unset means the busiest of each night, share by share. */
   rowIds?: string[];
+  /** The lines every caption carries, as the studio has them worded. Unset means the defaults. */
+  house?: HouseLines;
 }
 
 /**
@@ -322,6 +324,7 @@ export function draftWeekend(feed: FeedResponse, opts: DeckOptions = {}): Weeken
   ];
 
   const caption = draftWeekendCaption({
+    house: opts.house,
     lead: opts.captionLead,
     when,
     headlines: heroes.map((ev) => {

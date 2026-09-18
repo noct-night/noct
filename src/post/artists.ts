@@ -12,7 +12,7 @@
 import type { FeedDay, FeedEvent, FeedResponse } from '../feed/shape.js';
 import type { KnownArtist } from '../enrich/artist_spotify.js';
 import { foldName } from '../enrich/artist_tracks.js';
-import { draftHashtags, SITE, scrubLines } from './caption.js';
+import { draftHashtags, HOUSE_LINES, scrubLines, SITE, withHouseLines, type HouseLines } from './caption.js';
 import { CTA_SLIDE, isNightOut, spanLabel } from './draft.js';
 import type { EditionDraft } from './editions.js';
 import type { Slide, Tone } from './types.js';
@@ -115,6 +115,7 @@ export interface ArtistsOptions {
   limit?: number;
   minFollowers?: number;
   cta?: Slide;
+  house?: HouseLines;
 }
 
 /**
@@ -135,17 +136,16 @@ export function draftComingToNewYork(
     data: { lede: 'Big names coming\nto New York', date: when, foot: SITE, image: null },
   };
 
-  const caption = scrubLines(
+  const caption = scrubLines(withHouseLines(
     [
       `Big names playing New York, ${when}.`,
       '',
       ...picks.map(({ artist, ev }) => `- ${artist.name}, ${venueOf(ev)}, ${whenOf(feed.days, ev)}`),
       '',
-      `Tickets and the rest of the calendar at ${SITE}`,
-      '',
       draftHashtags(picks.flatMap(({ ev }) => (ev.primary ? [ev.primary] : ev.genre.slice(0, 1)))).join(' '),
     ].join('\n'),
-  );
+    opts.house ?? HOUSE_LINES,
+  ));
 
   return {
     series: 'artists',

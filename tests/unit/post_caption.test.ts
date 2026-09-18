@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  checkCaption, draftHashtags, draftWeekendCaption, hashtagsIn, scrubCopy, scrubLines,
+  checkCaption, draftHashtags, draftWeekendCaption, hashtagsIn, HOUSE_LINES, scrubCopy, scrubLines,
+  withHouseLines,
 } from '../../src/post/caption.js';
 import { HASHTAG_MAX } from '../../src/post/types.js';
 
@@ -96,5 +97,48 @@ describe('draftWeekendCaption', () => {
   it('names the weekend and the events', () => {
     expect(caption).toContain('Sep 18 to 20');
     expect(caption).toContain('SACRO by MESTIZA');
+  });
+});
+
+/**
+ * The two lines every caption carries.
+ *
+ * Instagram will not make a URL in a caption tappable, so "link in bio" is the only call to action a caption
+ * has, and asking for the follow is the only way a post earns the next one.
+ */
+describe('the house lines', () => {
+  const body = 'Nowadays, Ridgewood, Queens.\n\nOutdoor and late.\n\n#nycnightlife #deephouse';
+
+  it('opens with the invitation and signs off above the hashtags', () => {
+    const out = withHouseLines(body);
+    expect(out.split('\n')[0]).toBe(HOUSE_LINES.opening);
+    expect(out.trimEnd().endsWith('#nycnightlife #deephouse')).toBe(true);
+    expect(out.indexOf(HOUSE_LINES.signoff)).toBeLessThan(out.indexOf('#nycnightlife'));
+    expect(out).toContain('Outdoor and late.');
+  });
+
+  it('signs off at the end when a caption has no hashtags', () => {
+    expect(withHouseLines('Nowadays.').trimEnd().endsWith(HOUSE_LINES.signoff)).toBe(true);
+  });
+
+  it('takes the wording it is given, and leaves out a line that is empty', () => {
+    const mine = { opening: 'follow noct', signoff: '' };
+    const out = withHouseLines(body, mine);
+    expect(out.split('\n')[0]).toBe('follow noct');
+    expect(out).not.toContain(HOUSE_LINES.signoff);
+    expect(out.trimEnd().endsWith('#nycnightlife #deephouse')).toBe(true);
+  });
+
+  it('never leaves a run of blank lines behind', () => {
+    expect(withHouseLines(body)).not.toMatch(/\n{3}/);
+  });
+
+  it('still passes the caption rules', () => {
+    expect(checkCaption(withHouseLines(body))).toEqual([]);
+  });
+
+  it('keeps the emoji NOCT actually uses, which the slides cannot draw but a caption can', () => {
+    expect(HOUSE_LINES.opening).toContain('\u{1F989}');
+    expect(HOUSE_LINES.signoff).toContain('\u{1F517}');
   });
 });

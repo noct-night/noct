@@ -111,6 +111,47 @@ export function draftHashtags(genres: string[], limit = HASHTAG_MAX): string[] {
   return [...fixed, ...ranked].slice(0, limit);
 }
 
+/**
+ * The two lines every caption carries, whatever the post is about.
+ *
+ * An invitation to follow at the top, and where the link is at the foot -- the only call to action a caption
+ * can make, since Instagram does not let one be clicked. Written as she writes them; editable in the studio
+ * (Post copy), where these are the defaults a deployment starts from.
+ *
+ * They replace the "Full listings and tickets at noct.pro" line the drafts used to end on: a URL nobody can
+ * tap, in the place the sign-off now stands.
+ */
+export interface HouseLines {
+  opening: string;
+  signoff: string;
+}
+
+export const HOUSE_LINES: HouseLines = {
+  opening: '\u{1F989} follow us for more nyc nightlife updates',
+  signoff: '\u{1F517} link in bio for more updates',
+};
+
+/**
+ * A caption with the house lines around it.
+ *
+ * The sign-off goes above the hashtags rather than after them, because the tags are the last thing in every
+ * caption and a line under them reads as an afterthought. Photo credits are added later still, at publish
+ * (src/post/photos.ts), and land between the two.
+ */
+export function withHouseLines(body: string, lines: HouseLines = HOUSE_LINES): string {
+  const rows = body.replace(/\s+$/, '').split('\n');
+  const last = rows[rows.length - 1] ?? '';
+  const tagged = /^\s*#/.test(last);
+  const middle = tagged ? rows.slice(0, -1) : rows;
+  const tail = tagged ? ['', last] : [];
+  return [
+    ...(lines.opening ? [lines.opening, ''] : []),
+    ...middle,
+    ...(lines.signoff ? ['', lines.signoff] : []),
+    ...tail,
+  ].join('\n').replace(/\n{3,}/g, '\n\n');
+}
+
 export interface CaptionSeed {
   /** "Sep 18 to 20", already formatted by the caller that knows the dates. */
   when: string;
@@ -119,6 +160,8 @@ export interface CaptionSeed {
   genres: string[];
   /** What the post is, before the dates. Defaults to the weekend deck's own line. */
   lead?: string;
+  /** The lines every caption carries. Unset means the defaults. */
+  house?: HouseLines;
 }
 
 /**
@@ -128,17 +171,16 @@ export interface CaptionSeed {
 export function draftWeekendCaption(seed: CaptionSeed): string {
   const list = seed.headlines.slice(0, 6).map((h) => `- ${scrubCopy(h)}`).join('\n');
   const tags = draftHashtags(seed.genres).join(' ');
-  return scrubLines(
+  return scrubLines(withHouseLines(
     [
       `${seed.lead ?? 'Where to rave and dance in New York'}, ${seed.when}.`,
       '',
       list,
       '',
-      `Full listings and tickets at ${SITE}`,
-      '',
       tags,
     ].join('\n'),
-  );
+    seed.house,
+  ));
 }
 
 /** scrubCopy trims, which would eat the blank lines a caption uses for paragraphing. Scrub line by line. */

@@ -11,8 +11,8 @@
  *   GET    /api/posts?candidates=<uuid> the nights a weekend deck or genre edition can be built from
  *   POST   /api/posts?rebuild=<uuid>   rebuild that deck around chosen nights:
  *                                      {events: [id, ...], rows?: [id, ...]} -- slides, and the table rows
- *   GET    /api/posts?cta=1            the words every new draft closes with
- *   PUT    /api/posts?cta=1            change them: {question, answer, link, note}
+ *   GET    /api/posts?cta=1            the words every new post carries: the caption's lines and the last slide
+ *   PUT    /api/posts?cta=1            change them: {cta?: {question, ...}, caption?: {opening, signoff}}
  *   PATCH  /api/posts?id=<uuid>        caption, status, slides, treatment, grain
  *
  * Read-only for the account: nothing here reaches Instagram. Publishing is /api/publish and takes a
@@ -24,7 +24,7 @@ import { buildFeed } from '../src/feed/query.js';
 import { knownArtists, resolveArtistSpotify, SpotifyError, WINDOW_DAYS } from '../src/enrich/artist_spotify.js';
 import { draftComingToNewYork } from '../src/post/artists.js';
 import { candidatesFor, cannotChoose, deckSource, deckWindow } from '../src/post/choose.js';
-import { ctaSlide, currentCta, saveCta } from '../src/post/cta.js';
+import { ctaSlide, currentCta, currentHouseLines, houseLinesSchema, saveCta, saveHouseLines } from '../src/post/cta.js';
 import type { FeedResponse } from '../src/feed/shape.js';
 import { draftWeekend, HERO_MAX, type DeckOptions } from '../src/post/draft.js';
 import { draftGenreEditions, draftSpotlights, draftVenuePosts, type EditionDraft } from '../src/post/editions.js';
@@ -61,7 +61,7 @@ async function draft(req: VercelRequest, res: VercelResponse): Promise<void> {
   const log = createLogger('api:posts');
   const { from, to } = weekendRange();
   const feed = await buildFeed({ from, to });
-  const deck = draftWeekend(feed, { cta: ctaSlide(await currentCta()) });
+  const deck = draftWeekend(feed, { cta: ctaSlide(await currentCta()), house: await currentHouseLines() });
   if (!deck) {
     sendJson(res, 200, { post: null, note: `the feed has no events for ${from} to ${to}` }, NO_STORE);
     return;
@@ -93,9 +93,12 @@ async function draftEditions(res: VercelResponse, kind: 'genre' | 'spotlight' | 
   const { from, to } = kind === 'genre' ? weekendRange() : { from: localDatePlus(0), to: localDatePlus(SPOTLIGHT_DAYS - 1) };
   const feed = await buildFeed({ from, to });
   const cta = ctaSlide(await currentCta());
+  const house = await currentHouseLines();
   const drafts: EditionDraft[] = kind === 'genre'
-    ? draftGenreEditions(feed, undefined, undefined, cta)
-    : kind === 'venue' ? draftVenuePosts(feed, undefined, undefined, cta) : draftSpotlights(feed, undefined, cta);
+    ? draftGenreEditions(feed, undefined, undefined, cta, house)
+    : kind === 'venue'
+      ? draftVenuePosts(feed, undefined, undefined, cta, house)
+      : draftSpotlights(feed, undefined, cta, house);
   if (drafts.length === 0) {
     const note = kind === 'genre'
       ? `no genre has enough nights for an edition between ${from} and ${to}`
@@ -184,7 +187,8 @@ async function rebuild(req: VercelRequest, res: VercelResponse): Promise<void> {
     return;
   }
   const draft = draftWeekend(deck.feed, {
-    ...deck.opts, heroIds: body.data.events, rowIds: body.data.rows, cta: ctaSlide(await currentCta()),
+    ...deck.opts, heroIds: body.data.events, rowIds: body.data.rows,
+    cta: ctaSlide(await currentCta()), house: await currentHouseLines(),
   });
   if (!draft) {
     sendJson(res, 409, { error: 'the feed has no events for this weekend any more' }, NO_STORE);
@@ -212,17 +216,25 @@ async function rebuild(req: VercelRequest, res: VercelResponse): Promise<void> {
  * and rewriting it should not need a deploy. Changing it changes what the *next* draft closes with; decks
  * already in the queue keep the words they were drafted with, which is also what makes them reviewable.
  */
+const copySchema = z.object({ cta: ctaDataSchema.optional(), caption: houseLinesSchema.optional() }).strict();
+
 async function cta(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (req.method === 'GET') {
-    sendJson(res, 200, { cta: await currentCta() }, NO_STORE);
+    const [slide, caption] = await Promise.all([currentCta(), currentHouseLines()]);
+    sendJson(res, 200, { cta: slide, caption }, NO_STORE);
     return;
   }
-  const body = ctaDataSchema.safeParse(req.body);
+  const body = copySchema.safeParse(req.body);
   if (!body.success) {
     sendJson(res, 400, { error: body.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }, NO_STORE);
     return;
   }
-  sendJson(res, 200, { cta: await saveCta(body.data) }, NO_STORE);
+  // Each half is saved only when it was sent, so editing one cannot quietly rewrite the other.
+  const [slide, caption] = await Promise.all([
+    body.data.cta ? saveCta(body.data.cta) : currentCta(),
+    body.data.caption ? saveHouseLines(body.data.caption) : currentHouseLines(),
+  ]);
+  sendJson(res, 200, { cta: slide, caption }, NO_STORE);
 }
 
 /**
@@ -249,7 +261,9 @@ async function draftArtists(res: VercelResponse): Promise<void> {
 
   const feed = await buildFeed({ from, to });
   const known = await knownArtists(feed.events.flatMap((e) => e.lineup));
-  const draft = draftComingToNewYork(feed, known, { cta: ctaSlide(await currentCta()) });
+  const draft = draftComingToNewYork(feed, known, {
+    cta: ctaSlide(await currentCta()), house: await currentHouseLines(),
+  });
   if (!draft) {
     // Two honest reasons, and they want different answers, so the note says which one it is.
     const note = looked.pending > 0

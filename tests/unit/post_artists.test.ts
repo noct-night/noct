@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { pickArtist, SHORT_NAME_MAX } from '../../src/enrich/artist_spotify.js';
 import type { KnownArtist } from '../../src/enrich/artist_spotify.js';
 import { artistSlide, biggestOn, draftComingToNewYork, MIN_FOLLOWERS, pickBigNames } from '../../src/post/artists.js';
+import { HOUSE_LINES } from '../../src/post/caption.js';
 import { CTA_SLIDE } from '../../src/post/draft.js';
 import { slideSchema } from '../../src/post/types.js';
 import type { FeedDay, FeedEvent, FeedResponse } from '../../src/feed/shape.js';
@@ -175,7 +176,8 @@ describe('the post', () => {
 
   it('names every artist, their room and their night in the caption', () => {
     expect(draft.caption).toContain('Four Tet, Knockdown Center, Friday, Sep 18');
-    expect(draft.caption).toContain('noct.pro');
+    expect(draft.caption.split('\n')[0]).toBe(HOUSE_LINES.opening);
+    expect(draft.caption).toContain(HOUSE_LINES.signoff);
   });
 
   it('produces slides the renderer accepts', () => {
