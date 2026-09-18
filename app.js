@@ -1551,6 +1551,9 @@ function clearAll(){S.gen.clear();S.door.clear();S.avail.clear();S.sortTaste=TAS
 const kmBetween=(a,b)=>{const r=Math.PI/180,dLat=(b.lat-a.lat)*r,dLng=(b.lng-a.lng)*r,h=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLng/2)**2;return 12742*Math.asin(Math.sqrt(h))};
 const NEAR_CITY_KM=120;
 function geoLabel(t){const el=$('#geoState');if(el)el.textContent=t}
+/* what happened, said inside the sheet: the top-bar note sits under an open sheet, so a toast alone is a
+   message nobody sees while the toggle is in front of them */
+function geoNote(t){const el=$('#geoNote');if(!el)return;el.textContent=t||'';el.hidden=!t}
 /** the closest city in the registry, live or not, and how far it is */
 function nearestCity(pos){let best=null;CITIES.forEach(c=>{if(typeof c[3]!=='number'||typeof c[4]!=='number')return;const km=kmBetween(pos,{lat:c[3],lng:c[4]});if(!best||km<best.km)best={key:c[0],name:c[1],live:!!c[2],km}});return best}
 /** the borough (or area) of the nearest room with coordinates, when it is close enough to mean "here" */
@@ -1566,9 +1569,9 @@ function fromYou(i){
   return km<1?'Under 1 km':km<10?`${km.toFixed(1)} km`:`${Math.round(km)} km`;
 }
 function useGeo(){
-  if(S.geo){S.geo=false;S.pos=null;geoLabel('Off');renderMap.fitted=false;render();return}
-  if(!navigator.geolocation){toast('This browser cannot share a location',4000);return}
-  geoLabel('Locating…');
+  if(S.geo){S.geo=false;S.pos=null;geoLabel('Off');geoNote('');renderMap.fitted=false;render();return}
+  if(!navigator.geolocation){geoLabel('Not in this browser');geoNote('This browser cannot share a location. Open noct.pro in Safari or Chrome.');act('locate_unsupported');return}
+  geoLabel('Locating…');geoNote('');
   navigator.geolocation.getCurrentPosition(p=>{
     S.pos={lat:p.coords.latitude,lng:p.coords.longitude};S.geo=true;act('locate');
     const near=nearestCity(S.pos);
@@ -1576,17 +1579,18 @@ function useGeo(){
     if(near&&near.km<=NEAR_CITY_KM&&near.live){if(near.key!==S.city){S.city=near.key;S.area='All';moved=true;note=`Showing ${near.name}`}}
     else if(near&&near.km<=NEAR_CITY_KM)note=`NOCT is not in ${near.name} yet — showing ${cityName()}`;
     else note=`NOCT is not where you are yet — showing ${cityName()}`;
-    if(note)toast(note,4500);
     renderMap.fitted=false;
-    if(moved){geoLabel('On');if(MAP)MAP.setView(CITY_CENTRE[S.city]||CITY_CENTRE.nyc,12);closeAll();loadFeed();return}
-    const here=hereLabel();geoLabel(here?`On · ${here}`:'On');
+    if(moved){geoLabel('On');geoNote('');toast(note,4500);if(MAP)MAP.setView(CITY_CENTRE[S.city]||CITY_CENTRE.nyc,12);closeAll();loadFeed();return}
+    const here=hereLabel();geoLabel(here?`On · ${here}`:'On');geoNote(note);
     render();
   },err=>{
-    geoLabel('Off');
-    toast(err&&err.code===1?'Location is blocked for noct.pro — allow it in your browser settings':'Could not get your location',4500);
-  },{enableHighAccuracy:false,timeout:10000,maximumAge:300000});
+    const code=err&&err.code;
+    if(code===1){geoLabel('Blocked');geoNote('Location is blocked for noct.pro. iPhone: Settings → Privacy & Security → Location Services → Safari Websites (or Chrome) → While Using; then tap again. Mac: System Settings → Privacy & Security → Location Services → allow the browser.');act('locate_denied')}
+    else if(code===3){geoLabel('Timed out');geoNote('Your device took too long to find you — tap again, ideally with a clearer view of the sky.');act('locate_timeout')}
+    else{geoLabel('Unavailable');geoNote('Your device could not work out where it is — location services may be off.');act('locate_unavailable')}
+  },{enableHighAccuracy:false,timeout:20000,maximumAge:600000});
 }
-function resetLoc(){const was=S.city;S.city='nyc';S.area='All';S.geo=false;S.pos=null;geoLabel('Off');renderMap.fitted=false;if(was!=='nyc'){closeAll();loadFeed();return}buildAll();render()}
+function resetLoc(){const was=S.city;S.city='nyc';S.area='All';S.geo=false;S.pos=null;geoLabel('Off');geoNote('');renderMap.fitted=false;if(was!=='nyc'){closeAll();loadFeed();return}buildAll();render()}
 
 function renderMenu(){
   const tasteLbl=TASTE.length?TASTE.map(c=>genreLabel(c)).slice(0,2).join(', ')+(TASTE.length>2?` +${TASTE.length-2}`:''):'Not set';

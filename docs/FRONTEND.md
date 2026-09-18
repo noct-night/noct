@@ -367,8 +367,13 @@ the answer, none of them a filter or a re-rank — standing in Manhattan at six 
   toggle's own label names where you are when a room with coordinates is within 4 km (*On · Brooklyn*).
 
 The position lives in `S.pos` for this visit only — not stored, not sent; the toggle, *Reset* and a closed tab
-drop it. Denied permission reads *Location is blocked for noct.pro — allow it in your browser settings*; a
-browser without the API says so; the tap is counted as the action `locate`.
+drop it. **What happened is said inside the sheet**, not in the top-bar note — that note sits under an open
+sheet (z 22 against 50), which is why the first version looked as if the toggle "did not change from Off": the
+browser had refused at once and the explanation was behind the sheet. The label reads *Locating…*, then *On ·
+Brooklyn*, or *Blocked* / *Timed out* / *Unavailable* / *Not in this browser*, with a line under it saying what
+to do (iPhone: Settings → Privacy & Security → Location Services → Safari Websites → While Using). The tap is
+counted as `locate`, a refusal as `locate_denied` / `locate_timeout` / `locate_unavailable` /
+`locate_unsupported`, so the studio's Traffic tab shows how often the browser says no.
 
 ## Known gaps
 
