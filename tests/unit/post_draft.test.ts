@@ -4,7 +4,7 @@ import {
 } from '../../src/post/draft.js';
 import { daysToFriday, weekendRange } from '../../src/post/weekend.js';
 import { slideSchema, CAROUSEL_MAX, TABLE_ROWS_MAX, type Slide } from '../../src/post/types.js';
-import { SITE } from '../../src/post/caption.js';
+import { HOUSE_LINES, SITE } from '../../src/post/caption.js';
 import type { FeedDay, FeedEvent, FeedResponse } from '../../src/feed/shape.js';
 
 /** Enough of a FeedEvent for the drafting code; the rest of the shape is not read here. */
@@ -165,13 +165,21 @@ describe('draftWeekend', () => {
     expect(deck.slot).toBe('2026-09-18');
   });
 
-  it('sends people to the live site, from one constant, on the cover and in the caption', () => {
+  it('sends people to the live site, from one constant', () => {
     // This used to be a literal 'noct.nyc' in two files -- a domain that does not resolve. Every post would
-    // have pointed followers at nothing, or at whoever registers it later.
-    const cover = deck.slides[0]!;
-    expect(cover).toMatchObject({ template: 'cover', data: { foot: SITE } });
-    expect(deck.caption).toContain(SITE);
+    // have pointed followers at nothing, or at whoever registers it later. The caption says "link in bio"
+    // now, because Instagram will not make a URL in a caption tappable; the cover and the closing slide are
+    // where the domain is printed.
+    expect(deck.slides[0]).toMatchObject({ template: 'cover', data: { foot: SITE } });
+    expect(deck.slides[deck.slides.length - 1]).toMatchObject({ template: 'cta', data: { link: SITE } });
     expect(JSON.stringify(deck)).not.toContain('noct.nyc');
+  });
+
+  it('opens and signs off with the lines every caption carries', () => {
+    expect(deck.caption.split('\n')[0]).toBe(HOUSE_LINES.opening);
+    expect(deck.caption).toContain(HOUSE_LINES.signoff);
+    // Above the hashtags, which are the last thing in every caption.
+    expect(deck.caption.indexOf(HOUSE_LINES.signoff)).toBeLessThan(deck.caption.indexOf('#'));
   });
 
   it('breaks the cover lede so "in New York" stays on one line', () => {

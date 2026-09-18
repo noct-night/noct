@@ -292,7 +292,24 @@ It stops at a **queued** draft. There is no `--publish` flag, on purpose: publis
 
 ## Copy rules
 
-Encoded in `src/post/caption.ts`, checked as she types and again before publishing. `checkCaption()`
+Every caption is drafted between the same two lines: an invitation to follow at the top, and where the link
+is above the hashtags.
+
+```
+🦉 follow us for more nyc nightlife updates      HOUSE_LINES.opening
+<what this post is about>
+🔗 link in bio for more updates                  HOUSE_LINES.signoff
+Photo: <source>                                  added at publish, src/post/photos.ts
+#nycnightlife …
+```
+
+They replaced the "Full listings and tickets at noct.pro" line the drafts used to end on: Instagram will not
+make a URL in a caption tappable, so a printed domain was doing the sign-off's job badly. The domain is still
+on the cover and on the closing slide. Both lines are settings (`app_setting`, `ig_caption`), written in the
+studio under **Post copy** beside the closing slide's words; `HOUSE_LINES` in `src/post/caption.ts` is what a
+deployment nobody has edited uses.
+
+The rest is encoded in `src/post/caption.ts`, checked as she types and again before publishing. `checkCaption()`
 **reports and never rewrites**: the studio shows what it says and she decides, because silently editing her
 words would be worse than leaving a mistake.
 

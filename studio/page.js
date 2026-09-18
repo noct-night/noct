@@ -49,6 +49,11 @@
    * The words on each template that can be rewritten, as [field, label, multiline, max length]. The lengths
    * are the schema's (src/post/types.ts), so the field stops where the server would refuse.
    */
+  /** The two lines every caption carries, around whatever the post is about. */
+  var CAPTION_FIELDS = [
+    ['opening', 'First line', false, 200],
+    ['signoff', 'Sign-off, above the hashtags', false, 200],
+  ];
   var FIELDS = {
     cover: [['lede', 'Title', true, 400], ['date', 'Date line', false, 400], ['foot', 'Bottom left', false, 120]],
     event: [['position', 'Day', false, 120], ['name', 'Title', true, 400], ['venue', 'Venue', false, 120],
@@ -269,7 +274,7 @@
       return '<div class="tabs">'
         + group.map(chipFor).join('')
         // The posts group carries what is done to posts: the closing slide's words, and drafting new ones.
-        + (i === 0 ? '<button type="button" class="chip" data-cta>Last slide</button>' : '')
+        + (i === 0 ? '<button type="button" class="chip" data-cta>Post copy</button>' : '')
         + '</div>';
     }).join('');
     byId('filters').innerHTML = groups
@@ -601,27 +606,33 @@
   // to be rewritten. It is a setting rather than a constant, so this changes what the next draft says --
   // decks already in the queue keep the words they were drafted with, which is what makes them reviewable.
 
+  function copyField(prefix, f, value) {
+    var id = prefix + '-' + f[0];
+    return '<label for="' + id + '">' + f[1] + '</label>'
+      + (f[2]
+        ? '<textarea id="' + id + '" data-' + prefix + '="' + f[0] + '" rows="2" maxlength="' + f[3] + '">' + esc(value || '') + '</textarea>'
+        : '<input type="text" id="' + id + '" data-' + prefix + '="' + f[0] + '" maxlength="' + f[3] + '" value="' + esc(value || '') + '">');
+  }
+
   function openCtaEditor() {
     var host = byId('stream');
     var old = document.querySelector('.cta-form');
     if (old) { old.remove(); return; }
     var panel = document.createElement('div');
     panel.className = 'photo-form panel cta-form';
-    panel.innerHTML = '<p class="photo-name">Loading the closing slide\u2026</p>';
+    panel.innerHTML = '<p class="photo-name">Loading\u2026</p>';
     host.parentNode.insertBefore(panel, host);
     api('/api/posts?cta=1').then(function (res) {
       var c = res.cta || {};
-      panel.innerHTML = '<p class="photo-name">The last slide of every new post</p>'
-        + '<p class="panel-note">Changing this changes what the next draft closes with. Posts already in the'
-        + ' queue keep the words they were drafted with; to update one of those, use Edit text under its'
+      var cap = res.caption || {};
+      panel.innerHTML = '<p class="photo-name">The words every new post carries</p>'
+        + '<p class="panel-note">Changing these changes the next draft. Posts already in the queue keep the'
+        + ' words they were drafted with; to update one of those, edit its caption, or use Edit text under its'
         + ' last slide.</p>'
-        + FIELDS.cta.map(function (f) {
-            var id = 'cta-' + f[0];
-            return '<label for="' + id + '">' + f[1] + '</label>'
-              + (f[2]
-                ? '<textarea id="' + id + '" data-field="' + f[0] + '" rows="2" maxlength="' + f[3] + '">' + esc(c[f[0]] || '') + '</textarea>'
-                : '<input type="text" id="' + id + '" data-field="' + f[0] + '" maxlength="' + f[3] + '" value="' + esc(c[f[0]] || '') + '">');
-          }).join('')
+        + '<p class="panel-head">Every caption</p>'
+        + CAPTION_FIELDS.map(function (f) { return copyField('caption', f, cap[f[0]]); }).join('')
+        + '<p class="panel-head">The last slide</p>'
+        + FIELDS.cta.map(function (f) { return copyField('cta', f, c[f[0]]); }).join('')
         + '<div class="photo-acts">'
         +   '<button type="button" class="btn btn-go" data-cta-act="save">Save</button>'
         +   '<button type="button" class="btn" data-cta-act="cancel">Close</button>'
@@ -634,9 +645,12 @@
   }
 
   function saveCta(panel, btn) {
-    var body = {};
-    Array.prototype.forEach.call(panel.querySelectorAll('[data-field]'), function (el) {
-      body[el.getAttribute('data-field')] = el.value.trim();
+    var body = { cta: {}, caption: {} };
+    Array.prototype.forEach.call(panel.querySelectorAll('[data-cta]'), function (el) {
+      body.cta[el.getAttribute('data-cta')] = el.value.trim();
+    });
+    Array.prototype.forEach.call(panel.querySelectorAll('[data-caption]'), function (el) {
+      body.caption[el.getAttribute('data-caption')] = el.value.trim();
     });
     var status = panel.querySelector('.photo-status');
     btn.disabled = true;

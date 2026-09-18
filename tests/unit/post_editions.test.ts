@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FeedDay, FeedEvent, FeedResponse } from '../../src/feed/shape.js';
 import { scrubCopy } from '../../src/post/caption.js';
+import { HOUSE_LINES } from '../../src/post/caption.js';
 import { CTA_SLIDE, isNightOut, namesNotIn, pickHeroes } from '../../src/post/draft.js';
 import {
   draftGenreEditions, draftSpotlights, draftVenuePosts, EDITION_MIN_EVENTS, familyOf, FAMILY_PHRASE, venueVibe,
@@ -86,7 +87,8 @@ describe('draftGenreEditions', () => {
 
   it('says what the edition is on the cover and in the caption', () => {
     expect(editions[0]!.slides[0]).toMatchObject({ template: 'cover', data: { lede: 'Where to hear house\nin New York' } });
-    expect(editions[1]!.caption.startsWith('Where to hear techno in New York, Sep 18 to 20.')).toBe(true);
+    expect(editions[1]!.caption).toContain('Where to hear techno in New York, Sep 18 to 20.');
+    expect(editions[1]!.caption.split('\n')[0]).toBe(HOUSE_LINES.opening);
   });
 
   it('files each edition under its own genre, so they cannot overwrite each other', () => {
@@ -231,8 +233,12 @@ describe('draftVenuePosts', () => {
 
   it('writes a caption that follows the house rules', () => {
     const cap = posts[0]!.caption;
-    expect(cap.startsWith('Public Records, Gowanus, Brooklyn.')).toBe(true);
+    expect(cap.split('\n')[0]).toBe(HOUSE_LINES.opening);
+    expect(cap).toContain('Public Records, Gowanus, Brooklyn.');
     expect(cap).toContain('Coming up:');
+    // The sign-off is the caption's call to action, and it sits above the tags rather than after them.
+    expect(cap.indexOf(HOUSE_LINES.signoff)).toBeGreaterThan(cap.indexOf('Coming up:'));
+    expect(cap.indexOf(HOUSE_LINES.signoff)).toBeLessThan(cap.indexOf('#'));
     expect(cap).not.toMatch(/[—·]/);
     for (const x of posts[0]!.slides) expect(() => slideSchema.parse(x)).not.toThrow();
   });
