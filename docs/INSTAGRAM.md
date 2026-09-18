@@ -105,6 +105,31 @@ not a cleanup.
 The greys also differ slightly: the app's `--d1`/`--d2` are `.66`/`.40` against the post system's `.70`/`.44`.
 The post values are used for posts, as specified.
 
+### Coming to New York
+
+The one post that is about an artist rather than about a night, and the only one that needs a number the
+feed does not carry. RA's `interested` is about an event: a headliner announced yesterday sits under a local
+party that has been on sale a month. Spotify's follower count is about the artist, so it ranks this post --
+and, like every other volatile number, it ranks and is never printed.
+
+```
+Draft ▸ Coming to New York
+  ├─ look up the next month's line-ups on Spotify, inside a ~25 s budget   src/enrich/artist_spotify.ts
+  │     stored in artist_spotify (0037), hits and misses alike, for 60 days
+  └─ draft from what is known: cover, five names, the closing slide        src/post/artists.ts
+```
+
+Names are **matched, not resolved**. "Anna" is an artist on Spotify and a different one in a Bushwick
+basement, so a match counts as confident only when Spotify spells the name the way the line-up does once
+accents and punctuation are folded -- and, for names of four characters or fewer, when Spotify files the
+artist under something dance music is filed under. Anything less is stored with `confident = false`, and the
+slide carries a `check` line the studio shows as a warning before the post can be approved. Publishing the
+wrong Anna is a correction in public.
+
+The lookups are cumulative: what one press stores, the next press starts from, so a month drafted before is
+instant and a fresh one fills in over a couple of presses. Keys are `SPOTIFY_CLIENT_ID` and
+`SPOTIFY_CLIENT_SECRET` (Client Credentials, read-only, no user data).
+
 ### Flyer treatments
 
 One treatment across every flyer is what makes an inconsistent set of promoter artwork read as one feed, so
