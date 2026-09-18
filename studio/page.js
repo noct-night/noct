@@ -70,6 +70,7 @@
     { k: 'genre', t: 'Genre editions', hint: 'Up to 3, one per strong genre this weekend' },
     { k: 'spotlight', t: 'Spotlights', hint: 'The 3 most anticipated nights, next 2 weeks' },
     { k: 'venue', t: 'Venue posts', hint: 'The 4 busiest venues, next 2 weeks' },
+    { k: 'artists', t: 'Coming to New York', hint: 'The biggest names playing here in the next month' },
   ];
 
   var posts = [];
@@ -139,6 +140,7 @@
   function reviewNotes(p) {
     var out = [];
     (p.slides || []).forEach(function (s) {
+      if (s.data && s.data.check) out.push(s.data.check);
       if (s.template !== 'venue') return;
       if (s.data && s.data.verified === false) {
         out.push('Check the address: nobody has verified the details for ' + (s.data.name || 'this venue') + ' yet.');

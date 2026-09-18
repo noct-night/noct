@@ -91,6 +91,12 @@ export const eventDataSchema = z.object({
   /** The feed event this slide is about, so the studio can show which nights a deck was built from. */
   ref: shortText.optional(),
   edited: z.boolean().optional(),
+  /**
+   * Something a person has to confirm before this goes out, in their words. Never rendered: it is a note to
+   * the reviewer, shown in the studio, the way `verified` is on a venue slide. Set when a name was matched
+   * to Spotify on a guess (src/post/artists.ts).
+   */
+  check: z.string().max(300).optional(),
 });
 
 export const tableRowSchema = z.object({

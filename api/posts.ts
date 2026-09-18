@@ -7,6 +7,7 @@
  *   POST   /api/posts?draft=genre      draft up to three genre editions of the coming weekend
  *   POST   /api/posts?draft=spotlight  draft the three most anticipated nights of the next two weeks
  *   POST   /api/posts?draft=venue      draft a post for each of the four busiest venues of the next two weeks
+ *   POST   /api/posts?draft=artists    draft "Coming to New York": the biggest names playing here in the next month
  *   GET    /api/posts?candidates=<uuid> the nights a weekend deck or genre edition can be built from
  *   POST   /api/posts?rebuild=<uuid>   rebuild that deck around chosen nights:
  *                                      {events: [id, ...], rows?: [id, ...]} -- slides, and the table rows
@@ -20,6 +21,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { z } from 'zod';
 import { buildFeed } from '../src/feed/query.js';
+import { knownArtists, resolveArtistSpotify, SpotifyError, WINDOW_DAYS } from '../src/enrich/artist_spotify.js';
+import { draftComingToNewYork } from '../src/post/artists.js';
 import { candidatesFor, cannotChoose, deckSource, deckWindow } from '../src/post/choose.js';
 import { ctaSlide, currentCta, saveCta } from '../src/post/cta.js';
 import type { FeedResponse } from '../src/feed/shape.js';
@@ -222,6 +225,60 @@ async function cta(req: VercelRequest, res: VercelResponse): Promise<void> {
   sendJson(res, 200, { cta: await saveCta(body.data) }, NO_STORE);
 }
 
+/**
+ * Draft "Coming to New York".
+ *
+ * Two steps, and the first is why this route is not just another edition. Ranking by following means knowing
+ * the followings, so the names on the next month's line-ups are looked up on Spotify first -- inside a time
+ * budget, because someone is waiting on this. What is looked up is stored (0037), so a second press picks up
+ * where the first stopped and a month that has been drafted before is instant.
+ */
+async function draftArtists(res: VercelResponse): Promise<void> {
+  const log = createLogger('api:posts');
+  const { from, to } = { from: localDatePlus(0), to: localDatePlus(WINDOW_DAYS - 1) };
+  let looked;
+  try {
+    looked = await resolveArtistSpotify({ log, days: WINDOW_DAYS });
+  } catch (err) {
+    if (err instanceof SpotifyError || (err instanceof Error && err.message.includes('SPOTIFY_'))) {
+      sendJson(res, 503, { error: `Spotify is not set up on this deployment: ${err.message}` }, NO_STORE);
+      return;
+    }
+    throw err;
+  }
+
+  const feed = await buildFeed({ from, to });
+  const known = await knownArtists(feed.events.flatMap((e) => e.lineup));
+  const draft = draftComingToNewYork(feed, known, { cta: ctaSlide(await currentCta()) });
+  if (!draft) {
+    // Two honest reasons, and they want different answers, so the note says which one it is.
+    const note = looked.pending > 0
+      ? `${looked.pending} names have not been looked up yet. Press Draft again in a minute to keep going.`
+      : `no artist playing between ${from} and ${to} has a following big enough to lead a post`;
+    sendJson(res, 200, { posts: [], note }, NO_STORE);
+    return;
+  }
+
+  try {
+    const post = await upsertDraft({
+      series: draft.series, slot: draft.slot, edition: draft.edition, slides: draft.slides, caption: draft.caption,
+    });
+    log.info('coming to new york drafted', { slides: draft.slides.length, ...looked });
+    sendJson(res, 200, {
+      posts: await attachCredits([post]),
+      ...(looked.pending > 0
+        ? { note: `${looked.pending} names still to look up; draft again later to see if a bigger one turns up.` }
+        : {}),
+    }, NO_STORE);
+  } catch (err) {
+    if (err instanceof PostConflict) {
+      sendJson(res, 409, { error: err.message }, NO_STORE);
+      return;
+    }
+    throw err;
+  }
+}
+
 async function patch(req: VercelRequest, res: VercelResponse): Promise<void> {
   const id = firstParam(req.query.id);
   if (!id) {
@@ -256,6 +313,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     if (req.method === 'POST' && firstParam(req.query.draft) === 'genre') return await draftEditions(res, 'genre');
     if (req.method === 'POST' && firstParam(req.query.draft) === 'spotlight') return await draftEditions(res, 'spotlight');
     if (req.method === 'POST' && firstParam(req.query.draft) === 'venue') return await draftEditions(res, 'venue');
+    if (req.method === 'POST' && firstParam(req.query.draft) === 'artists') return await draftArtists(res);
     if (req.method === 'PATCH') return await patch(req, res);
     sendJson(res, 405, { error: 'method not allowed' }, { allow: 'GET, POST, PUT, PATCH' });
   } catch (err) {
