@@ -32,7 +32,8 @@ is opened, the deck is reviewed, a button is pressed. That is the whole product.
 | `studio/gate.js` | The sign-in door's script, and the only one a stranger receives. |
 | `supabase/migrations/0026_ig_posts.sql` | `ig_post` and `ig_publish_run`. |
 | `supabase/migrations/0027_ig_token.sql` | `ig_token`, the one row holding the live credential. |
-| `src/video/` | The reel pipeline: spec, ffmpeg, the title layer, storage, the `clip` command. |
+| `src/video/` | The reel pipeline: spec, ffmpeg, the title layer, storage, the studio client, `clip`. |
+| `api/reels.ts` | `?sign=1` mints one-object upload URLs; a plain POST queues the uploaded reel. |
 | `supabase/migrations/0032_ig_reels.sql` | `kind`, `video_url`, `cover_url`, `video_meta` on `ig_post`. |
 | `supabase/migrations/0033_ig_reel_pending.sql` | `ig_publish_run.status = 'pending'`, the resumable state. |
 
@@ -151,16 +152,47 @@ discriminator to `ig_post` rather than a second table — the duplicated half wo
 transaction, which is the part that is actually hard to get right.
 
 ```
-  night.mov ──▶ npm run clip ──▶ Supabase Storage ──▶ ig_post (kind='reel', queued)
-                     │                    │                     │
-              ffmpeg, on a laptop         │                      │  /studio
-                                          │                      ▼
-                                          │              review, approve, publish
-                                          │                      │
-                                          │                      ▼  /api/publish
-                                          └──── Meta fetches ──── graph.instagram.com
-                                               the video_url
+  night.mov ──▶ npm run clip ──┬──▶ /api/reels?sign=1 ──▶ a URL for one object
+                     │        │                                  │
+              ffmpeg, on a    └──── the bytes, straight to ───────┴──▶ Supabase Storage
+              laptop                Storage (never through                   │
+                                     the function)                           │
+                                          │                                  │
+                                          ▼  POST /api/reels                 │
+                                  ig_post (kind='reel', queued)              │
+                                          │                                  │
+                                          │  /studio: review, approve        │
+                                          ▼  /api/publish                    │
+                                  graph.instagram.com ◀── Meta fetches ──────┘
 ```
+
+### No credentials on the machine cutting video
+
+`npm run clip` holds the **studio password** and nothing else -- the same one a person types into
+`/studio`. The two privileged steps happen in `api/reels.ts`, behind that session:
+
+| | Before | Now |
+|---|---|---|
+| Writes the `ig_post` row | `pg`, with `DATABASE_URL` on the laptop | `POST /api/reels` |
+| Puts the file in storage | the service-role key, on the laptop | a signed URL from `?sign=1` |
+
+The first version asked whoever was cutting a clip to keep `DATABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
+in a file. The service-role key can read and write **every table in the project**; that is a large
+credential to spread across laptops so that someone can trim thirty seconds of video. It now lives on the
+deployment only, and `.env.example` says so.
+
+**The bytes still never pass through the function.** A Vercel function cannot receive a body over 4.5 MB
+and a reel is tens of megabytes, so `?sign=1` returns a URL scoped to one object path with a two-hour
+expiry, and the file goes straight to Supabase Storage. The function signs and steps aside.
+
+Two smaller decisions worth keeping:
+
+- **The prefix is minted by the endpoint, not sent by the client.** A client-supplied path is a
+  client-supplied place to write. The only paths that can be written are ones `/api/reels` chose, and the
+  filenames inside are fixed (`reel.mp4`, `cover.jpg`).
+- **The endpoint HEADs the upload before writing the row**, with no credentials -- the same request Meta
+  will make. So a draft never points at a file that is missing or not public, and a private bucket is
+  caught here instead of arriving later as an opaque Graph API error.
 
 ### Why the encode does not run on Vercel
 
@@ -168,9 +200,10 @@ This is the one place the carousel's shape does not carry over. A slide is redra
 `/api/render` under an HMAC and never stored, which works because it is 200 KB of JPEG that takes
 milliseconds. A reel is tens of megabytes that took minutes, so:
 
-- **ffmpeg is not an npm dependency and nothing in `api/` imports `src/video/`.** A job whose duration
-  depends on how long the video is does not belong under a 300 s function ceiling; it fails on the longest
-  clip, which is the one someone cared about. `npm run clip` runs on a laptop, where there is no ceiling.
+- **ffmpeg is not an npm dependency, and no function imports the encoder.** A job whose duration depends
+  on how long the video is does not belong under a function ceiling; it fails on the longest clip, which is
+  the one someone cared about. `npm run clip` runs on a laptop, where there is no ceiling. (`api/reels.ts`
+  imports `src/video/storage.ts` for the signing, which touches no video.)
 - **The MP4 is uploaded once, to a public bucket.** Meta arrives with no cookie — the same constraint that
   makes `/api/render` GET signed rather than session-gated. A signed URL would work and then expire,
   possibly between approval and publish.
@@ -219,12 +252,15 @@ Two smaller ones worth knowing:
 ### `npm run clip`
 
 ```bash
-# encode only: no upload, no database row, no keys needed
+# encode only: no sign-in, no upload, no draft
 npm run clip -- night.mov --start 1:12 --len 28 --title "SACRO" --sub "Basement / Friday" --local
 
-# the real thing: encode, upload, queue a draft for review
+# the real thing: encode, sign in, upload, queue a draft for review
 npm run clip -- night.mov --len 30 --title "Four Tet" --caption "Teksupport at Knockdown Center."
 ```
+
+It talks to `https://noct.pro` unless `NOCT_STUDIO_URL` says otherwise, and reads the password from
+`NOCT_STUDIO_PASSWORD` or asks for it once, without echoing it.
 
 It stops at a **queued** draft. There is no `--publish` flag, on purpose: publishing goes through
 `/api/publish` behind the studio session, so there is one gated door to the account and not two.
@@ -322,12 +358,16 @@ to anyone looking at the account is the wrong default; it is one parameter in `p
   reach the Graph API. Only an `approved` post can be claimed at all. A claim older than
   `PUBLISH_STALE_MS` (15 minutes, against a 120 s function cap) is abandoned rather than honoured, so a
   lambda killed mid-publish costs one row in the log instead of a post that can never go out.
+- **Cutting video needs no credential but the studio password.** `/api/reels` holds the database and
+  storage access and is gated like every other studio route; the CLI signs in the way the page does. The
+  signed upload URL it hands back is scoped to one object path and expires in two hours, so the worst a
+  leaked one can do is overwrite that object.
 - **The reels bucket is public, and that is the whole of its access control.** Meta fetches `video_url`
   with no credentials, so it has to be. The URLs are unguessable (a post uuid as the prefix), not secret —
   nothing goes in that bucket that is not about to go on the account anyway.
-- **`SUPABASE_SERVICE_ROLE_KEY` is a local-shell variable, not a Vercel one.** Uploading is a write, so the
+- **`SUPABASE_SERVICE_ROLE_KEY` is a Vercel variable, and only that.** Uploading is a write, so the
   publishable key cannot do it; the key that can read and write every table in the project therefore lives
-  where the encoder runs and nowhere else. Same rule as `IG_ACCESS_TOKEN`.
+  on the one deployment and on no laptop. Same rule as `IG_ACCESS_TOKEN`.
 - **Nothing auto-posts.** There is no cron that calls `/api/publish`.
 - **The token is never in a URL.** `access_token` goes in the POST body, not the query string, so it stays
   out of access logs and error reports.
@@ -341,8 +381,9 @@ to anyone looking at the account is the wrong default; it is one parameter in `p
    meaning they work in Development mode against an account holding the **Instagram Tester** role — so no
    App Review is needed to post to an account you own. Assign that role under **Roles**, then generate the
    token under **API setup with Instagram login -> Generate access tokens**.
-3. Set on Vercel: `STUDIO_PASSWORD`, `IG_USER_ID`, `IG_ACCESS_TOKEN`, `NOCT_PUBLIC_ORIGIN`, and
-   `NOCT_RENDER_SECRET` (or rely on `CRON_SECRET`). See `.env.example` for what each one does. **Redeploy**
+3. Set on Vercel: `STUDIO_PASSWORD`, `IG_USER_ID`, `IG_ACCESS_TOKEN`, `NOCT_PUBLIC_ORIGIN`,
+   `NOCT_RENDER_SECRET` (or rely on `CRON_SECRET`), and -- for reels -- `SUPABASE_SERVICE_ROLE_KEY`
+   alongside `SUPABASE_URL`, which is what `/api/reels` signs uploads with. See `.env.example` for what each one does. **Redeploy**
    afterwards: Vercel does not apply new environment variables to a running deployment.
 4. Check the credential without posting anything: `GET /api/publish` (signed in) returns the account handle,
    the remaining daily quota, and how many days the token has left.

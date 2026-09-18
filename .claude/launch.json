@@ -4,8 +4,24 @@
     {
       "name": "noct-static",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "4173"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4173"
+      ],
       "port": 4173
+    },
+    {
+      "name": "studio-harness",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4196",
+        "--directory",
+        "/private/tmp/claude-501/-Users-kelskoo-Documents-noct/7e36e747-b075-484b-978e-36a60907b85d/scratchpad"
+      ],
+      "port": 4196
     }
   ]
 }

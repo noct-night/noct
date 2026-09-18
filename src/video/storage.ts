@@ -15,6 +15,12 @@
  * What *is* worth saying: anything in this bucket is readable by anyone who has the URL. The URLs are
  * unguessable (a uuid path), not secret. Do not put anything in here that is not going on the account
  * anyway, which for a reel about to be published is the whole point.
+ *
+ * **This module runs on the deployment, not on the laptop.** It holds the service-role key, and the only
+ * thing that reaches it is /api/reels behind a studio session. `npm run clip` used to call it directly,
+ * which meant a key with read and write access to every table in the project had to sit in a file on
+ * whichever machine was cutting video. It does not any more: the CLI asks /api/reels to mint a signed
+ * upload URL and sends the bytes straight to storage with it. See src/video/studio.ts.
  */
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
@@ -58,14 +64,6 @@ export function publicUrl(objectPath: string, source: Env = process.env): string
   return `${url}/storage/v1/object/public/${BUCKET}/${objectPath}`;
 }
 
-/**
- * Where one reel's files go: a directory per post, so the video and its cover stay together and a deleted
- * post is one prefix to clear. The post id is a uuid, which is what makes the path unguessable.
- */
-export function objectPath(postId: string, file: string): string {
-  return `${postId}/${basename(file)}`;
-}
-
 const CONTENT_TYPE: Record<string, string> = {
   '.mp4': 'video/mp4',
   '.mov': 'video/quicktime',
@@ -97,37 +95,77 @@ export async function ensureBucket(source: Env = process.env): Promise<void> {
 }
 
 /**
- * Upload one file and return its public URL.
+ * How long a signed upload URL is good for.
  *
- * Streamed rather than read into a Buffer: a 15-minute reel is within Instagram's 1 GB limit and well
- * outside what belongs in memory. `duplex: 'half'` is required by undici for a streaming request body.
- *
- * politeFetch is deliberately not used here. It exists to keep NOCT from bursting a small venue's website,
- * its body is typed as a string, and this is one upload to our own storage -- none of that applies.
+ * Long enough to push a large file over a bad connection, short enough that a URL left in a shell's
+ * history is not a standing write. The signature covers one object path, so the worst it can do is
+ * overwrite that one object.
  */
-export async function upload(localPath: string, objectAt: string, source: Env = process.env): Promise<string> {
+export const UPLOAD_TTL_SECONDS = 2 * 60 * 60;
+
+export interface SignedUpload {
+  /** The absolute URL the client PUTs the bytes to. Carries its own token; needs no Authorization header. */
+  putUrl: string;
+  /** Where the object will land, so the caller can build its public URL afterwards. */
+  path: string;
+}
+
+/**
+ * Mint a URL that can write exactly one object, and nothing else.
+ *
+ * This is what replaces handing the service-role key to whoever is cutting video. The key stays on the
+ * deployment; the laptop gets a URL that expires and is scoped to one path in one bucket.
+ *
+ * It also sidesteps a hard limit: a Vercel function may not receive a body over 4.5 MB, and a reel is tens
+ * of megabytes. The bytes must not pass through the function at all, so they go to storage directly.
+ */
+export async function signUpload(objectAt: string, source: Env = process.env): Promise<SignedUpload> {
   const { url, key } = credentials(source);
-  const { size } = await stat(localPath);
-  const res = await fetch(`${url}/storage/v1/object/${BUCKET}/${objectAt}`, {
+  const res = await fetch(`${url}/storage/v1/object/upload/sign/${BUCKET}/${objectAt}`, {
     method: 'POST',
+    headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ expiresIn: UPLOAD_TTL_SECONDS }),
+  });
+  if (!res.ok) {
+    throw new StorageError(
+      `could not sign an upload for ${objectAt}: ${res.status} ${(await res.text()).slice(0, 300)}`,
+      res.status,
+    );
+  }
+  // The response gives a path with the token on it ("/object/upload/sign/reels/...?token=..."), which has
+  // to be joined to the storage origin. Older responses name it `signedUrl`; both are accepted rather than
+  // pinning one and breaking on the other.
+  const body = (await res.json()) as { url?: string; signedUrl?: string };
+  const signed = body.url ?? body.signedUrl;
+  if (!signed) throw new StorageError(`storage signed an upload but returned no URL for ${objectAt}`);
+  return { putUrl: `${url}/storage/v1${signed.startsWith('/') ? '' : '/'}${signed}`, path: objectAt };
+}
+
+/**
+ * Send one local file to a signed upload URL.
+ *
+ * Runs on the laptop, and is the only part of the upload the laptop does. Streamed, because a reel is
+ * larger than belongs in memory; `duplex: 'half'` is undici's requirement for a streaming request body.
+ */
+export async function putSigned(localPath: string, putUrl: string): Promise<void> {
+  const { size } = await stat(localPath);
+  const res = await fetch(putUrl, {
+    method: 'PUT',
     headers: {
-      authorization: `Bearer ${key}`,
       'content-type': contentType(localPath),
       'content-length': String(size),
-      // Re-running `npm run clip` for the same post should replace the file, not fail on the second try.
+      // Re-cutting the same reel should replace the file rather than fail on the second attempt.
       'x-upsert': 'true',
     },
     body: createReadStream(localPath) as unknown as BodyInit,
     duplex: 'half',
   } as RequestInit & { duplex: 'half' });
-
   if (!res.ok) {
     throw new StorageError(
       `upload of ${basename(localPath)} failed: ${res.status} ${(await res.text()).slice(0, 300)}`,
       res.status,
     );
   }
-  return publicUrl(objectAt, source);
 }
 
 /**

@@ -34,6 +34,9 @@
     "api/photos.ts": {
       "maxDuration": 30,
       "memory": 1024
+    },
+    "api/reels.ts": {
+      "maxDuration": 30
     }
   },
   "crons": [

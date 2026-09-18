@@ -1,7 +1,13 @@
 /**
  * `npm run clip` -- the whole reel pipeline as one command.
  *
- *   probe/encode (src/video/clip.ts) -> upload (storage.ts) -> queue a draft (src/post/store.ts)
+ *   probe/encode (clip.ts) -> sign (/api/reels) -> upload straight to storage -> queue a draft
+ *
+ * Nothing privileged lives on this machine. The command signs in with the studio password -- the one a
+ * person already types into the studio -- and /api/reels, which already holds the database and storage
+ * credentials, does the two privileged parts. Earlier this file connected to Postgres and uploaded with
+ * the service-role key, which put a credential for every table in the project in a file on a laptop so
+ * that someone could trim a clip. See src/video/studio.ts.
  *
  * It parses its own arguments rather than sharing the options block in src/cli.ts, because a dozen
  * clip-only flags in a parser used by `fetch` and `ingest` makes every command's --help wrong.
@@ -19,6 +25,7 @@ import { checkCaption } from '../post/caption.js';
 import { clip } from './clip.js';
 import { available } from './ffmpeg.js';
 import { clipSpecSchema, DEFAULT_MAX_SECONDS, FRAMINGS, parseTimecode, TITLE_POSITIONS } from './spec.js';
+import { DEFAULT_ORIGIN, StudioSession } from './studio.js';
 
 const USAGE = `usage: npm run clip -- <video> [options]
 
@@ -36,8 +43,11 @@ const USAGE = `usage: npm run clip -- <video> [options]
   --caption TEXT      the post caption, checked against the house rules
   --slot YYYY-MM-DD   the night the clip is about, if it is about one
   --max-seconds N     the soft house length limit. default ${DEFAULT_MAX_SECONDS}
-  --local             encode only: no upload, no database row
+  --local             encode only: no sign-in, no upload, no draft
   --quiet             no ffmpeg progress
+
+The studio it talks to is ${DEFAULT_ORIGIN}; set NOCT_STUDIO_URL to point somewhere else. The password
+comes from NOCT_STUDIO_PASSWORD, or is asked for once if that is not set.
 
 Examples
   npm run clip -- night.mov --start 1:12 --len 28 --title "SACRO" --sub "Basement / Friday" --local
@@ -144,44 +154,29 @@ export async function runClip(argv: string[], log: Logger = createLogger('clip')
     return 0;
   }
 
-  // Imported here rather than at the top so `--local` needs neither a database nor a storage key. Someone
-  // trying a crop on a laptop should not have to hold the service-role key to do it.
-  const { ensureBucket, objectPath, upload, verifyPublic } = await import('./storage.js');
-  const { upsertReel } = await import('../post/store.js');
-  const { closePool } = await import('../lib/db.js');
+  // Imported here rather than at the top so `--local` never so much as looks for a password.
+  const { putSigned } = await import('./storage.js');
 
-  try {
-    // The row is created first, so its uuid is the storage prefix: one post, one directory, and a deleted
-    // post is one prefix to clear rather than a filename to reverse-engineer. The URLs are filled in by
-    // the patch below once the upload has actually happened.
-    const post = await upsertReel({
-      slot: values.slot ?? null,
-      caption,
-      videoUrl: 'pending:upload',
-      coverUrl: null,
-      videoMeta: result.meta,
-    });
+  // Signing in before uploading, so a wrong password costs a moment rather than the whole transfer.
+  const session = await StudioSession.signIn(log);
+  const signed = await session.signUploads();
 
-    await ensureBucket();
-    log.info(`uploading ${(result.meta.bytes / 1e6).toFixed(1)} MB`);
-    const videoUrl = await upload(result.path, objectPath(post.id, 'reel.mp4'));
-    const coverUrl = result.coverPath ? await upload(result.coverPath, objectPath(post.id, 'cover.jpg')) : null;
+  log.info(`uploading ${(result.meta.bytes / 1e6).toFixed(1)} MB`);
+  await putSigned(result.path, signed.video);
+  if (result.coverPath) await putSigned(result.coverPath, signed.cover);
 
-    // The request Meta is about to make, made first. A private bucket otherwise surfaces much later as an
-    // opaque Graph API error about a media URL it could not read.
-    await verifyPublic(videoUrl);
+  // The endpoint checks the upload is actually readable before it writes the row, so a draft never points
+  // at a file Meta cannot fetch.
+  const { post, problems } = await session.queueReel({
+    prefix: signed.prefix,
+    caption,
+    slot: values.slot ?? null,
+    cover: result.coverPath !== null,
+    meta: result.meta,
+  });
+  for (const problem of problems) log.warn(`caption (${problem.rule}): ${problem.message}`);
 
-    const { query } = await import('../lib/db.js');
-    await query(
-      `update ig_post set video_url = $2, cover_url = $3 where post_id = $1`,
-      [post.id, videoUrl, coverUrl],
-    );
-
-    log.info(`queued reel ${post.id}`);
-    console.log(JSON.stringify({ post_id: post.id, video_url: videoUrl, cover_url: coverUrl, meta: result.meta }, null, 2));
-    log.info('open /studio to review it. Nothing is published until Approve and then Publish.');
-    return 0;
-  } finally {
-    await closePool();
-  }
+  console.log(JSON.stringify({ post_id: post.id, video_url: post.video_url, cover_url: post.cover_url, meta: result.meta }, null, 2));
+  log.info(`queued. Review it at ${session.studioUrl()} -- nothing is published until Approve and then Publish.`);
+  return 0;
 }

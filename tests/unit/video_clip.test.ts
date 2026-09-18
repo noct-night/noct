@@ -13,7 +13,7 @@ import { framingFilter, parseFrameRate } from '../../src/video/ffmpeg.js';
 import {
   checkReel, clipSpecSchema, formatTimecode, parseTimecode, REEL, REEL_LIMITS, type VideoMeta,
 } from '../../src/video/spec.js';
-import { objectPath, publicUrl } from '../../src/video/storage.js';
+import { publicUrl, UPLOAD_TTL_SECONDS } from '../../src/video/storage.js';
 import { scrimSvg, titleTree } from '../../src/video/title.js';
 
 const base: VideoMeta = {
@@ -231,17 +231,7 @@ describe('the title layer', () => {
   });
 });
 
-describe('storage paths', () => {
-  it('groups a reel under its post id, so a deleted post is one prefix', () => {
-    expect(objectPath('11111111-2222-3333-4444-555555555555', 'reel.mp4'))
-      .toBe('11111111-2222-3333-4444-555555555555/reel.mp4');
-  });
-
-  it('refuses to let a path argument escape the post prefix', () => {
-    // basename() is what stops "../../other-post/reel.mp4" becoming a write outside the prefix.
-    expect(objectPath('post-id', '../../etc/passwd')).toBe('post-id/passwd');
-  });
-
+describe('storage', () => {
   it('builds the public URL Meta will fetch', () => {
     const env = { SUPABASE_URL: 'https://ref.supabase.co/', SUPABASE_SERVICE_ROLE_KEY: 'k' };
     expect(publicUrl('post-id/reel.mp4', env))
@@ -251,5 +241,12 @@ describe('storage paths', () => {
   it('says what to do when the write key is missing rather than using the publishable one', () => {
     expect(() => publicUrl('x', { SUPABASE_URL: 'https://ref.supabase.co' }))
       .toThrow(/SUPABASE_SERVICE_ROLE_KEY/);
+  });
+
+  it('expires an upload URL in hours, not days', () => {
+    // Long enough to push a large file over a bad connection; short enough that one left in a shell's
+    // history is not a standing write. It is scoped to a single object either way.
+    expect(UPLOAD_TTL_SECONDS).toBeGreaterThanOrEqual(30 * 60);
+    expect(UPLOAD_TTL_SECONDS).toBeLessThanOrEqual(6 * 60 * 60);
   });
 });
