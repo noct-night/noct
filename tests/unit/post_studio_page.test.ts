@@ -124,6 +124,33 @@ describe('the page script', () => {
     expect(js).toContain('function publishedCaption');
   });
 
+  it('separates reels from decks rather than filtering one list', async () => {
+    const js = await asset('page.js');
+    // A reel and a deck share ig_post and the review states, but not the work: a deck is drafted from the
+    // feed and edited slide by slide, a reel arrives finished and is only watched and captioned. Mixed in
+    // one queue the reel also sorts under every deck, because reels carry no date and the list sorts by one.
+    expect(js).toContain("{ k: 'post', t: 'Post' }");
+    expect(js).toContain("{ k: 'reel', t: 'Reel' }");
+    expect(js).toContain("{ k: 'analytics', t: 'Analytics' }");
+    expect(js).toContain("{ k: 'traffic', t: 'Traffic' }");
+    expect(js).toContain('function inSection');
+  });
+
+  it('keeps Draft and Post copy with the posts they act on', async () => {
+    const js = await asset('page.js');
+    // Both act on decks, so they must not follow you into Reel or Traffic, where they would do nothing.
+    const sub = js.slice(js.indexOf('function renderFilters'), js.indexOf('function setDraftMenu'));
+    expect(sub).toContain("if (section === 'post')");
+    expect(sub.indexOf('data-cta')).toBeGreaterThan(sub.indexOf("section === 'post'"));
+    expect(sub.indexOf('draft-toggle')).toBeGreaterThan(sub.indexOf("section === 'post'"));
+  });
+
+  it('says where reels come from when there are none', async () => {
+    const js = await asset('page.js');
+    // A reel cannot be made in the browser, so an empty section that does not name the command is a dead end.
+    expect(js).toContain('npm run clip');
+  });
+
   it('treats a 202 from publish as resumable rather than as a failure', async () => {
     const js = await asset('page.js');
     // A reel container that is still transcoding leaves the post approved and the button pressable; the

@@ -37,9 +37,12 @@ img{max-width:100%}
 
 .tools{position:sticky;top:0;z-index:50;display:flex;gap:8px;flex-wrap:wrap;align-items:center;
   padding:14px 0;margin-bottom:32px;background:var(--bg);border-bottom:.7px solid var(--hair)}
-/* Three groups, hairline-separated: the posts, the record of what went out, the site's own traffic. */
-.tabs{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.tabs+.tabs{padding-left:14px;border-left:.7px solid var(--hair)}
+/* Two rows: which section you are in, then that section's own tabs. Each takes the full width so the
+   second never rides up beside the first -- the whole point of the split is that they are not peers. */
+.navbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;width:100%}
+.navbar+.navbar{margin-top:10px;padding-top:10px;border-top:.7px solid var(--hair)}
+/* The section you are in is the heavier statement; the tabs under it are a filter. */
+.navbar-top .chip{font-size:14px;font-weight:600;padding:8px 16px}
 .chip{font-size:13px;font-weight:500;color:var(--g1);padding:7px 14px;border:.7px solid var(--hair);
   border-radius:0;display:inline-flex;align-items:center;gap:7px;
   transition:border-color .18s ease,background .18s ease,color .18s ease}

@@ -15,22 +15,34 @@
   var IG_MAX = 2200;
   var TAG_MAX = 5;
   /**
-   * The top bar, in three groups: the posts being worked on, the record of what went out, and the site's own
-   * traffic. Three different questions, and reading them as one row of eight made the bar a list rather than
-   * a place. Last slide and Draft belong with the posts, so they sit in that group.
+   * Two levels, because the studio holds four unrelated things and one row of eight chips read as a list
+   * rather than a place. The top row says which of them you are in; the row under it is that section's own.
+   *
+   * A reel and a deck are both posts in the database (ig_post, discriminated by `kind`) and share the review
+   * states, but they are not the same work: a deck is drafted from the feed and edited slide by slide, a
+   * reel arrives finished from `npm run clip` and is only watched and captioned. Mixing them in one queue
+   * meant the reel sat under every deck, because reels carry no date and the list sorts by one.
+   *
+   * Analytics is a section with one thing in it today. That is deliberate -- the calendar is the record of
+   * what went out, which is the same question the numbers will answer, so it is where they will go.
    */
-  var TABS = [
-    [
-      { k: 'queued', t: 'Queue' },
-      { k: 'approved', t: 'Approved' },
-      { k: 'posted', t: 'Published' },
-      { k: 'passed', t: 'Passed' },
-      { k: 'all', t: 'Everything' },
-    ],
-    [{ k: 'calendar', t: 'Calendar' }],
-    [{ k: 'traffic', t: 'Traffic' }],
+  var SECTIONS = [
+    { k: 'post', t: 'Post' },
+    { k: 'reel', t: 'Reel' },
+    { k: 'analytics', t: 'Analytics' },
+    { k: 'traffic', t: 'Traffic' },
   ];
-  var FILTERS = TABS.reduce(function (all, group) { return all.concat(group); }, []);
+  /** The review states, which belong to Post. Post copy and Draft act on decks, so they sit here too. */
+  var POST_TABS = [
+    { k: 'queued', t: 'Queue' },
+    { k: 'approved', t: 'Approved' },
+    { k: 'posted', t: 'Published' },
+    { k: 'passed', t: 'Passed' },
+    { k: 'all', t: 'Everything' },
+  ];
+  var ANALYTICS_TABS = [{ k: 'calendar', t: 'Calendar' }];
+  /** Every sub-tab there is, for naming an empty state without asking which section it came from. */
+  var FILTERS = POST_TABS.concat(ANALYTICS_TABS);
   var LABEL = { queued: 'In queue', approved: 'Approved', passed: 'Passed', posted: 'Published' };
   var TPL_LABEL = {
     cover: 'carousel', event: 'event', table: 'table', listing: 'listing',
@@ -79,7 +91,10 @@
   ];
 
   var posts = [];
+  var section = 'post';
   var filter = 'queued';
+  /** Analytics has one view today; naming it now means adding the second one is a list entry. */
+  var analyticsView = 'calendar';
   /** post id -> array of signed render URLs, in slide order. Dropped whenever the deck or the look changes. */
   var shots = {};
   var busy = {};
@@ -256,37 +271,67 @@
     return sl.length === 1 ? (TPL_LABEL[sl[0].template] || sl[0].template) : 'no slides';
   }
 
-  function visible() {
-    return filter === 'all' ? posts : posts.filter(function (p) { return p.status === filter; });
+  /** Reels in the Reel section, everything else in Post. `kind` is absent on rows older than 0032. */
+  function inSection(p) {
+    return section === 'reel' ? p.kind === 'reel' : p.kind !== 'reel';
   }
 
+  function visible() {
+    var list = posts.filter(inSection);
+    // Reels are few and arrive finished, so the section shows all of them and each row states its own
+    // status. Decks are many and are worked through a queue, which is what the review tabs are for.
+    if (section === 'reel') return list;
+    return filter === 'all' ? list : list.filter(function (p) { return p.status === filter; });
+  }
+
+  function decks() { return posts.filter(function (p) { return p.kind !== 'reel'; }); }
+  function reels() { return posts.filter(function (p) { return p.kind === 'reel'; }); }
+
+  /** A sub-tab: a review state within Post, or a view within Analytics. */
   function chipFor(f) {
-    var n = f.k === 'all' ? posts.length
+    var current = f.k === 'calendar' ? analyticsView === f.k : filter === f.k;
+    var n = f.k === 'all' ? decks().length
       : f.k === 'calendar' ? posts.filter(function (p) { return p.status === 'posted'; }).length
-      : f.k === 'traffic' ? (traffic.data ? traffic.data.visits.recent : null)   /* the week's visits, once read */
-      : posts.filter(function (p) { return p.status === f.k; }).length;
-    return '<button type="button" class="chip" data-f="' + f.k + '" aria-current="' + (filter === f.k) + '">'
+      : decks().filter(function (p) { return p.status === f.k; }).length;
+    return '<button type="button" class="chip" data-f="' + f.k + '" aria-current="' + current + '">'
       + f.t + (n == null ? '' : '<span class="n">' + n + '</span>') + '</button>';
   }
 
+  /** A section: the question you are asking, not the state you are filtering by. */
+  function sectionChip(sec) {
+    var n = sec.k === 'post' ? decks().length
+      : sec.k === 'reel' ? reels().length
+      : sec.k === 'traffic' ? (traffic.data ? traffic.data.visits.recent : null)  /* the week's visits, once read */
+      : null;
+    return '<button type="button" class="chip" data-s="' + sec.k + '" aria-current="' + (section === sec.k) + '">'
+      + sec.t + (n == null ? '' : '<span class="n">' + n + '</span>') + '</button>';
+  }
+
   function renderFilters() {
-    var groups = TABS.map(function (group, i) {
-      return '<div class="tabs">'
-        + group.map(chipFor).join('')
-        // The posts group carries what is done to posts: the closing slide's words, and drafting new ones.
-        + (i === 0 ? '<button type="button" class="chip" data-cta>Post copy</button>' : '')
+    var top = '<div class="navbar navbar-top">' + SECTIONS.map(sectionChip).join('') + '</div>';
+
+    // Only Post has review states to filter by, and only Post is drafted into -- Draft and Post copy act
+    // on decks, so they appear with them rather than following you into Reel or Traffic.
+    var sub = '';
+    if (section === 'post') {
+      sub = '<div class="navbar">'
+        + POST_TABS.map(chipFor).join('')
+        + '<button type="button" class="chip" data-cta>Post copy</button>'
+        + '<div class="draft-menu">'
+        +   '<button type="button" class="btn btn-go draft-toggle" aria-haspopup="menu" aria-expanded="false">Draft</button>'
+        +   '<div class="draft-list" role="menu" hidden>'
+        +     DRAFT_KINDS.map(function (d) {
+                return '<button type="button" role="menuitem" data-draft="' + d.k + '">'
+                  + '<b>' + d.t + '</b><span>' + d.hint + '</span></button>';
+              }).join('')
+        +   '</div>'
+        + '</div>'
         + '</div>';
-    }).join('');
-    byId('filters').innerHTML = groups
-      + '<div class="draft-menu">'
-      +   '<button type="button" class="btn btn-go draft-toggle" aria-haspopup="menu" aria-expanded="false">Draft</button>'
-      +   '<div class="draft-list" role="menu" hidden>'
-      +     DRAFT_KINDS.map(function (d) {
-              return '<button type="button" role="menuitem" data-draft="' + d.k + '">'
-                + '<b>' + d.t + '</b><span>' + d.hint + '</span></button>';
-            }).join('')
-      +   '</div>'
-      + '</div>';
+    } else if (section === 'analytics') {
+      sub = '<div class="navbar">' + ANALYTICS_TABS.map(chipFor).join('') + '</div>';
+    }
+
+    byId('filters').innerHTML = top + sub;
   }
 
   function setDraftMenu(open) {
@@ -376,14 +421,21 @@
 
   function renderStream() {
     var host = byId('stream');
-    if (filter === 'calendar') { renderCalendar(host); return; }
-    if (filter === 'traffic') { renderTraffic(host); return; }
+    if (section === 'analytics') { renderCalendar(host); return; }
+    if (section === 'traffic') { renderTraffic(host); return; }
     var list = visible();
 
     if (!list.length) {
-      var name = FILTERS.filter(function (f) { return f.k === filter; })[0].t;
-      host.innerHTML = '<p class="empty">' + (posts.length
-        ? 'Nothing under <strong>' + esc(name) + '</strong> right now.'
+      if (section === 'reel') {
+        // Naming the command is the whole of the instruction: a reel cannot be made in the browser, and
+        // an empty section that does not say where reels come from is a dead end.
+        host.innerHTML = '<p class="empty">No reels yet. Cut one with '
+          + '<strong>npm run clip</strong> and it arrives here to be watched and captioned.</p>';
+        return;
+      }
+      var tab = FILTERS.filter(function (f) { return f.k === filter; })[0];
+      host.innerHTML = '<p class="empty">' + (decks().length
+        ? 'Nothing under <strong>' + esc(tab ? tab.t : filter) + '</strong> right now.'
         : 'Nothing here yet. Use <strong>Draft</strong> to build posts from the live feed.')
         + '</p>';
       return;
@@ -779,6 +831,7 @@
           var i = posts.findIndex(function (p) { return p.id === post.id; });
           if (i >= 0) posts[i] = post; else posts.unshift(post);
         });
+        section = 'post';
         filter = 'queued';
         render();
       })
@@ -1281,8 +1334,22 @@
 
     byId('filters').addEventListener('click', function (e) {
       if (e.target.closest('button[data-cta]')) { openCtaEditor(); return; }
+      var sec = e.target.closest('button[data-s]');
+      if (sec) {
+        section = sec.getAttribute('data-s');
+        // Coming back to Post lands on the queue rather than wherever you left it, because the queue is
+        // what Post is for. Traffic fetches its own report the first time it is drawn.
+        if (section === 'post') filter = 'queued';
+        render();
+        return;
+      }
       var chip = e.target.closest('button[data-f]');
-      if (chip) { filter = chip.getAttribute('data-f'); render(); return; }
+      if (chip) {
+        var k = chip.getAttribute('data-f');
+        if (section === 'analytics') analyticsView = k; else filter = k;
+        render();
+        return;
+      }
       if (e.target.closest('.draft-toggle')) {
         var toggle = e.target.closest('.draft-toggle');
         if (!toggle.disabled) setDraftMenu(toggle.getAttribute('aria-expanded') !== 'true');
