@@ -354,6 +354,9 @@ function venueTitle(
  *
  * The quotes are drawn by the slide rather than typed into the data, so a line reads as a quotation however
  * it was pasted in. The whole block disappears when `says` is empty, which is what the drafter leaves it as.
+ *
+ * What separates the two halves is space, not a rule: 58 on top of the column's own 22. A hairline across
+ * the slide was tried and read as a divider, which is a device the rest of the deck does not use.
  */
 function venueStory(
   d: { name: string; note: string; says: string; foot: string },
@@ -367,8 +370,9 @@ function venueStory(
       ...(d.note ? [text(d.note, { fontSize: 46, lineHeight: 1.34, width: CONTENT_W }, 7)] : []),
       ...(said.length
         ? [
-            el({ width: CONTENT_W, height: 1, backgroundColor: G3, display: 'flex', marginTop: 6 }),
-            text('WHAT PEOPLE SAY', VKICKER),
+            // No rule between the two blocks: the gap separates them on its own, and a line across the
+            // slide read as a divider the rest of the deck does not use anywhere else.
+            text('WHAT PEOPLE SAY', { ...VKICKER, marginTop: 58 }),
             ...said.slice(0, 3).map((line) =>
               text(`\u201C${line}\u201D`, { fontSize: 36, color: G1, lineHeight: 1.36, width: CONTENT_W }, 4)),
           ]
