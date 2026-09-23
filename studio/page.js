@@ -48,7 +48,7 @@
     cover: 'carousel', event: 'event', table: 'table', listing: 'listing',
     venue: 'venue', venuecover: 'venues', note: 'note', cta: 'cta',
   };
-  var TAKES_IMAGE = { cover: 1, event: 1, venue: 1 };
+  var TAKES_IMAGE = { cover: 1, event: 1, venue: 1, vinyl: 1 };
   /** Slides whose rewritten words survive a redraft (the server marks them `edited`). */
   var KEEPS_EDITS = { cover: 1, event: 1, venue: 1, cta: 1 };
   var LOOKS = [

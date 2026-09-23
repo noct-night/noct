@@ -83,7 +83,7 @@ export async function renderSlide(slide: Slide, opts: RenderOptions): Promise<Bu
     // there is a photograph to grain. Over a flat tone it reads as noise rather than film.
     if (hasPhoto && slide.data.image && lookOf(slide.data.image, opts).grain) layers.push({ input: grainSvg(), blend: 'overlay' });
     layers.push({ input: veilSvg(), blend: 'over' });
-  } else if (slide.template === 'cover' && slide.data.image) {
+  } else if ((slide.template === 'cover' || slide.template === 'vinyl') && slide.data.image) {
     const look = lookOf(slide.data.image, opts);
     const treated = await treatImage(await imageBytes(slide.data.image.src, opts), look.treatment, slide.data.image.fit);
     canvas = sharp(await treated.png().toBuffer());

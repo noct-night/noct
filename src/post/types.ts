@@ -157,6 +157,8 @@ export const vinylDataSchema = z.object({
   /** The small print under the label, one item per line. */
   note: z.string().max(300).default(''),
   foot: shortText.default(''),
+  /** A background photograph, added in the studio. The label sits on it; without one it is the ground. */
+  image: slideImageSchema.nullable().default(null),
   edited: z.boolean().optional(),
 });
 
@@ -215,7 +217,7 @@ export const TEMPLATE_LABEL: Record<Template, string> = {
 };
 
 /** Templates that draw a photo. The rest are type on the ground and ignore the treatment entirely. */
-export const TAKES_IMAGE: ReadonlySet<Template> = new Set<Template>(['cover', 'event', 'venue']);
+export const TAKES_IMAGE: ReadonlySet<Template> = new Set<Template>(['cover', 'event', 'venue', 'vinyl']);
 
 /**
  * What Meta is handed at the end. A carousel is N `image_url` children with is_carousel_item; a reel is
