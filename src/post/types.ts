@@ -162,6 +162,43 @@ export const vinylDataSchema = z.object({
   edited: z.boolean().optional(),
 });
 
+/**
+ * A venue post's opening card: the series line, then the room's name at the size a name deserves.
+ *
+ * Split out of `venue`, which used to carry the name, the neighbourhood, a paragraph and the address on one
+ * slide. The name could never be large there because the paragraph had to fit under it.
+ */
+export const venueTitleDataSchema = z.object({
+  kicker: shortText.default('Where to dance in NY'),
+  sub: shortText.default('NOCT Guide'),
+  name: text,
+  hood: shortText.default(''),
+  /** The address. This is the slide that prints it, which is why `verified` lives here. */
+  foot: text.default(''),
+  image: slideImageSchema.nullable().default(null),
+  /**
+   * Whether a person has checked this venue's address. Most come from listings, not from anyone looking,
+   * and a venue post prints an address in public -- so the studio warns before approval.
+   */
+  verified: z.boolean().default(true),
+  edited: z.boolean().optional(),
+});
+
+/**
+ * The second card: what the room is, and what people say about it.
+ *
+ * `says` has no source. Nothing in the feed carries a review, a quote or a rating, so the drafter leaves it
+ * empty and a person fills it in the studio. One quote per line; the slide draws the quotation marks.
+ */
+export const venueStoryDataSchema = z.object({
+  /** The venue, small, at the top -- this slide follows its title card and should say whose it is. */
+  name: text,
+  note: z.string().max(600).default(''),
+  says: z.string().max(600).default(''),
+  foot: shortText.default(''),
+  edited: z.boolean().optional(),
+});
+
 export const venueCoverDataSchema = z.object({
   lede: text,
   sub: text.default(''),
@@ -197,6 +234,8 @@ export const slideSchema = z.discriminatedUnion('template', [
   z.object({ template: z.literal('venue'), data: venueDataSchema }),
   z.object({ template: z.literal('venuecover'), data: venueCoverDataSchema }),
   z.object({ template: z.literal('vinyl'), data: vinylDataSchema }),
+  z.object({ template: z.literal('venuetitle'), data: venueTitleDataSchema }),
+  z.object({ template: z.literal('venuestory'), data: venueStoryDataSchema }),
   z.object({ template: z.literal('note'), data: noteDataSchema }),
   z.object({ template: z.literal('cta'), data: ctaDataSchema }),
 ]);
@@ -212,12 +251,14 @@ export const TEMPLATE_LABEL: Record<Template, string> = {
   venue: 'venue',
   venuecover: 'venues',
   vinyl: 'record',
+  venuetitle: 'venue title',
+  venuestory: 'venue story',
   note: 'note',
   cta: 'cta',
 };
 
 /** Templates that draw a photo. The rest are type on the ground and ignore the treatment entirely. */
-export const TAKES_IMAGE: ReadonlySet<Template> = new Set<Template>(['cover', 'event', 'venue', 'vinyl']);
+export const TAKES_IMAGE: ReadonlySet<Template> = new Set<Template>(['cover', 'event', 'venue', 'vinyl', 'venuetitle']);
 
 /**
  * What Meta is handed at the end. A carousel is N `image_url` children with is_carousel_item; a reel is

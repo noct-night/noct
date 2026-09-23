@@ -48,7 +48,7 @@
     cover: 'carousel', event: 'event', table: 'table', listing: 'listing',
     venue: 'venue', venuecover: 'venues', note: 'note', cta: 'cta',
   };
-  var TAKES_IMAGE = { cover: 1, event: 1, venue: 1, vinyl: 1 };
+  var TAKES_IMAGE = { cover: 1, event: 1, venue: 1, vinyl: 1, venuetitle: 1 };
   /** Slides whose rewritten words survive a redraft (the server marks them `edited`). */
   var KEEPS_EDITS = { cover: 1, event: 1, venue: 1, cta: 1 };
   var LOOKS = [
@@ -73,6 +73,10 @@
     venue: [['index', 'Number', false, 120], ['name', 'Name', false, 400], ['hood', 'Neighbourhood', false, 120],
       ['note', 'About', true, 600], ['foot', 'Address', false, 400]],
     venuecover: [['lede', 'Title', true, 400], ['sub', 'Subtitle', true, 400], ['foot', 'Bottom left', false, 120]],
+    venuetitle: [['kicker', 'Series line', false, 120], ['sub', 'Second line', false, 120],
+      ['name', 'Venue', true, 400], ['hood', 'Neighbourhood', false, 120], ['foot', 'Address', false, 400]],
+    venuestory: [['name', 'Venue', false, 400], ['note', 'Description', true, 600],
+      ['says', 'What people say, one quote per line', true, 600], ['foot', 'Foot', false, 120]],
     vinyl: [['title', 'Above the hole', true, 400], ['sub', 'Below the hole', true, 400],
       ['side', 'Side', false, 120], ['rpm', 'Speed', false, 120],
       ['note', 'Small print', true, 300], ['foot', 'Bottom left', false, 120]],
@@ -289,6 +293,8 @@
     if (s.template === 'venue') return d.name || 'Venue';
     if (s.template === 'venuecover') return d.lede || 'Venues';
     if (s.template === 'vinyl') return d.title || 'Record';
+    if (s.template === 'venuetitle') return d.name || 'Venue';
+    if (s.template === 'venuestory') return d.name || 'Venue';
     return d.text || 'Note';
   }
 

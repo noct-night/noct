@@ -89,7 +89,7 @@ export async function renderSlide(slide: Slide, opts: RenderOptions): Promise<Bu
     canvas = sharp(await treated.png().toBuffer());
     if (look.grain) layers.push({ input: grainSvg(), blend: 'overlay' });
     layers.push({ input: coverVeilSvg(), blend: 'over' });
-  } else if (slide.template === 'venue' && slide.data.image) {
+  } else if ((slide.template === 'venue' || slide.template === 'venuetitle') && slide.data.image) {
     // A room gets the whole frame, like an event's flyer, under the same veil: the type block sits in the
     // band that veil darkens.
     const look = lookOf(slide.data.image, opts);

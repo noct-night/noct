@@ -40,7 +40,7 @@ export interface Node {
  * serving the old design for up to 24 hours, in the studio and to Meta alike. The version rides in the URL
  * so a design change is a new URL.
  */
-export const RENDER_VERSION = 9;
+export const RENDER_VERSION = 10;
 
 /** The margin at the top and bottom edges. */
 const PAD = 54;
@@ -309,6 +309,75 @@ function venue(d: { index: string; name: string; hood: string; note: string; foo
   ];
 }
 
+/** The series line above a venue's name, on both of its cards. */
+const VKICKER = { fontSize: 28, letterSpacing: track(28, 0.2), color: G2 };
+
+/**
+ * A venue's opening card: the series line, then the name, large.
+ *
+ * The name gets 120 here where the old combined slide could only give it 96, because nothing else is on
+ * this card. With a photograph it drops to 108 and moves into the band the veil darkens, the way an event
+ * slide and the old venue slide both set their type.
+ */
+function venueTitle(
+  d: { kicker: string; sub: string; name: string; hood: string; foot: string; image: unknown },
+  type: Typefaces,
+): Node[] {
+  const head = column({ position: 'absolute', top: 192, left: SIDE, right: SIDE, gap: 8 }, [
+    text(d.kicker.toUpperCase(), VKICKER),
+    ...(d.sub ? [text(d.sub.toUpperCase(), VKICKER)] : []),
+  ]);
+  if (d.image) {
+    return [
+      wordmark(type),
+      head,
+      column({ position: 'absolute', left: SIDE, right: SIDE, bottom: 132, gap: 14 }, [
+        text(d.name, { fontSize: 108, fontWeight: 700, letterSpacing: track(108, -0.048), lineHeight: 0.96, width: CONTENT_W }, 3),
+        ...(d.hood ? [text(d.hood, { fontSize: 40, fontWeight: 500, color: G1, letterSpacing: track(40, -0.005) })] : []),
+      ]),
+      ...(d.foot ? [foot(d.foot, '', 32, G2)] : []),
+    ];
+  }
+  return [
+    wordmark(type),
+    head,
+    centred([
+      text(d.name, { fontSize: 120, fontWeight: 700, letterSpacing: track(120, -0.05), lineHeight: 0.94, width: CONTENT_W }, 3),
+      ...(d.hood ? [text(d.hood, { fontSize: 44, fontWeight: 500, color: G1, letterSpacing: track(44, -0.005), marginTop: 18 })] : []),
+    ]),
+    ...(d.foot ? [text(d.foot, { position: 'absolute', left: SIDE, bottom: PAD, fontSize: 32, color: G2 })] : []),
+  ];
+}
+
+/**
+ * A venue's second card: what the room is, then what people say about it.
+ *
+ * The quotes are drawn by the slide rather than typed into the data, so a line reads as a quotation however
+ * it was pasted in. The whole block disappears when `says` is empty, which is what the drafter leaves it as.
+ */
+function venueStory(
+  d: { name: string; note: string; says: string; foot: string },
+  type: Typefaces,
+): Node[] {
+  const said = lines(d.says);
+  return [
+    wordmark(type),
+    column({ position: 'absolute', top: 192, left: SIDE, right: SIDE, gap: 22 }, [
+      text(d.name.toUpperCase(), VKICKER),
+      ...(d.note ? [text(d.note, { fontSize: 46, lineHeight: 1.34, width: CONTENT_W }, 7)] : []),
+      ...(said.length
+        ? [
+            el({ width: CONTENT_W, height: 1, backgroundColor: G3, display: 'flex', marginTop: 6 }),
+            text('WHAT PEOPLE SAY', VKICKER),
+            ...said.slice(0, 3).map((line) =>
+              text(`\u201C${line}\u201D`, { fontSize: 36, color: G1, lineHeight: 1.36, width: CONTENT_W }, 4)),
+          ]
+        : []),
+    ]),
+    ...(d.foot ? [text(d.foot, { position: 'absolute', left: SIDE, bottom: PAD, fontSize: 32, color: G2 })] : []),
+  ];
+}
+
 /** The venues cover. Larger than the weekend cover because it carries no date line. */
 function venueCover(d: { lede: string; sub: string; foot: string }, type: Typefaces): Node[] {
   return [
@@ -466,6 +535,8 @@ export function slideTree(slide: Slide, type: Typefaces = POST_TYPEFACES): Node 
       case 'venue': return venue(slide.data, type);
       case 'venuecover': return venueCover(slide.data, type);
       case 'vinyl': return vinyl(slide.data, type);
+      case 'venuetitle': return venueTitle(slide.data, type);
+      case 'venuestory': return venueStory(slide.data, type);
       case 'note': return note(slide.data, type);
       case 'cta': return cta(slide.data, type);
     }

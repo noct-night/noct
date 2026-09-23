@@ -191,8 +191,8 @@ export function venueVibe(events: FeedEvent[]): string {
  * One post per busy venue: who they are, what the room is like, and what is on there soon.
  *
  * Venues come from the listings, ranked by nights booked in the window. Almost none have been checked by a
- * person, and a venue post prints an address in public, so each slide carries `verified` and the studio
- * warns before approval. The photo band is empty until someone adds a photo in the studio.
+ * person, and a venue post prints an address in public, so the card that prints it carries `verified` and
+ * the studio warns before approval. The photo band is empty until someone adds a photo in the studio.
  */
 export function draftVenuePosts(
   feed: FeedResponse, limit = VENUE_POSTS, minNights = VENUE_MIN_NIGHTS, cta: Slide = CTA_SLIDE,
@@ -219,12 +219,22 @@ export function draftVenuePosts(
       };
 
       const slides: Slide[] = [
+        // Two cards, not one. The name could never be large on the old combined slide because the
+        // paragraph had to fit beneath it; now the title card carries the name and the address, and the
+        // story card carries what the room is and what people say about it.
         {
-          template: 'venue',
+          template: 'venuetitle',
           data: {
-            index: '', name, hood, note: vibe, foot: info.addr ?? '', image: null,
+            kicker: 'Where to dance in NY', sub: 'NOCT Guide',
+            name, hood, foot: info.addr ?? '', image: null,
             verified: Boolean(info.verified),
           },
+        },
+        {
+          // `says` has no source: nothing in the feed carries a review or a quote, so it is left for a
+          // person to fill in the studio and the block stays off the slide until they do.
+          template: 'venuestory',
+          data: { name, note: vibe, says: '', foot: hood || info.addr || '' },
         },
         {
           template: 'table',
