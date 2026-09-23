@@ -1,9 +1,15 @@
 /**
  * The seven slide layouts, as satori element trees.
  *
- * Every number here is transcribed from the review prototype's CSS, which is authored at true 1080x1350.
- * They are roughly 2.45x the app's 440px scale on purpose: a feed post is judged at thumbnail size, so the
- * type has to carry further than it does in the app. They have been pushed up twice. Do not shrink them.
+ * Every number here began as a transcription of the review prototype's CSS, authored at true 1080x1350, at
+ * roughly 2.45x the app's 440px scale: a feed post is judged at thumbnail size, so the type has to carry
+ * further than it does in the app. It was pushed up twice on that reasoning, and this file used to end the
+ * paragraph "do not shrink them".
+ *
+ * Every display size then came down about 8% on request, deliberately and all at once so the scale stays a
+ * scale. Small type -- anything at or under 46 -- did not move: it is already at the floor for a phone. If a
+ * headline ever stops reading in the feed, this is the paragraph that explains why, and the sizes here are
+ * the ones to put back.
  *
  * Two translations happen on the way in, because satori is not a browser:
  *
@@ -17,6 +23,7 @@
  */
 import type { Slide } from './types.js';
 import { CANVAS, TABLE_ROWS_MAX } from './types.js';
+import { GROUND } from './layers.js';
 import { POST_TYPEFACES, type Typefaces } from './font.js';
 
 /** A satori element. Plain objects, so nothing in the render path needs React. */
@@ -33,7 +40,7 @@ export interface Node {
  * serving the old design for up to 24 hours, in the studio and to Meta alike. The version rides in the URL
  * so a design change is a new URL.
  */
-export const RENDER_VERSION = 8;
+export const RENDER_VERSION = 9;
 
 /** The margin at the top and bottom edges. */
 const PAD = 54;
@@ -125,8 +132,8 @@ function cover(d: { lede: string; date: string; foot: string }, type: Typefaces)
   return [
     wordmark(type),
     centred([
-      ...lines(d.lede).map((line) => slab(line, 84, -0.042, 1.07)),
-      ...(d.date ? [slab(d.date, 84, -0.042, 1.07, G1, { marginTop: 14 })] : []),
+      ...lines(d.lede).map((line) => slab(line, 78, -0.042, 1.07)),
+      ...(d.date ? [slab(d.date, 78, -0.042, 1.07, G1, { marginTop: 14 })] : []),
     ]),
     swipeFoot(d.foot),
   ];
@@ -175,7 +182,7 @@ function event(d: { position: string; name: string; venue: string; time: string;
     // sat on its artwork. Three lines is the cap -- the veil darkens exactly the band this block occupies.
     column({ position: 'absolute', left: SIDE, right: SIDE, bottom: 132, gap: 14 }, [
       ...(d.position ? [text(d.position, { fontSize: 36, fontWeight: 500, letterSpacing: track(36, 0.01) })] : []),
-      text(d.name, { fontFamily: type.display, fontSize: 70, fontWeight: 700, letterSpacing: track(70, -0.04), lineHeight: 1.04, width: CONTENT_W }, 3),
+      text(d.name, { fontFamily: type.display, fontSize: 64, fontWeight: 700, letterSpacing: track(64, -0.04), lineHeight: 1.04, width: CONTENT_W }, 3),
       ...(meta ? [text(meta, { fontSize: 38, color: G1, letterSpacing: track(38, -0.01) })] : []),
     ]),
     foot(d.genre, '', 32),
@@ -192,7 +199,7 @@ function table(d: { kicker: string; when: string; rows: { day: string; time: str
     wordmark(type),
     column({ position: 'absolute', top: 186, left: SIDE, right: SIDE }, [
       ...(d.kicker ? [text(d.kicker, { fontSize: 34, color: G1, letterSpacing: track(34, 0.01), marginBottom: 10 })] : []),
-      slab(d.when, 76, -0.045, 0.94),
+      slab(d.when, 70, -0.045, 0.94),
     ]),
     // Sized down from 46/38/32 after review: seven two-line rows ran into the bottom edge. At these sizes the
     // worst case (every name wrapping, every venue present) ends clear of PAD; tests/live renders it.
@@ -225,7 +232,7 @@ function listing(d: { kicker: string; when: string; events: { time: string; name
     wordmark(type),
     column({ position: 'absolute', top: 214, left: SIDE, right: SIDE }, [
       text(d.kicker, { fontSize: 42, color: G1, letterSpacing: track(42, 0.01), marginBottom: 16 }),
-      slab(d.when, 110, -0.045, 0.94),
+      slab(d.when, 100, -0.045, 0.94),
     ]),
     column({ position: 'absolute', top: 516, left: SIDE, right: SIDE, gap: 54 }, [
       ...d.events.slice(0, 4).map((e) =>
@@ -235,7 +242,7 @@ function listing(d: { kicker: string; when: string; events: { time: string; name
             text(
               e.name,
               {
-                fontFamily: type.display, fontSize: 60, fontWeight: 600, letterSpacing: track(60, -0.028), lineHeight: 1.06,
+                fontFamily: type.display, fontSize: 56, fontWeight: 600, letterSpacing: track(56, -0.028), lineHeight: 1.06,
                 width: CONTENT_W - LISTING_TIME_W - LISTING_GAP, flexShrink: 0,
               },
               2,
@@ -276,7 +283,7 @@ function venue(d: { index: string; name: string; hood: string; note: string; foo
       // The same block an event slide sets, at the same place: the veil darkens exactly this band. The note
       // is three lines here rather than nine -- over a photograph, a paragraph stops being readable.
       column({ position: 'absolute', left: SIDE, right: SIDE, bottom: 132, gap: 12 }, [
-        text(d.name, { fontSize: 84, fontWeight: 700, letterSpacing: track(84, -0.045), lineHeight: 1, width: CONTENT_W }, 2),
+        text(d.name, { fontSize: 78, fontWeight: 700, letterSpacing: track(78, -0.045), lineHeight: 1, width: CONTENT_W }, 2),
         ...(d.hood ? [text(d.hood, { fontSize: 40, fontWeight: 500, color: G1, letterSpacing: track(40, -0.005) })] : []),
         ...(d.note ? [text(d.note, { fontSize: 34, color: G1, lineHeight: 1.34, width: CONTENT_W }, 3)] : []),
       ]),
@@ -288,7 +295,7 @@ function venue(d: { index: string; name: string; hood: string; note: string; foo
     wordmark(type),
     column({ position: 'absolute', top: 192, left: SIDE, right: SIDE, gap: 16 }, [
       indexRow(),
-      text(d.name, { fontSize: 104, fontWeight: 700, letterSpacing: track(104, -0.046), lineHeight: 0.97, width: CONTENT_W }, 2),
+      text(d.name, { fontSize: 96, fontWeight: 700, letterSpacing: track(96, -0.046), lineHeight: 0.97, width: CONTENT_W }, 2),
       ...(d.hood ? [text(d.hood, { fontSize: 44, fontWeight: 500, color: G1, letterSpacing: track(44, -0.005) })] : []),
       ...(d.note ? [text(d.note, { fontSize: 40, color: G1, lineHeight: 1.38, width: 900, marginTop: 10 }, 9)] : []),
     ]),
@@ -301,9 +308,89 @@ function venueCover(d: { lede: string; sub: string; foot: string }, type: Typefa
   return [
     wordmark(type),
     centred([
-      slab(d.lede, 96, -0.046, 1.04),
-      ...(d.sub ? [slab(d.sub, 96, -0.046, 1.04, G1, { marginTop: 14 })] : []),
+      slab(d.lede, 88, -0.046, 1.04),
+      ...(d.sub ? [slab(d.sub, 88, -0.046, 1.04, G1, { marginTop: 14 })] : []),
     ]),
+    swipeFoot(d.foot),
+  ];
+}
+
+/* ── The record label ───────────────────────────────────────────────────────
+ * A white circle on the black ground, read as two blocks with the centre hole between them.
+ *
+ * Every box below is placed against the circle's own box, and its width is checked against the chord at
+ * that height rather than the label's diameter: a line set 150px down has 634px of circle across it, not
+ * 820, and type sized to the diameter would run off the paper. The numbers in the comments are those
+ * chords. satori has no text-on-a-path, so nothing here is set on a curve -- and nothing in the reference
+ * was either.
+ */
+const LABEL_D = 820;
+const LABEL_TOP = 300;
+const LABEL_R = LABEL_D / 2;
+const HOLE = 30;
+/** Warm off-white: a printed label, not a UI panel. */
+const LABEL = '#F1EFE9';
+/** The hole is punched through to the disc, so it is the ground's own black, not a grey. */
+const HOLE_INK = GROUND;
+const LABEL_INK = '#121212';
+const LABEL_DIM = 'rgba(18,18,18,.58)';
+
+/** A line of label type: centred in its box, so a two-line title stacks on the circle's axis. */
+const labelLines = (
+  value: string, fontSize: number, em: number, color = LABEL_INK, weight = 700,
+): Node[] =>
+  lines(value).map((line) =>
+    text(line, {
+      fontSize, fontWeight: weight, letterSpacing: track(fontSize, em),
+      lineHeight: 1.18, color, textAlign: 'center',
+    }));
+
+function vinyl(
+  d: { title: string; sub: string; side: string; rpm: string; note: string; foot: string },
+  type: Typefaces,
+): Node[] {
+  return [
+    wordmark(type),
+    // The disc the label is stuck to. A hairline, not a fill: the ground is already black.
+    el({
+      position: 'absolute', left: (CANVAS.w - 1012) / 2, top: LABEL_TOP - 96, width: 1012, height: 1012,
+      borderRadius: 506, border: `1px solid ${G3}`, display: 'flex',
+    }),
+    el(
+      {
+        position: 'absolute', left: (CANVAS.w - LABEL_D) / 2, top: LABEL_TOP,
+        width: LABEL_D, height: LABEL_D, borderRadius: LABEL_R, backgroundColor: LABEL, display: 'flex',
+      },
+      [
+        // Title, above the hole. 620 wide against a 634 chord at y=150.
+        column({ position: 'absolute', left: 100, right: 100, top: 150, alignItems: 'center' },
+          labelLines(d.title, 44, -0.012)),
+        // The label's waist. Mark left of the hole, speed right of it, each set 45px off its edge so the
+        // two balance about the centre rather than about the label.
+        el({
+          position: 'absolute', left: 218, top: 390, width: 132, height: 40,
+          border: `1px solid ${LABEL_DIM}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }, [text('NOCT', { fontSize: 17, fontWeight: 600, letterSpacing: track(17, 0.14), color: LABEL_DIM })]),
+        el({
+          position: 'absolute', left: LABEL_R - HOLE / 2, top: LABEL_R - HOLE / 2,
+          width: HOLE, height: HOLE, borderRadius: HOLE / 2, backgroundColor: HOLE_INK, display: 'flex',
+        }),
+        column({ position: 'absolute', left: 470, top: 382, alignItems: 'flex-start' }, [
+          text(d.side, { fontSize: 19, fontWeight: 600, letterSpacing: track(19, 0.1), color: LABEL_DIM }),
+          text(d.rpm, { fontSize: 19, fontWeight: 600, letterSpacing: track(19, 0.1), color: LABEL_DIM, marginTop: 6 }),
+        ]),
+        // Sub, below the hole. The widest part of the circle, so it takes the title's measure.
+        ...(d.sub
+          ? [column({ position: 'absolute', left: 100, right: 100, top: 476, alignItems: 'center' },
+              labelLines(d.sub, 44, -0.012))]
+          : []),
+        // Small print. 420 wide, against a 464 chord at y=748 where a fourth line would land.
+        ...(d.note
+          ? [column({ position: 'absolute', left: 200, right: 200, top: 644, alignItems: 'center' },
+              labelLines(d.note, 18, 0.04, LABEL_DIM, 500))]
+          : []),
+      ],
+    ),
     swipeFoot(d.foot),
   ];
 }
@@ -313,7 +400,7 @@ function note(d: { text: string; after: string; foot: string }, type: Typefaces)
   return [
     wordmark(type),
     centred([
-      slab(d.text, 94, -0.045, 1.08),
+      slab(d.text, 86, -0.045, 1.08),
       ...(d.after ? [text(d.after, { fontSize: 42, color: G1, marginTop: 40, maxWidth: 800, lineHeight: 1.42 })] : []),
     ]),
     foot(d.foot),
@@ -342,7 +429,7 @@ function cta(d: { question: string; answer: string; link: string; note: string }
     wordmark(type),
     centred([
       ...lines(d.question).map((line) =>
-        text(line, { fontSize: 68, fontWeight: 500, letterSpacing: track(68, -0.02), lineHeight: 1.12 })),
+        text(line, { fontSize: 62, fontWeight: 500, letterSpacing: track(62, -0.02), lineHeight: 1.12 })),
       ...(d.answer ? [text(d.answer, { fontSize: 46, fontWeight: 400, color: G1, lineHeight: 1.2, marginTop: 24 })] : []),
     ]),
     // One line, lifted off the edge: the link and its instruction read as one thing, and the bottom 54px is
@@ -372,6 +459,7 @@ export function slideTree(slide: Slide, type: Typefaces = POST_TYPEFACES): Node 
       case 'listing': return listing(slide.data, type);
       case 'venue': return venue(slide.data, type);
       case 'venuecover': return venueCover(slide.data, type);
+      case 'vinyl': return vinyl(slide.data, type);
       case 'note': return note(slide.data, type);
       case 'cta': return cta(slide.data, type);
     }

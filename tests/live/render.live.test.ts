@@ -36,6 +36,7 @@ const SLIDES: [string, Slide][] = [
   ] } })],
   ['venue', s({ template: 'venue', data: { index: '01 / 04', name: 'Nowadays', hood: 'Ridgewood, Queens', note: 'Dancefloor plus a backyard.', foot: '56-06 Cooper Ave', image: null } })],
   ['venuecover', s({ template: 'venuecover', data: { lede: 'Where to go', sub: 'Four New York venues', foot: 'noct.pro' } })],
+  ['vinyl', s({ template: 'vinyl', data: { title: 'ART IS HOW\nWE DECORATE SPACE', sub: 'MUSIC IS HOW\nWE DECORATE TIME.', side: 'SIDE A', rpm: '33 1/3 RPM', note: 'A SENTIMENTAL SPACE\nFOR WANDERERS ONLY', foot: 'noct.pro' } })],
   ['note', s({ template: 'note', data: { text: 'One feed for New York nightlife', after: 'Every listing, every night.', foot: 'noct.pro' } })],
   ['cta', s({ template: 'cta', data: { question: 'sick of checking 10 places for one night out?', answer: 'NYC nightlife, all in one place', link: 'noct.pro', note: 'link in bio' } })],
 ];

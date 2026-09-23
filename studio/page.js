@@ -261,6 +261,7 @@
     if (s.template === 'listing') return d.when || 'Tonight';
     if (s.template === 'venue') return d.name || 'Venue';
     if (s.template === 'venuecover') return d.lede || 'Venues';
+    if (s.template === 'vinyl') return d.title || 'Record';
     return d.text || 'Note';
   }
 

@@ -139,6 +139,27 @@ export const venueDataSchema = z.object({
   edited: z.boolean().optional(),
 });
 
+/**
+ * A record label: the title set inside a white circle on the black ground, split above and below the centre
+ * hole, with the side and speed marks on the label's waist and the small print under it.
+ *
+ * The words are two blocks rather than one because a label is read as two -- the line above the hole and the
+ * line below it -- and because satori cannot flow one paragraph around a hole punched in its middle.
+ */
+export const vinylDataSchema = z.object({
+  /** Above the hole. */
+  title: text,
+  /** Below it. May be empty, which leaves the lower half of the label bare. */
+  sub: text.default(''),
+  /** The label's waist, either side of the hole. */
+  side: shortText.default('SIDE A'),
+  rpm: shortText.default('33 1/3 RPM'),
+  /** The small print under the label, one item per line. */
+  note: z.string().max(300).default(''),
+  foot: shortText.default(''),
+  edited: z.boolean().optional(),
+});
+
 export const venueCoverDataSchema = z.object({
   lede: text,
   sub: text.default(''),
@@ -173,6 +194,7 @@ export const slideSchema = z.discriminatedUnion('template', [
   z.object({ template: z.literal('listing'), data: listingDataSchema }),
   z.object({ template: z.literal('venue'), data: venueDataSchema }),
   z.object({ template: z.literal('venuecover'), data: venueCoverDataSchema }),
+  z.object({ template: z.literal('vinyl'), data: vinylDataSchema }),
   z.object({ template: z.literal('note'), data: noteDataSchema }),
   z.object({ template: z.literal('cta'), data: ctaDataSchema }),
 ]);
@@ -187,6 +209,7 @@ export const TEMPLATE_LABEL: Record<Template, string> = {
   listing: 'listing',
   venue: 'venue',
   venuecover: 'venues',
+  vinyl: 'record',
   note: 'note',
   cta: 'cta',
 };

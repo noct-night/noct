@@ -1,18 +1,21 @@
 /**
  * The post typefaces, as the TTF bytes satori needs to turn type into outlines.
  *
- * Two families. BODY_FONT sets almost everything on a slide -- covers, venue notes, tables, the CTA -- and is
- * Google Sans, the same face as the app, so a post and the site it advertises read as one thing. DISPLAY_FONT
- * sets the DJ lineup and the NO / CT wordmark: the names are what a post is about, and the wordmark should be
- * the logo's own face. Both came from review of the first real decks.
+ * One family. Archivo sets the whole slide -- covers, lineups, venue notes, tables, the CTA and the NO / CT
+ * wordmark. BODY_FONT and DISPLAY_FONT stay as two names because a slide is still passed a pair and a
+ * comparison render can still point one of them somewhere else; today they resolve to the same face.
+ *
+ * The posts no longer match the app, which sets Google Sans. That divergence is deliberate and is the one
+ * documented in docs/INSTAGRAM.md: a post is a printed object and wants the tighter, blockier grotesque.
  *
  * Google Fonts serves woff2 to anything modern and plain TTF to anything that looks old, and satori reads
  * TTF/OTF/WOFF but not woff2. Hence the deliberately ancient User-Agent: it is a content negotiation, not a
  * disguise, and it is the documented way to get static font files out of the css2 endpoint.
  *
- * Fonts are fetched once per lambda instance and kept in module scope. A cold start pays eight small
- * requests; every render after that pays nothing. NOCT_FONT_DIR points at a directory of pre-downloaded
- * .ttf files instead (GoogleSans-700.ttf and so on), for offline tests and for a deploy that would rather
+ * Fonts are fetched once per lambda instance and kept in module scope. loadFonts dedupes the pair, so while
+ * both names point at Archivo a cold start pays four small requests, not eight; every render after that pays
+ * nothing. NOCT_FONT_DIR points at a directory of pre-downloaded
+ * .ttf files instead (Archivo-700.ttf and so on), for offline tests and for a deploy that would rather
  * not reach out.
  */
 import { readFile } from 'node:fs/promises';
@@ -20,8 +23,8 @@ import { join } from 'node:path';
 import { env } from '../lib/env.js';
 import { politeFetch } from '../lib/http.js';
 
-export const BODY_FONT = 'Google Sans';
-/** Archivo: the face the NO / CT logo is set in, so the lineup and the wordmark match the mark itself. */
+/** Archivo: the face the NO / CT logo is set in, so every word on a slide matches the mark itself. */
+export const BODY_FONT = 'Archivo';
 export const DISPLAY_FONT = 'Archivo';
 /** The two faces a slide is set in. Passed around as a pair so a comparison render can try another. */
 export interface Typefaces {
