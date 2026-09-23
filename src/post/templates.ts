@@ -355,12 +355,12 @@ function venueTitle(
  * The quotes are drawn by the slide rather than typed into the data, so a line reads as a quotation however
  * it was pasted in. The whole block disappears when `says` is empty, which is what the drafter leaves it as.
  *
- * What separates the two halves is space, not a rule: 110 on top of the column's own 22. A hairline across
+ * What separates the two halves is space, not a rule: 150 on top of the column's own 22. A hairline across
  * the slide was tried first and read as a divider, which is a device the rest of the deck does not use.
  *
- * 110 was looked at against 58 and 150 on a real render. 58 still read as one continuing block; at 150 the
- * quotes stopped belonging to the paragraph above them. Seven lines of note plus three quotes still clear
- * the foot at 110, which is the case that decides how far this can go.
+ * 58, 110 and 150 were each looked at on a real render and 150 is the one chosen. It is the widest of the
+ * three, and the constraint on going wider is the tallest this slide gets: seven lines of note, the label,
+ * and three quotes. That case was rendered at 150 and clears the foot.
  */
 function venueStory(
   d: { name: string; note: string; says: string; foot: string },
@@ -376,7 +376,7 @@ function venueStory(
         ? [
             // No rule between the two blocks: the gap separates them on its own, and a line across the
             // slide read as a divider the rest of the deck does not use anywhere else.
-            text('WHAT PEOPLE SAY', { ...VKICKER, marginTop: 110 }),
+            text('WHAT PEOPLE SAY', { ...VKICKER, marginTop: 150 }),
             ...said.slice(0, 3).map((line) =>
               text(`\u201C${line}\u201D`, { fontSize: 36, color: G1, lineHeight: 1.36, width: CONTENT_W }, 4)),
           ]
