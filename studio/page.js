@@ -82,6 +82,30 @@
     table: [['kicker', 'Kicker', false, 120], ['when', 'Heading', false, 400], ['rows', 'Rows', true, 0]],
     listing: [['kicker', 'Kicker', false, 120], ['when', 'Heading', false, 400]],
   };
+  /**
+   * Which templates can be swapped for which.
+   *
+   * Only inside a family, and only where the words have an honest counterpart: a statement slide is a
+   * title, a second block and a foot however it is dressed, and a list slide is a heading and some rows.
+   *
+   * event, venue and cta are deliberately not offered. The first two carry a reference to the night or the
+   * room they were drafted from, a tone, and a reviewer's verification -- none of which any other template
+   * has anywhere to keep -- and the closing slide's words come from a setting rather than from the slide.
+   */
+  var FAMILIES = {
+    statement: ['cover', 'vinyl', 'venuecover', 'note'],
+    list: ['table', 'listing'],
+  };
+  var FAMILY_OF = {};
+  Object.keys(FAMILIES).forEach(function (f) {
+    FAMILIES[f].forEach(function (t) { FAMILY_OF[t] = f; });
+  });
+  var TEMPLATE_NAME = {
+    cover: 'Cover', vinyl: 'Record', venuecover: 'Venues cover', note: 'Note',
+    table: 'Table', listing: 'Listing',
+  };
+  var LISTING_MAX = 4;
+
   var TABLE_ROWS_MAX = 7;
   var NY = 'America/New_York';
   /** What the Draft menu offers, in the order a week is usually worked through. */
@@ -390,13 +414,16 @@
         : '';
       var flyer = takesImage && img && !isStudioPhoto(img)
         ? '<a href="' + esc(img.src) + '" target="_blank" rel="noopener noreferrer">Open flyer</a>' : '';
-      // A cover and a record carry the same words in different boxes, so the two are one switch rather
-      // than two templates to choose between. No other template converts, so no other one offers it.
-      var astype = s.template === 'cover'
-        ? '<button type="button" data-astype="vinyl" data-slide="' + n + '">As record</button>'
-        : s.template === 'vinyl'
-          ? '<button type="button" data-astype="cover" data-slide="' + n + '">As cover</button>'
-          : '';
+      // Shown only where there is something to switch to, so a slide that cannot convert says nothing.
+      var fam = FAMILY_OF[s.template];
+      var astype = fam
+        ? '<select data-astype="' + n + '" aria-label="Template for slide ' + (n + 1) + '">'
+          + FAMILIES[fam].map(function (t) {
+              return '<option value="' + t + '"' + (t === s.template ? ' selected' : '') + '>'
+                + TEMPLATE_NAME[t] + '</option>';
+            }).join('')
+          + '</select>'
+        : '';
       tools = '<div class="shot-tools">'
         + '<button type="button" data-edit="' + n + '">Edit text</button>'
         + astype + photo + look + flyer + save
@@ -1417,12 +1444,6 @@
       if (e.target.closest('button[data-tr-refresh]')) { loadTraffic(traffic.days, true); return; }
       var edit = e.target.closest('button[data-edit]');
       if (edit) { openTextForm(edit.closest('.row').getAttribute('data-id'), +edit.getAttribute('data-edit')); return; }
-      var astype = e.target.closest('button[data-astype]');
-      if (astype) {
-        setTemplate(astype.closest('.row').getAttribute('data-id'), +astype.getAttribute('data-slide'),
-          astype.getAttribute('data-astype'));
-        return;
-      }
       var textAct = e.target.closest('button[data-text-act]');
       if (textAct) {
         var tpanel = textAct.closest('.panel');
@@ -1469,33 +1490,97 @@
         setLook(look.closest('.row').getAttribute('data-id'), +look.getAttribute('data-look'), { treatment: look.value });
         return;
       }
+      var astype = e.target.closest('select[data-astype]');
+      if (astype) {
+        setTemplate(astype.closest('.row').getAttribute('data-id'), +astype.getAttribute('data-astype'), astype.value);
+        return;
+      }
     });
 
+    function clip(v, max) {
+      v = v == null ? '' : String(v);
+      return v.length > max ? v.slice(0, max) : v;
+    }
+
     /**
-     * Turn a cover into a record, or back.
+     * A slide's words, in the terms its family shares rather than the ones its template happens to use.
      *
-     * The words move rather than being asked for again: a cover's title is what goes above the hole and its
-     * date line is what goes below, which is the reading that makes the two interchangeable in the first
-     * place. The side, speed and small print are a record's own furniture and start at their defaults; on
-     * the way back they are dropped, because a cover has nowhere to put them.
+     * A cover's lede, a record's title, a venues cover's lede and a note's text are all the same thing --
+     * the block you read first -- so the switch moves them rather than asking for them again.
+     */
+    function partsOf(s) {
+      var d = s.data || {};
+      if (s.template === 'cover') return { title: d.lede, sub: d.date, foot: d.foot, image: d.image };
+      if (s.template === 'vinyl') {
+        return { title: d.title, sub: d.sub, foot: d.foot, image: d.image, side: d.side, rpm: d.rpm, note: d.note };
+      }
+      if (s.template === 'venuecover') return { title: d.lede, sub: d.sub, foot: d.foot };
+      if (s.template === 'note') return { title: d.text, sub: d.after, foot: d.foot };
+      if (s.template === 'table') return { kicker: d.kicker, when: d.when, rows: d.rows || [] };
+      if (s.template === 'listing') {
+        return { kicker: d.kicker, when: d.when, rows: (d.events || []).map(function (e) {
+          return { day: '', time: e.time, event: e.name, venue: e.venue, genre: e.genre };
+        }) };
+      }
+      return {};
+    }
+
+    /** The same words, in the shape the target template's schema will accept. Lengths are its own maxima. */
+    function dataFor(to, p, prev) {
+      if (to === 'cover') {
+        return { lede: clip(p.title, 400), date: clip(p.sub, 400), foot: clip(p.foot, 120),
+          image: p.image || null, edited: prev.edited };
+      }
+      if (to === 'vinyl') {
+        return { title: clip(p.title, 400), sub: clip(p.sub, 400), side: p.side || 'SIDE A',
+          rpm: p.rpm || '33 1/3 RPM', note: clip(p.note, 300), foot: clip(p.foot, 120),
+          image: p.image || null, edited: prev.edited };
+      }
+      if (to === 'venuecover') return { lede: clip(p.title, 400), sub: clip(p.sub, 400), foot: clip(p.foot, 120) };
+      if (to === 'note') return { text: clip(p.title, 400), after: clip(p.sub, 600), foot: clip(p.foot, 120) };
+      if (to === 'table') {
+        return { kicker: clip(p.kicker, 120), when: clip(p.when, 400),
+          rows: (p.rows || []).slice(0, TABLE_ROWS_MAX).map(function (r) {
+            return { day: clip(r.day, 120), time: clip(r.time, 120), event: clip(r.event, 400), venue: clip(r.venue, 120) };
+          }) };
+      }
+      return { kicker: clip(p.kicker, 120) || 'Tonight in New York', when: clip(p.when, 400),
+        events: (p.rows || []).slice(0, LISTING_MAX).map(function (r) {
+          return { time: clip(r.time, 120), name: clip(r.event, 400), venue: clip(r.venue, 120), genre: clip(r.genre, 120) };
+        }) };
+    }
+
+    /** What the switch would throw away. Said out loud before it happens, because there is no undo. */
+    function lossOf(to, p) {
+      var lost = [];
+      var rows = (p.rows || []).length;
+      if (p.image && to !== 'cover' && to !== 'vinyl') lost.push('the photo');
+      if (to === 'listing' && rows > LISTING_MAX) lost.push((rows - LISTING_MAX) + ' of ' + rows + ' rows');
+      if (to === 'table' && rows > TABLE_ROWS_MAX) lost.push((rows - TABLE_ROWS_MAX) + ' of ' + rows + ' rows');
+      if (to !== 'note' && clip(p.sub, 401).length > 400) lost.push('the end of the second block');
+      return lost;
+    }
+
+    /**
+     * Swap a slide's template, carrying its words across.
+     *
+     * Only offered within a family (see FAMILIES), so the mapping is always one a person would recognise.
+     * Anything the target has nowhere to keep is named in a confirm first: the studio saves straight to the
+     * post and there is no undo, so a silent drop of a photo or four rows would be unrecoverable.
      */
     function setTemplate(id, n, to) {
       var post = find(id);
       var slide = post && post.slides[n];
       if (!slide || slide.template === to) return;
-      var slides = JSON.parse(JSON.stringify(post.slides));
-      var d = slides[n].data || {};
-      if (to === 'vinyl') {
-        slides[n] = { template: 'vinyl', data: {
-          title: d.lede || '', sub: d.date || '', side: 'SIDE A', rpm: '33 1/3 RPM',
-          note: '', foot: d.foot || '', image: d.image || null, edited: d.edited,
-        } };
-      } else {
-        slides[n] = { template: 'cover', data: {
-          lede: d.title || '', date: d.sub || '', foot: d.foot || '',
-          image: d.image || null, edited: d.edited,
-        } };
+      if (FAMILY_OF[slide.template] !== FAMILY_OF[to]) return;
+      var p = partsOf(slide);
+      var lost = lossOf(to, p);
+      if (lost.length && !window.confirm('Switching to ' + TEMPLATE_NAME[to] + ' drops ' + lost.join(' and ') + '. Continue?')) {
+        render();   // the select is already showing the template that was declined; put it back
+        return;
       }
+      var slides = JSON.parse(JSON.stringify(post.slides));
+      slides[n] = { template: to, data: dataFor(to, p, slide.data || {}) };
       patch(post.id, { slides: slides }, { repaint: true });
     }
 
