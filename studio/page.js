@@ -73,6 +73,9 @@
     venue: [['index', 'Number', false, 120], ['name', 'Name', false, 400], ['hood', 'Neighbourhood', false, 120],
       ['note', 'About', true, 600], ['foot', 'Address', false, 400]],
     venuecover: [['lede', 'Title', true, 400], ['sub', 'Subtitle', true, 400], ['foot', 'Bottom left', false, 120]],
+    vinyl: [['title', 'Above the hole', true, 400], ['sub', 'Below the hole', true, 400],
+      ['side', 'Side', false, 120], ['rpm', 'Speed', false, 120],
+      ['note', 'Small print', true, 300], ['foot', 'Bottom left', false, 120]],
     note: [['text', 'Text', true, 400], ['after', 'After', true, 600], ['foot', 'Foot', false, 120]],
     cta: [['question', 'Question', true, 400], ['answer', 'Answer', false, 400], ['link', 'Link', false, 120],
       ['note', 'Note', false, 120]],
@@ -387,9 +390,16 @@
         : '';
       var flyer = takesImage && img && !isStudioPhoto(img)
         ? '<a href="' + esc(img.src) + '" target="_blank" rel="noopener noreferrer">Open flyer</a>' : '';
+      // A cover and a record carry the same words in different boxes, so the two are one switch rather
+      // than two templates to choose between. No other template converts, so no other one offers it.
+      var astype = s.template === 'cover'
+        ? '<button type="button" data-astype="vinyl" data-slide="' + n + '">As record</button>'
+        : s.template === 'vinyl'
+          ? '<button type="button" data-astype="cover" data-slide="' + n + '">As cover</button>'
+          : '';
       tools = '<div class="shot-tools">'
         + '<button type="button" data-edit="' + n + '">Edit text</button>'
-        + photo + look + flyer + save
+        + astype + photo + look + flyer + save
         + '</div>';
     }
     return '<div class="slide-col">'
@@ -1407,6 +1417,12 @@
       if (e.target.closest('button[data-tr-refresh]')) { loadTraffic(traffic.days, true); return; }
       var edit = e.target.closest('button[data-edit]');
       if (edit) { openTextForm(edit.closest('.row').getAttribute('data-id'), +edit.getAttribute('data-edit')); return; }
+      var astype = e.target.closest('button[data-astype]');
+      if (astype) {
+        setTemplate(astype.closest('.row').getAttribute('data-id'), +astype.getAttribute('data-slide'),
+          astype.getAttribute('data-astype'));
+        return;
+      }
       var textAct = e.target.closest('button[data-text-act]');
       if (textAct) {
         var tpanel = textAct.closest('.panel');
@@ -1454,6 +1470,34 @@
         return;
       }
     });
+
+    /**
+     * Turn a cover into a record, or back.
+     *
+     * The words move rather than being asked for again: a cover's title is what goes above the hole and its
+     * date line is what goes below, which is the reading that makes the two interchangeable in the first
+     * place. The side, speed and small print are a record's own furniture and start at their defaults; on
+     * the way back they are dropped, because a cover has nowhere to put them.
+     */
+    function setTemplate(id, n, to) {
+      var post = find(id);
+      var slide = post && post.slides[n];
+      if (!slide || slide.template === to) return;
+      var slides = JSON.parse(JSON.stringify(post.slides));
+      var d = slides[n].data || {};
+      if (to === 'vinyl') {
+        slides[n] = { template: 'vinyl', data: {
+          title: d.lede || '', sub: d.date || '', side: 'SIDE A', rpm: '33 1/3 RPM',
+          note: '', foot: d.foot || '', image: d.image || null, edited: d.edited,
+        } };
+      } else {
+        slides[n] = { template: 'cover', data: {
+          lede: d.title || '', date: d.sub || '', foot: d.foot || '',
+          image: d.image || null, edited: d.edited,
+        } };
+      }
+      patch(post.id, { slides: slides }, { repaint: true });
+    }
 
     /** Set one slide's own treatment or grain. The post's values stay as the default for the other slides. */
     function setLook(id, n, change) {
