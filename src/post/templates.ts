@@ -130,15 +130,16 @@ const slab = (
 /**
  * Says plainly what the post is, then the date. One block, one size, the way it is scanned in the feed.
  *
- * 66, not the 78 the other display sizes came down to: the cover is the only slide whose type sits directly
- * under the wordmark with nothing between them, and at 78 the two blocks read as one heavy mass.
+ * 60, not the 78 the other display sizes came down to: the cover is the only slide whose type sits directly
+ * under the wordmark with nothing between them, and at 78 the two blocks read as one heavy mass. It was
+ * looked at on a real render at 78, 72, 66 and 60, and 60 is the one that was chosen.
  */
 function cover(d: { lede: string; date: string; foot: string }, type: Typefaces): Node[] {
   return [
     wordmark(type),
     centred([
-      ...lines(d.lede).map((line) => slab(line, 66, -0.042, 1.07)),
-      ...(d.date ? [slab(d.date, 66, -0.042, 1.07, G1, { marginTop: 14 })] : []),
+      ...lines(d.lede).map((line) => slab(line, 60, -0.042, 1.07)),
+      ...(d.date ? [slab(d.date, 60, -0.042, 1.07, G1, { marginTop: 14 })] : []),
     ]),
     swipeFoot(d.foot),
   ];
