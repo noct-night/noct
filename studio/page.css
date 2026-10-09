@@ -26,11 +26,8 @@ img{max-width:100%}
 [hidden]{display:none!important}
 
 .wrap{max-width:1120px;margin:0 auto;padding:26px 22px 140px}
-.bar{display:flex;justify-content:space-between;font-size:22px;font-weight:700;letter-spacing:-.03em;
-  line-height:1;color:var(--g1);margin-bottom:30px}
-
 .mast{display:flex;align-items:baseline;justify-content:space-between;gap:20px;flex-wrap:wrap;
-  padding-bottom:16px;border-bottom:1px solid var(--hair)}
+  padding-top:6px;padding-bottom:16px;border-bottom:.7px solid var(--hair)}
 .mast h1{font-size:26px;font-weight:600;letter-spacing:-.02em;line-height:1.1}
 .ready{font-size:14px;color:var(--g1)}
 .ready b{font-weight:600;font-variant-numeric:tabular-nums}
@@ -249,6 +246,18 @@ img{max-width:100%}
 .nights-text{display:flex;flex-direction:column;gap:2px;min-width:0}
 .nights-text b{font-weight:600;overflow-wrap:anywhere}
 .nights-text span{font-size:12px;color:var(--g2)}
+/* A name Spotify matched on a guess: said here, and again on the slide once the post exists. */
+.unsure{font-style:normal;color:var(--paper);border-bottom:.7px solid var(--hair-2)}
+
+/* The week in numbers, above the calendar: the dashboard's other half, without leaving the page. */
+.cal-stats{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch;width:100%}
+.cal-stat{flex:1 1 150px;min-width:0;border:.7px solid var(--hair);padding:11px 13px;display:flex;
+  flex-direction:column;gap:3px;text-align:left;color:var(--paper);text-decoration:none;
+  transition:border-color .16s ease}
+a.cal-stat:hover,button.cal-stat:hover{border-color:var(--paper)}
+.cal-stat span{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--g2)}
+.cal-stat b{font-size:26px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1}
+.cal-stat small{font-size:12px;color:var(--g2)}
 
 /* The calendar: every published post on the day it went out, New York time. */
 .cal{display:flex;flex-direction:column;gap:18px}

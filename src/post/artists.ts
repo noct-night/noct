@@ -116,6 +116,17 @@ export interface ArtistsOptions {
   minFollowers?: number;
   cta?: Slide;
   house?: HouseLines;
+  /** Feed event ids chosen in the studio, in the order they should appear. Unset means pick automatically. */
+  eventIds?: string[];
+}
+
+/** The names behind chosen nights, in the order chosen; a night with nobody known on it is dropped. */
+export function namesFor(feed: FeedResponse, known: Map<string, KnownArtist>, eventIds: string[]): BigName[] {
+  return eventIds.flatMap((id) => {
+    const ev = feed.events.find((e) => e.id === id);
+    const artist = ev ? biggestOn(ev, known) : null;
+    return ev && artist ? [{ artist, ev }] : [];
+  });
 }
 
 /**
@@ -127,8 +138,11 @@ export interface ArtistsOptions {
 export function draftComingToNewYork(
   feed: FeedResponse, known: Map<string, KnownArtist>, opts: ArtistsOptions = {},
 ): EditionDraft | null {
-  const picks = pickBigNames(feed, known, opts.limit ?? ARTIST_SLIDES, opts.minFollowers ?? MIN_FOLLOWERS);
-  if (picks.length < 2 || feed.days.length === 0) return null;
+  const picks = opts.eventIds
+    ? namesFor(feed, known, opts.eventIds).slice(0, opts.limit ?? ARTIST_SLIDES)
+    : pickBigNames(feed, known, opts.limit ?? ARTIST_SLIDES, opts.minFollowers ?? MIN_FOLLOWERS);
+  // One name is a spotlight, not a round-up -- unless a person asked for exactly that one.
+  if (picks.length === 0 || (picks.length < 2 && !opts.eventIds) || feed.days.length === 0) return null;
   const when = spanLabel(feed.days);
 
   const cover: Slide = {

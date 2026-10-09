@@ -36,6 +36,19 @@ describe('the studio page source', () => {
     for (const marker of ['/*noct:css*/', '/*noct:gate*/', '/*noct:js*/']) expect(page).not.toContain(marker);
   });
 
+  it('opens on the dashboard, where the record and the numbers are', async () => {
+    const js = await asset('page.js');
+    expect(js).toContain("var section = 'analytics';");
+    // The calendar and the traffic are two views of one section rather than two places to go looking.
+    expect(js).toContain("{ k: 'calendar', t: 'Calendar' }, { k: 'traffic', t: 'Traffic' }");
+  });
+
+  it('asks before drafting the posts whose pick is the whole decision', async () => {
+    const js = await asset('page.js');
+    expect(js).toContain('/api/posts?preview=');
+    expect(js).toContain('var ASKS = { spotlight: 1, artists: 1 };');
+  });
+
   it('keeps the page out of search results', async () => {
     expect(await asset('page.html')).toContain('name="robots"');
   });
@@ -46,7 +59,7 @@ describe('what a visitor with no session receives', () => {
     const out = await assemble(false);
     expect(out).not.toContain('id="studioView"');
     expect(out).not.toContain('id="stream"');
-    expect(out).not.toContain('Instagram posts');
+    expect(out).not.toContain('NOCT Studio');
     expect(out).not.toContain('Draft the coming weekend');
   });
 
@@ -131,8 +144,8 @@ describe('the page script', () => {
     // one queue the reel also sorts under every deck, because reels carry no date and the list sorts by one.
     expect(js).toContain("{ k: 'post', t: 'Post' }");
     expect(js).toContain("{ k: 'reel', t: 'Reel' }");
-    expect(js).toContain("{ k: 'analytics', t: 'Analytics' }");
-    expect(js).toContain("{ k: 'traffic', t: 'Traffic' }");
+    // Traffic is a view inside the dashboard now, beside the calendar, rather than a section of its own.
+    expect(js).toContain("{ k: 'analytics', t: 'Dashboard' }");
     expect(js).toContain('function inSection');
   });
 

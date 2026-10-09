@@ -4,7 +4,8 @@ import { scrubCopy } from '../../src/post/caption.js';
 import { HOUSE_LINES } from '../../src/post/caption.js';
 import { CTA_SLIDE, isNightOut, namesNotIn, pickHeroes } from '../../src/post/draft.js';
 import {
-  draftGenreEditions, draftSpotlights, draftVenuePosts, EDITION_MIN_EVENTS, familyOf, FAMILY_PHRASE, venueVibe,
+  draftGenreEditions, draftSpotlights, draftVenuePosts, EDITION_MIN_EVENTS, familyOf, FAMILY_PHRASE,
+  spotlightsFor, venueVibe,
 } from '../../src/post/editions.js';
 import { CAROUSEL_MAX, slideSchema } from '../../src/post/types.js';
 
@@ -120,6 +121,22 @@ describe('draftSpotlights', () => {
 
   it('spotlights the most anticipated nights, one per venue', () => {
     expect(spots.map((s) => s.edition)).toEqual(['big', 'two', 'three']);
+  });
+
+  describe('when the nights are chosen in the studio', () => {
+    it('spotlights exactly those, in the order chosen', () => {
+      const mine = spotlightsFor(feed(events), ['three', 'merch']);
+      expect(mine.map((s) => s.edition)).toEqual(['three', 'merch']);
+    });
+
+    it('skips an id the feed no longer has rather than failing the batch', () => {
+      expect(spotlightsFor(feed(events), ['gone', 'two']).map((s) => s.edition)).toEqual(['two']);
+      expect(spotlightsFor(feed(events), [])).toEqual([]);
+    });
+
+    it('builds the same post the automatic pick would have', () => {
+      expect(spotlightsFor(feed(events), ['big'])[0]).toEqual(spots[0]);
+    });
   });
 
   it('never spotlights something that is not a night out, however popular', () => {
