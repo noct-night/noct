@@ -121,32 +121,49 @@ const WEEKDAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'F
 export function draftSpotlights(
   feed: FeedResponse, limit = SPOTLIGHTS, cta: Slide = CTA_SLIDE, house: HouseLines = HOUSE_LINES,
 ): EditionDraft[] {
-  return pickHeroes(feed.events, limit).map((ev) => {
-    const day = feed.days[ev.d];
-    const hero = heroSlide(feed.days, ev);
-    const when = day ? `${WEEKDAY_FULL[day.dow] ?? day.label}, ${day.sub}` : '';
-    // Date, lineup, venue, and nothing else: a spotlight is about who is playing. The door time and genre
-    // went after review; they live in the caption. With no lineup listed, the event's title stands in.
-    const lineup = ev.lineup.map((n) => n.trim()).filter(Boolean).join(', ');
-    const slide: Slide = hero.template === 'event'
-      ? { ...hero, data: { ...hero.data, position: when, name: lineup || hero.data.name, time: '', genre: '' } }
-      : hero;
+  return pickHeroes(feed.events, limit).map((ev) => spotlightFor(feed, ev, cta, house));
+}
 
-    const venue = ev.room ? `${ev.venue} / ${ev.room}` : ev.venue;
-    const headline = headlineOf(ev);
-    const cast = namesNotIn(headline, supportingCast(ev));
-    const caption = scrubLines(withHouseLines(
-      [
-        `${headline}, ${venue}${when ? `, ${when}` : ''}${ev.door ? ` from ${ev.door}` : ''}.`,
-        ...(cast.length ? ['', `With ${cast.join(', ')}.`] : []),
-        '',
-        draftHashtags(ev.primary ? [ev.primary] : ev.genre.slice(0, 2)).join(' '),
-      ].join('\n'),
-      house,
-    ));
+/**
+ * The spotlights for nights chosen in the studio, in the order they were chosen.
+ *
+ * The automatic pick is a reasonable first pass at "the most anticipated nights"; she knows which three
+ * NOCT wants to be seen recommending. Ids the feed no longer has are skipped rather than failing the batch.
+ */
+export function spotlightsFor(
+  feed: FeedResponse, eventIds: string[], cta: Slide = CTA_SLIDE, house: HouseLines = HOUSE_LINES,
+): EditionDraft[] {
+  return eventIds
+    .flatMap((id) => feed.events.filter((e) => e.id === id).slice(0, 1))
+    .map((ev) => spotlightFor(feed, ev, cta, house));
+}
 
-    return { series: 'single' as const, slot: day?.date ?? null, edition: ev.id, slides: [slide, cta], caption };
-  });
+/** One night, given the whole post. */
+function spotlightFor(feed: FeedResponse, ev: FeedEvent, cta: Slide, house: HouseLines): EditionDraft {
+  const day = feed.days[ev.d];
+  const hero = heroSlide(feed.days, ev);
+  const when = day ? `${WEEKDAY_FULL[day.dow] ?? day.label}, ${day.sub}` : '';
+  // Date, lineup, venue, and nothing else: a spotlight is about who is playing. The door time and genre
+  // went after review; they live in the caption. With no lineup listed, the event's title stands in.
+  const lineup = ev.lineup.map((n) => n.trim()).filter(Boolean).join(', ');
+  const slide: Slide = hero.template === 'event'
+    ? { ...hero, data: { ...hero.data, position: when, name: lineup || hero.data.name, time: '', genre: '' } }
+    : hero;
+
+  const venue = ev.room ? `${ev.venue} / ${ev.room}` : ev.venue;
+  const headline = headlineOf(ev);
+  const cast = namesNotIn(headline, supportingCast(ev));
+  const caption = scrubLines(withHouseLines(
+    [
+      `${headline}, ${venue}${when ? `, ${when}` : ''}${ev.door ? ` from ${ev.door}` : ''}.`,
+      ...(cast.length ? ['', `With ${cast.join(', ')}.`] : []),
+      '',
+      draftHashtags(ev.primary ? [ev.primary] : ev.genre.slice(0, 2)).join(' '),
+    ].join('\n'),
+    house,
+  ));
+
+  return { series: 'single' as const, slot: day?.date ?? null, edition: ev.id, slides: [slide, cta], caption };
 }
 
 

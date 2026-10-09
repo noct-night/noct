@@ -189,6 +189,23 @@ describe('the post', () => {
     expect(draft.slot).toBeNull();
   });
 
+  describe('when the nights are chosen in the studio', () => {
+    it('leads with exactly those names, in the order chosen', () => {
+      const mine = draftComingToNewYork(feed(events), known, { eventIds: ['c', 'a'] })!;
+      expect(mine.slides.flatMap((s) => (s.template === 'event' ? [s.data.name] : []))).toEqual(['ANNA', 'Four Tet']);
+    });
+
+    it('drafts one name when that is what was asked for, which the automatic pick would not', () => {
+      expect(draftComingToNewYork(feed(events), known, { eventIds: ['a'] })!.slides).toHaveLength(3);
+      expect(draftComingToNewYork(feed([events[0]!]), known)).toBeNull();
+    });
+
+    it('drops a chosen night with nobody known on the bill', () => {
+      expect(draftComingToNewYork(feed(events), known, { eventIds: ['a', 'gone'] })!
+        .slides.filter((s) => s.template === 'event')).toHaveLength(1);
+    });
+  });
+
   it('answers with nothing rather than a thin post when the month is quiet', () => {
     expect(draftComingToNewYork(feed([events[0]!]), known)).toBeNull();
     expect(draftComingToNewYork(feed(events), new Map())).toBeNull();

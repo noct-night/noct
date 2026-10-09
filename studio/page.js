@@ -23,14 +23,14 @@
    * reel arrives finished from `npm run clip` and is only watched and captioned. Mixing them in one queue
    * meant the reel sat under every deck, because reels carry no date and the list sorts by one.
    *
-   * Analytics is a section with one thing in it today. That is deliberate -- the calendar is the record of
-   * what went out, which is the same question the numbers will answer, so it is where they will go.
+   * Dashboard is first and is where the studio opens. What went out and what it did are the two things
+   * worth seeing without being asked for -- the calendar is the record, the traffic is the result, and they
+   * answer the same question from two sides. Post and Reel are work, and work is something you go to.
    */
   var SECTIONS = [
+    { k: 'analytics', t: 'Dashboard' },
     { k: 'post', t: 'Post' },
     { k: 'reel', t: 'Reel' },
-    { k: 'analytics', t: 'Analytics' },
-    { k: 'traffic', t: 'Traffic' },
   ];
   /** The review states, which belong to Post. Post copy and Draft act on decks, so they sit here too. */
   var POST_TABS = [
@@ -40,7 +40,7 @@
     { k: 'passed', t: 'Passed' },
     { k: 'all', t: 'Everything' },
   ];
-  var ANALYTICS_TABS = [{ k: 'calendar', t: 'Calendar' }];
+  var ANALYTICS_TABS = [{ k: 'calendar', t: 'Calendar' }, { k: 'traffic', t: 'Traffic' }];
   /** Every sub-tab there is, for naming an empty state without asking which section it came from. */
   var FILTERS = POST_TABS.concat(ANALYTICS_TABS);
   var LABEL = { queued: 'In queue', approved: 'Approved', passed: 'Passed', posted: 'Published' };
@@ -116,15 +116,17 @@
   var DRAFT_KINDS = [
     { k: 'weekend', t: 'This weekend', hint: 'The weekend guide: cover, top nights, tables' },
     { k: 'genre', t: 'Genre editions', hint: 'Up to 3, one per strong genre this weekend' },
-    { k: 'spotlight', t: 'Spotlights', hint: 'The 3 most anticipated nights, next 2 weeks' },
+    // `ask` means the pick is the whole decision, so it is shown before anything is drafted.
+    { k: 'spotlight', t: 'Spotlights', hint: 'The 3 most anticipated nights, next 2 weeks', ask: 1 },
     { k: 'venue', t: 'Venue posts', hint: 'The 4 busiest venues, next 2 weeks' },
-    { k: 'artists', t: 'Coming to New York', hint: 'The biggest names playing here in the next month' },
+    { k: 'artists', t: 'Coming to New York', hint: 'The biggest names playing here in the next month', ask: 1 },
   ];
+  var ASKS = { spotlight: 1, artists: 1 };
 
   var posts = [];
-  var section = 'post';
+  var section = 'analytics';
   var filter = 'queued';
-  /** Analytics has one view today; naming it now means adding the second one is a list entry. */
+  /** Which half of the dashboard is open: the record of what went out, or what it did. */
   var analyticsView = 'calendar';
   /** post id -> array of signed render URLs, in slide order. Dropped whenever the deck or the look changes. */
   var shots = {};
@@ -323,9 +325,11 @@
 
   /** A sub-tab: a review state within Post, or a view within Analytics. */
   function chipFor(f) {
-    var current = f.k === 'calendar' ? analyticsView === f.k : filter === f.k;
+    var analytic = f.k === 'calendar' || f.k === 'traffic';
+    var current = analytic ? analyticsView === f.k : filter === f.k;
     var n = f.k === 'all' ? decks().length
       : f.k === 'calendar' ? posts.filter(function (p) { return p.status === 'posted'; }).length
+      : f.k === 'traffic' ? (traffic.data ? traffic.data.visits.recent : null)  /* the week's visits, once read */
       : decks().filter(function (p) { return p.status === f.k; }).length;
     return '<button type="button" class="chip" data-f="' + f.k + '" aria-current="' + current + '">'
       + f.t + (n == null ? '' : '<span class="n">' + n + '</span>') + '</button>';
@@ -333,10 +337,7 @@
 
   /** A section: the question you are asking, not the state you are filtering by. */
   function sectionChip(sec) {
-    var n = sec.k === 'post' ? decks().length
-      : sec.k === 'reel' ? reels().length
-      : sec.k === 'traffic' ? (traffic.data ? traffic.data.visits.recent : null)  /* the week's visits, once read */
-      : null;
+    var n = sec.k === 'post' ? decks().length : sec.k === 'reel' ? reels().length : null;
     return '<button type="button" class="chip" data-s="' + sec.k + '" aria-current="' + (section === sec.k) + '">'
       + sec.t + (n == null ? '' : '<span class="n">' + n + '</span>') + '</button>';
   }
@@ -465,8 +466,10 @@
 
   function renderStream() {
     var host = byId('stream');
-    if (section === 'analytics') { renderCalendar(host); return; }
-    if (section === 'traffic') { renderTraffic(host); return; }
+    if (section === 'analytics') {
+      if (analyticsView === 'traffic') renderTraffic(host); else renderCalendar(host);
+      return;
+    }
     var list = visible();
 
     if (!list.length) {
@@ -862,7 +865,108 @@
    * Draft one kind of post. The weekend answers with one post; genre editions and spotlights answer with
    * several, so both shapes are folded into the list the same way: replace a post already shown, else add it.
    */
+  /**
+   * Show what drafting would choose, before it chooses.
+   *
+   * Spotlights and Coming to New York are the two posts where the pick is the whole decision -- the three
+   * most anticipated nights, the five biggest names -- and the only way to see that pick used to be to
+   * draft it and read the result. This asks first; the list she settles on is what gets drafted.
+   */
+  function openDraftPreview(kind) {
+    var host = byId('stream');
+    var old = document.querySelector('.ask-form');
+    if (old) old.remove();
+    var panel = document.createElement('div');
+    panel.className = 'photo-form panel ask-form';
+    panel.setAttribute('data-kind', kind);
+    panel.innerHTML = '<p class="photo-name">Reading the feed\u2026</p>';
+    host.parentNode.insertBefore(panel, host);
+    api('/api/posts?preview=' + encodeURIComponent(kind)).then(function (res) {
+      panel._chosen = (res.picks || []).slice();
+      panel._max = res.max;
+      var artists = kind === 'artists';
+      panel.innerHTML = '<p class="photo-name">' + (artists ? 'Who Coming to New York would lead with' : 'The nights Spotlights would choose') + '</p>'
+        + '<p class="panel-note">' + (artists
+            ? 'Ranked by Spotify followers, which never appear on a slide.'
+            : 'Ranked by how many people are interested, one per venue.')
+          + ' Up to ' + res.max + '; the ones already chosen are marked. Change them if you disagree, then draft.'
+          + (res.pending ? ' ' + res.pending + ' names have not been looked up yet, so a bigger one may still turn up.' : '')
+          + '</p>'
+        + '<ol class="nights-list">'
+        + (res.candidates || []).map(function (c) {
+            var meta = artists
+              ? [c.when, c.venue, Math.round((c.followers || 0) / 1000) + 'k followers'].filter(Boolean).join('  /  ')
+              : [c.when + (c.door ? ' ' + c.door : ''), c.venue, c.genre, c.interested ? c.interested + ' interested' : ''].filter(Boolean).join('  /  ');
+            return '<li>'
+              + '<span class="nights-order"></span>'
+              + '<span class="nights-text"><b>' + esc(artists ? c.artist : c.name) + '</b><span>' + esc(meta)
+              +   (artists && c.confident === false ? ' <i class="unsure">name matched on a guess</i>' : '')
+              + '</span></span>'
+              + '<span class="nights-pick">'
+              +   '<button type="button" data-ask="' + esc(c.id) + '" aria-pressed="false">Include</button>'
+              + '</span>'
+              + '</li>';
+          }).join('')
+        + '</ol>'
+        + '<div class="photo-acts">'
+        +   '<span class="nights-counts"></span>'
+        +   '<button type="button" class="btn btn-go" data-ask-act="draft">Draft these</button>'
+        +   '<button type="button" class="btn" data-ask-act="cancel">Cancel</button>'
+        +   '<span class="photo-status"></span>'
+        + '</div>';
+      paintAsk(panel);
+    }).catch(function (err) {
+      panel.innerHTML = '<p class="photo-name">' + esc(err.message) + '</p>'
+        + '<div class="photo-acts"><button type="button" class="btn" data-ask-act="cancel">Close</button></div>';
+    });
+  }
+
+  function paintAsk(panel) {
+    Array.prototype.forEach.call(panel.querySelectorAll('[data-ask]'), function (btn) {
+      var at = panel._chosen.indexOf(btn.getAttribute('data-ask'));
+      btn.setAttribute('aria-pressed', at >= 0);
+      btn.closest('li').querySelector('.nights-order').textContent = at >= 0 ? String(at + 1) : '';
+    });
+    var counts = panel.querySelector('.nights-counts');
+    if (counts) counts.textContent = panel._chosen.length + ' of ' + panel._max;
+  }
+
+  function toggleAsk(panel, btn) {
+    var id = btn.getAttribute('data-ask');
+    var at = panel._chosen.indexOf(id);
+    var status = panel.querySelector('.photo-status');
+    if (at >= 0) { panel._chosen.splice(at, 1); status.textContent = ''; }
+    else if (panel._chosen.length >= panel._max) {
+      status.textContent = 'That is ' + panel._max + ' already. Take one off first.';
+    } else { panel._chosen.push(id); status.textContent = ''; }
+    paintAsk(panel);
+  }
+
+  function draftAsked(panel, btn) {
+    var kind = panel.getAttribute('data-kind');
+    var status = panel.querySelector('.photo-status');
+    if (!panel._chosen.length) { status.textContent = 'Choose at least one.'; return; }
+    btn.disabled = true;
+    status.textContent = 'Drafting\u2026';
+    api('/api/posts?draft=' + encodeURIComponent(kind), { method: 'POST', body: { events: panel._chosen } })
+      .then(function (res) {
+        var drafted = res.posts || (res.post ? [res.post] : []);
+        if (!drafted.length) { status.textContent = res.note || 'Nothing to draft'; btn.disabled = false; return; }
+        drafted.forEach(function (post) {
+          delete shots[post.id];
+          var i = posts.findIndex(function (p) { return p.id === post.id; });
+          if (i >= 0) posts[i] = post; else posts.unshift(post);
+        });
+        panel.remove();
+        section = 'post';
+        filter = 'queued';
+        render();
+      })
+      .catch(function (err) { status.textContent = err.message; btn.disabled = false; });
+  }
+
   function draftKind(kind, btn) {
+    if (ASKS[kind]) { openDraftPreview(kind); return; }
     var was = btn.textContent;
     btn.textContent = 'Drafting…';
     btn.disabled = true;
@@ -1198,7 +1302,34 @@
     return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1);
   }
 
+  /**
+   * The week in numbers, over the calendar.
+   *
+   * The dashboard is one page with two halves: what went out, and what it did. These are the headline
+   * figures from the traffic report, read once and shared with the Traffic tab; pressing one opens that tab
+   * where the rest of it is. Before the report has arrived they are dashes rather than zeroes, which would
+   * be a claim.
+   */
+  function calStats() {
+    var t = traffic.data;
+    var f = t && t.funnel;
+    var num = function (v) { return t ? String(v) : '\u2014'; };
+    var tile = function (label, value, sub) {
+      return '<button type="button" class="cal-stat" data-f="traffic">'
+        + '<span>' + label + '</span><b>' + value + '</b><small>' + sub + '</small></button>';
+    };
+    return '<div class="cal-stats">'
+      + tile('Visits, 7 days', num(t && t.visits.recent), t ? t.visits.window + ' in ' + t.window_days + ' days' : 'reading the report')
+      + tile('Devices, 7 days', num(t && t.devices.recent), t ? t.devices.new_recent + ' of them new' : '')
+      + tile('Came back', t ? t.returning_share + '%' : '\u2014', 'seen on two or more days')
+      + tile('Opened a night', t && f ? pct(f.opened_a_night, f.visited) : '\u2014', t && f ? f.opened_a_night + ' of ' + f.visited + ' devices' : '')
+      + '</div>';
+  }
+
   function renderCalendar(host) {
+    // The numbers come from the same report the Traffic tab reads; asking for it here is what makes the
+    // dashboard a dashboard rather than a calendar with a link to one.
+    if (!traffic.data && !traffic.loading && !traffic.error) loadTraffic(traffic.days, false);
     var today = nyDay(new Date());
     if (!calMonth) calMonth = today.slice(0, 7);
     var y = +calMonth.slice(0, 4);
@@ -1233,6 +1364,7 @@
     }
 
     host.innerHTML = '<section class="cal">'
+      + calStats()
       + '<div class="cal-head">'
       +   '<button type="button" class="cal-nav prev" data-cal="-1" aria-label="Previous month">' + CHEVRON + '</button>'
       +   '<h2>' + MONTHS[m - 1] + ' ' + y + '</h2>'
@@ -1408,6 +1540,15 @@
     });
 
     document.addEventListener('click', function (e) {
+      var ask = e.target.closest('button[data-ask]');
+      if (ask) { toggleAsk(ask.closest('.ask-form'), ask); return; }
+      var askAct = e.target.closest('button[data-ask-act]');
+      if (askAct) {
+        var panel = askAct.closest('.ask-form');
+        if (askAct.getAttribute('data-ask-act') === 'draft') draftAsked(panel, askAct);
+        else panel.remove();
+        return;
+      }
       var act = e.target.closest('button[data-cta-act]');
       if (!act) return;
       var panel = act.closest('.cta-form');
@@ -1416,6 +1557,9 @@
     });
 
     stream.addEventListener('click', function (e) {
+      // The dashboard's own numbers open the tab they came from.
+      var jump = e.target.closest('.cal-stat[data-f]');
+      if (jump) { analyticsView = jump.getAttribute('data-f'); render(); return; }
       var act = e.target.closest('button[data-act]');
       if (act && !act.disabled) {
         var id = act.closest('.row').getAttribute('data-id');

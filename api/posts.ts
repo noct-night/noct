@@ -8,6 +8,10 @@
  *   POST   /api/posts?draft=spotlight  draft the three most anticipated nights of the next two weeks
  *   POST   /api/posts?draft=venue      draft a post for each of the four busiest venues of the next two weeks
  *   POST   /api/posts?draft=artists    draft "Coming to New York": the biggest names playing here in the next month
+ *                                      spotlight and artists accept {events: [feed event id, ...]} to draft
+ *                                      exactly those, in that order
+ *   GET    /api/posts?preview=spotlight what drafting would choose, and what else it could have: chooses nothing
+ *   GET    /api/posts?preview=artists   the same for Coming to New York; looks names up on Spotify first
  *   GET    /api/posts?candidates=<uuid> the nights a weekend deck or genre edition can be built from
  *   POST   /api/posts?rebuild=<uuid>   rebuild that deck around chosen nights:
  *                                      {events: [id, ...], rows?: [id, ...]} -- slides, and the table rows
@@ -22,12 +26,18 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { z } from 'zod';
 import { buildFeed } from '../src/feed/query.js';
 import { knownArtists, resolveArtistSpotify, SpotifyError, WINDOW_DAYS } from '../src/enrich/artist_spotify.js';
-import { draftComingToNewYork } from '../src/post/artists.js';
+import {
+  ARTIST_SLIDES, draftComingToNewYork, MIN_FOLLOWERS, namesFor, pickBigNames, type BigName,
+} from '../src/post/artists.js';
 import { candidatesFor, cannotChoose, deckSource, deckWindow } from '../src/post/choose.js';
 import { ctaSlide, currentCta, currentHouseLines, houseLinesSchema, saveCta, saveHouseLines } from '../src/post/cta.js';
 import type { FeedResponse } from '../src/feed/shape.js';
-import { draftWeekend, HERO_MAX, type DeckOptions } from '../src/post/draft.js';
-import { draftGenreEditions, draftSpotlights, draftVenuePosts, type EditionDraft } from '../src/post/editions.js';
+import {
+  candidateNights, draftWeekend, headlineOf, HERO_MAX, isNightOut, pickHeroes, type DeckOptions,
+} from '../src/post/draft.js';
+import {
+  draftGenreEditions, draftSpotlights, draftVenuePosts, spotlightsFor, SPOTLIGHTS, type EditionDraft,
+} from '../src/post/editions.js';
 import { attachCredits } from '../src/post/photos.js';
 import { localDatePlus } from '../src/lib/time.js';
 import { getPost, listPosts, patchPost, PostConflict, upsertDraft } from '../src/post/store.js';
@@ -88,8 +98,12 @@ const SPOTLIGHT_DAYS = 14;
  * One edition already approved, passed or published is a decision, so it is skipped and reported rather than
  * failing the whole batch -- the other two genre editions should still be drafted.
  */
-async function draftEditions(res: VercelResponse, kind: 'genre' | 'spotlight' | 'venue'): Promise<void> {
+async function draftEditions(
+  req: VercelRequest, res: VercelResponse, kind: 'genre' | 'spotlight' | 'venue',
+): Promise<void> {
   const log = createLogger('api:posts');
+  const chosen = kind === 'spotlight' ? chosenNights(req, res) : undefined;
+  if (chosen === null) return;
   const { from, to } = kind === 'genre' ? weekendRange() : { from: localDatePlus(0), to: localDatePlus(SPOTLIGHT_DAYS - 1) };
   const feed = await buildFeed({ from, to });
   const cta = ctaSlide(await currentCta());
@@ -98,7 +112,7 @@ async function draftEditions(res: VercelResponse, kind: 'genre' | 'spotlight' | 
     ? draftGenreEditions(feed, undefined, undefined, cta, house)
     : kind === 'venue'
       ? draftVenuePosts(feed, undefined, undefined, cta, house)
-      : draftSpotlights(feed, undefined, cta, house);
+      : chosen ? spotlightsFor(feed, chosen, cta, house) : draftSpotlights(feed, undefined, cta, house);
   if (drafts.length === 0) {
     const note = kind === 'genre'
       ? `no genre has enough nights for an edition between ${from} and ${to}`
@@ -245,8 +259,93 @@ async function cta(req: VercelRequest, res: VercelResponse): Promise<void> {
  * budget, because someone is waiting on this. What is looked up is stored (0037), so a second press picks up
  * where the first stopped and a month that has been drafted before is instant.
  */
-async function draftArtists(res: VercelResponse): Promise<void> {
+/** How many nights a preview offers to choose from. Enough to disagree with the pick, few enough to read. */
+const PREVIEW_CANDIDATES = 12;
+
+const chosenSchema = z.object({ events: z.array(z.string().min(1).max(200)).max(10).optional() }).strict();
+
+/** The body of a draft request, or null once a 400 has been sent. */
+function chosenNights(req: VercelRequest, res: VercelResponse): string[] | null | undefined {
+  if (req.body === undefined || req.body === null || req.body === '') return undefined;
+  const body = chosenSchema.safeParse(req.body);
+  if (!body.success) {
+    sendJson(res, 400, { error: 'body must be {events: [feed event id, ...]}' }, NO_STORE);
+    return null;
+  }
+  return body.data.events;
+}
+
+/** The window a spotlight or a Coming to New York post is drawn from. */
+const spotlightWindow = (): { from: string; to: string } => ({ from: localDatePlus(0), to: localDatePlus(SPOTLIGHT_DAYS - 1) });
+
+/** One night as the studio lists it in a preview. */
+const nightRow = (feed: FeedResponse, ev: FeedResponse['events'][number]): Record<string, unknown> => {
+  const day = feed.days[ev.d];
+  return {
+    id: ev.id,
+    name: headlineOf(ev),
+    venue: ev.room ? `${ev.venue} / ${ev.room}` : ev.venue,
+    when: day ? `${day.label} ${day.sub}` : '',
+    door: ev.door,
+    genre: ev.primary ?? ev.genre[0] ?? '',
+    interested: ev.interested,
+  };
+};
+
+const nameRow = (feed: FeedResponse, pick: BigName): Record<string, unknown> => ({
+  id: pick.ev.id,
+  artist: pick.artist.name,
+  followers: pick.artist.followers,
+  confident: pick.artist.confident,
+  venue: pick.ev.room ? `${pick.ev.venue} / ${pick.ev.room}` : pick.ev.venue,
+  when: feed.days[pick.ev.d] ? `${feed.days[pick.ev.d]!.label} ${feed.days[pick.ev.d]!.sub}` : '',
+});
+
+/**
+ * What drafting would choose, without drafting anything.
+ *
+ * The two posts that pick for her -- the three most anticipated nights, the biggest names of the month --
+ * are the two where the pick is the whole decision, and until now the only way to see it was to draft it and
+ * read the result. This answers the same question first, and `?draft=` then takes the list she settles on.
+ */
+async function preview(res: VercelResponse, kind: 'spotlight' | 'artists'): Promise<void> {
+  const { from, to } = spotlightWindow();
+  const feed = await buildFeed({ from, to });
+
+  if (kind === 'spotlight') {
+    const picks = pickHeroes(feed.events, SPOTLIGHTS);
+    const offered = candidateNights(feed.events.filter(isNightOut), PREVIEW_CANDIDATES);
+    const rows = [...picks, ...offered.filter((e) => !picks.includes(e))].map((ev) => nightRow(feed, ev));
+    sendJson(res, 200, { kind, picks: picks.map((e) => e.id), candidates: rows, max: SPOTLIGHTS, from, to }, NO_STORE);
+    return;
+  }
+
+  let looked;
+  try {
+    looked = await resolveArtistSpotify({ days: WINDOW_DAYS });
+  } catch (err) {
+    if (err instanceof SpotifyError || (err instanceof Error && err.message.includes('SPOTIFY_'))) {
+      sendJson(res, 503, { error: `Spotify is not set up on this deployment: ${err.message}` }, NO_STORE);
+      return;
+    }
+    throw err;
+  }
+  const month = await buildFeed({ from: localDatePlus(0), to: localDatePlus(WINDOW_DAYS - 1) });
+  const known = await knownArtists(month.events.flatMap((e) => e.lineup));
+  const offered = pickBigNames(month, known, PREVIEW_CANDIDATES, MIN_FOLLOWERS);
+  sendJson(res, 200, {
+    kind,
+    picks: offered.slice(0, ARTIST_SLIDES).map((p) => p.ev.id),
+    candidates: offered.map((p) => nameRow(month, p)),
+    max: ARTIST_SLIDES,
+    pending: looked.pending,
+  }, NO_STORE);
+}
+
+async function draftArtists(req: VercelRequest, res: VercelResponse): Promise<void> {
   const log = createLogger('api:posts');
+  const chosen = chosenNights(req, res);
+  if (chosen === null) return;
   const { from, to } = { from: localDatePlus(0), to: localDatePlus(WINDOW_DAYS - 1) };
   let looked;
   try {
@@ -262,7 +361,7 @@ async function draftArtists(res: VercelResponse): Promise<void> {
   const feed = await buildFeed({ from, to });
   const known = await knownArtists(feed.events.flatMap((e) => e.lineup));
   const draft = draftComingToNewYork(feed, known, {
-    cta: ctaSlide(await currentCta()), house: await currentHouseLines(),
+    cta: ctaSlide(await currentCta()), house: await currentHouseLines(), eventIds: chosen ?? undefined,
   });
   if (!draft) {
     // Two honest reasons, and they want different answers, so the note says which one it is.
@@ -320,14 +419,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const log = createLogger('api:posts');
   try {
     if (firstParam(req.query.cta) && (req.method === 'GET' || req.method === 'PUT')) return await cta(req, res);
+    const preview_ = firstParam(req.query.preview);
+    if (req.method === 'GET' && (preview_ === 'spotlight' || preview_ === 'artists')) return await preview(res, preview_);
     if (req.method === 'GET' && firstParam(req.query.candidates)) return await candidates(req, res);
     if (req.method === 'GET') return await list(req, res);
     if (req.method === 'POST' && firstParam(req.query.rebuild)) return await rebuild(req, res);
     if (req.method === 'POST' && firstParam(req.query.draft) === 'weekend') return await draft(req, res);
-    if (req.method === 'POST' && firstParam(req.query.draft) === 'genre') return await draftEditions(res, 'genre');
-    if (req.method === 'POST' && firstParam(req.query.draft) === 'spotlight') return await draftEditions(res, 'spotlight');
-    if (req.method === 'POST' && firstParam(req.query.draft) === 'venue') return await draftEditions(res, 'venue');
-    if (req.method === 'POST' && firstParam(req.query.draft) === 'artists') return await draftArtists(res);
+    if (req.method === 'POST' && firstParam(req.query.draft) === 'genre') return await draftEditions(req, res, 'genre');
+    if (req.method === 'POST' && firstParam(req.query.draft) === 'spotlight') return await draftEditions(req, res, 'spotlight');
+    if (req.method === 'POST' && firstParam(req.query.draft) === 'venue') return await draftEditions(req, res, 'venue');
+    if (req.method === 'POST' && firstParam(req.query.draft) === 'artists') return await draftArtists(req, res);
     if (req.method === 'PATCH') return await patch(req, res);
     sendJson(res, 405, { error: 'method not allowed' }, { allow: 'GET, POST, PUT, PATCH' });
   } catch (err) {
