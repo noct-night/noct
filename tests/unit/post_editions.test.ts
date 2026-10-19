@@ -225,13 +225,17 @@ describe('draftVenuePosts', () => {
     expect(posts.map((p) => p.edition)).toEqual(['Public Records', 'Nowadays']);
   });
 
-  it('is the venue, its coming nights, then the CTA, filed under the venue name with no date', () => {
+  it('is the venue title and story, its coming nights, then the CTA, filed under the venue name with no date', () => {
     const p = posts[1]!;
-    expect(p.slides.map((x) => x.template)).toEqual(['venue', 'table', 'cta']);
+    expect(p.slides.map((x) => x.template)).toEqual(['venuetitle', 'venuestory', 'table', 'cta']);
     expect(p).toMatchObject({ series: 'venues', slot: null, edition: 'Nowadays' });
     expect(p.slides[0]).toMatchObject({
-      template: 'venue',
+      template: 'venuetitle',
       data: { name: 'Nowadays', hood: 'Ridgewood, Queens', foot: '56-06 Cooper Ave', image: null, verified: true },
+    });
+    expect(p.slides[1]).toMatchObject({
+      template: 'venuestory',
+      data: { name: 'Nowadays', note: 'Underground, warehouse. Mostly deep house.', says: '', foot: 'Ridgewood, Queens' },
     });
   });
 
