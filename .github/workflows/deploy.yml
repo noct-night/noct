@@ -1,0 +1,63 @@
+name: Deploy NOCT production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: noct-production
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    if: github.repository == 'noct-night/noct' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: ''
+      NOCT_LIVE: ''
+    steps:
+      - name: Check out the approved source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Type check
+        run: npm run typecheck
+      - name: Run offline unit tests
+        run: npm test -- tests/unit
+
+  deploy:
+    if: github.repository == 'noct-night/noct' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out the validated source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      # The single-project token intentionally cannot read /v2/user, which the
+      # Vercel CLI requires. Use the documented source deployment API instead;
+      # Vercel builds the existing TypeScript functions and retains project env.
+      - name: Build and deploy NOCT on Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: node scripts/deploy-vercel.ts
