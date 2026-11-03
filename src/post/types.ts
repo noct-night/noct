@@ -30,14 +30,14 @@ export type Tone = (typeof TONES)[number];
 export const toneSchema = z.enum(TONES).default('x1');
 
 /**
- * One treatment across every flyer is what makes an inconsistent set of promoter artwork read as one feed, so
- * the post carries a default. A slide can still choose its own (SlideImage.treatment): after review, a raw
+ * Raw by default, after a season of posting: the colour is what the night looked like, and a feed of grey
+ * reads as stock. The post carries a default and A slide can still choose its own (SlideImage.treatment): after review, a raw
  * photo next to mono flyers was sometimes the right call, and only a person looking at it can make it.
  * The filter chains live in src/post/treat.ts.
  */
 export const TREATMENTS = ['none', 'mono', 'crush', 'warm'] as const;
 export type Treatment = (typeof TREATMENTS)[number];
-export const treatmentSchema = z.enum(TREATMENTS).default('mono');
+export const treatmentSchema = z.enum(TREATMENTS).default('none');
 
 /**
  * How a flyer fills the 1080x1350 frame. `cover` is the design (full bleed, type at the bottom) and the

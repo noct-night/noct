@@ -40,7 +40,7 @@ export interface Node {
  * serving the old design for up to 24 hours, in the studio and to Meta alike. The version rides in the URL
  * so a design change is a new URL.
  */
-export const RENDER_VERSION = 10;
+export const RENDER_VERSION = 11;
 
 /** The margin at the top and bottom edges. */
 const PAD = 54;
@@ -125,6 +125,37 @@ const slab = (
   value: string, fontSize: number, em: number, lineHeight: number, color = WHITE, extra: Record<string, unknown> = {},
 ): Node => text(value, { fontSize, fontWeight: 700, letterSpacing: track(fontSize, em), lineHeight, color, ...extra });
 
+/**
+ * One scale for every slide that leads with a sentence.
+ *
+ * The cover set its title at 60, the venues cover at 88, the note at 86, and each of them set the line
+ * under the title at the title's own size -- so five title slides were five designs, and a date read as
+ * loudly as what the post was about. A title is a title, whatever the post; this is the only size it is.
+ *
+ * The step-down is by the longest line, because satori wraps on width and a long lede at 86 would run into
+ * the foot. Five sizes, not a formula: the jumps are visible, which is what makes them look chosen.
+ */
+const TITLE = { size: 86, em: -0.045, lead: 1.05 } as const;
+const TITLE_STEPS: [number, number][] = [[26, 86], [34, 74], [44, 64], [60, 54], [Infinity, 46]];
+
+export function titleSize(value: string): number {
+  const longest = lines(value).reduce((n, l) => Math.max(n, l.length), 0);
+  return (TITLE_STEPS.find(([at]) => longest <= at) ?? TITLE_STEPS[TITLE_STEPS.length - 1]!)[1];
+}
+
+/** The title block: the author's own line breaks, at one size for the whole block. */
+const titleLines = (value: string, color = WHITE, extra: Record<string, unknown> = {}): Node[] => {
+  const size = titleSize(value);
+  return lines(value).map((line) => slab(line, size, TITLE.em, TITLE.lead, color, extra));
+};
+
+/**
+ * The line under a title: the date, the subtitle, the sentence after. Subordinate on purpose -- it was the
+ * title's own size on three of these slides, which made every cover read as two headlines.
+ */
+const subLine = (value: string, extra: Record<string, unknown> = {}): Node =>
+  text(value, { fontSize: 42, fontWeight: 500, color: G1, lineHeight: 1.26, letterSpacing: track(42, -0.012), ...extra });
+
 // ── The seven templates ─────────────────────────────────────────────────────
 
 /**
@@ -138,8 +169,8 @@ function cover(d: { lede: string; date: string; foot: string }, type: Typefaces)
   return [
     wordmark(type),
     centred([
-      ...lines(d.lede).map((line) => slab(line, 60, -0.042, 1.07)),
-      ...(d.date ? [slab(d.date, 60, -0.042, 1.07, G1, { marginTop: 14 })] : []),
+      ...titleLines(d.lede),
+      ...(d.date ? [subLine(d.date, { marginTop: 20 })] : []),
     ]),
     swipeFoot(d.foot),
   ];
@@ -391,8 +422,8 @@ function venueCover(d: { lede: string; sub: string; foot: string }, type: Typefa
   return [
     wordmark(type),
     centred([
-      slab(d.lede, 88, -0.046, 1.04),
-      ...(d.sub ? [slab(d.sub, 88, -0.046, 1.04, G1, { marginTop: 14 })] : []),
+      ...titleLines(d.lede),
+      ...(d.sub ? [subLine(d.sub, { marginTop: 20 })] : []),
     ]),
     swipeFoot(d.foot),
   ];
@@ -419,13 +450,21 @@ const LABEL_INK = '#121212';
 const LABEL_DIM = 'rgba(18,18,18,.58)';
 
 /** A line of label type: centred in its box, so a two-line title stacks on the circle's axis. */
+/**
+ * The title's size inside the label: the same steps as a slide title, scaled to the disc.
+ *
+ * A label is a 620px measure rather than a 944px one, so the ladder starts lower -- but it is the same
+ * ladder, which is what keeps a vinyl slide in the same family as the covers it sits beside.
+ */
+const labelSize = (value: string): number => Math.round(titleSize(value) * 0.72);
+
 const labelLines = (
   value: string, fontSize: number, em: number, color = LABEL_INK, weight = 700,
 ): Node[] =>
   lines(value).map((line) =>
     text(line, {
       fontSize, fontWeight: weight, letterSpacing: track(fontSize, em),
-      lineHeight: 1.18, color, textAlign: 'center',
+      lineHeight: 1.16, color, textAlign: 'center',
     }));
 
 function vinyl(
@@ -445,9 +484,11 @@ function vinyl(
         width: LABEL_D, height: LABEL_D, borderRadius: LABEL_R, backgroundColor: LABEL, display: 'flex',
       },
       [
-        // Title, above the hole. 620 wide against a 634 chord at y=150.
-        column({ position: 'absolute', left: 100, right: 100, top: 150, alignItems: 'center' },
-          labelLines(d.title, 44, -0.012)),
+        // Title, above the hole. 620 wide against a 634 chord at y=150. Set at the title scale's own
+        // proportion of its frame rather than at a size picked for the circle: at 44 on an 820 label it
+        // read as small print on a big white disc, which is not what a record label looks like.
+        column({ position: 'absolute', left: 100, right: 100, top: 142, alignItems: 'center' },
+          labelLines(d.title, labelSize(d.title), -0.03)),
         // The label's waist. Mark left of the hole, speed right of it, each set 45px off its edge so the
         // two balance about the centre rather than about the label.
         el({
@@ -462,10 +503,11 @@ function vinyl(
           text(d.side, { fontSize: 19, fontWeight: 600, letterSpacing: track(19, 0.1), color: LABEL_DIM }),
           text(d.rpm, { fontSize: 19, fontWeight: 600, letterSpacing: track(19, 0.1), color: LABEL_DIM, marginTop: 6 }),
         ]),
-        // Sub, below the hole. The widest part of the circle, so it takes the title's measure.
+        // Sub, below the hole: the date, the side, whatever the title is not. Set like the catalogue line
+        // on a real label -- small, spaced, upper case -- so it cannot be read as a second title.
         ...(d.sub
-          ? [column({ position: 'absolute', left: 100, right: 100, top: 476, alignItems: 'center' },
-              labelLines(d.sub, 44, -0.012))]
+          ? [column({ position: 'absolute', left: 90, right: 90, top: 486, alignItems: 'center' },
+              labelLines(d.sub.toUpperCase(), 26, 0.12, LABEL_INK, 600))]
           : []),
         // Small print. 420 wide, against a 464 chord at y=748 where a fourth line would land.
         ...(d.note
@@ -483,8 +525,8 @@ function note(d: { text: string; after: string; foot: string }, type: Typefaces)
   return [
     wordmark(type),
     centred([
-      slab(d.text, 86, -0.045, 1.08),
-      ...(d.after ? [text(d.after, { fontSize: 42, color: G1, marginTop: 40, maxWidth: 800, lineHeight: 1.42 })] : []),
+      ...titleLines(d.text),
+      ...(d.after ? [subLine(d.after, { marginTop: 28, maxWidth: 880 })] : []),
     ]),
     foot(d.foot),
   ];
@@ -511,9 +553,14 @@ function cta(d: { question: string; answer: string; link: string; note: string }
   return [
     wordmark(type),
     centred([
+      // The one title slide set lighter than the rest, and deliberately: the last slide is an invitation
+      // rather than a headline. It still steps with the same scale, two steps down from a title.
       ...lines(d.question).map((line) =>
-        text(line, { fontSize: 62, fontWeight: 500, letterSpacing: track(62, -0.02), lineHeight: 1.12 })),
-      ...(d.answer ? [text(d.answer, { fontSize: 46, fontWeight: 400, color: G1, lineHeight: 1.2, marginTop: 24 })] : []),
+        text(line, {
+          fontSize: Math.min(titleSize(d.question), 64), fontWeight: 500,
+          letterSpacing: track(Math.min(titleSize(d.question), 64), -0.02), lineHeight: 1.14,
+        })),
+      ...(d.answer ? [subLine(d.answer, { marginTop: 24 })] : []),
     ]),
     // One line, lifted off the edge: the link and its instruction read as one thing, and the bottom 54px is
     // where Instagram's own carousel dots and a thumb both sit.
