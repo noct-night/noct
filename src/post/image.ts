@@ -24,6 +24,9 @@ import { politeFetch } from '../lib/http.js';
  */
 export const DEFAULT_IMAGE_HOSTS = [
   'images.ra.co',
+  // Pinterest's image host. Pins are imported one link at a time, by hand, with a credit -- the board
+  // itself is not read: pinterest.com/robots.txt names the bots it allows and ours is not one of them.
+  'i.pinimg.com',
   'dice-media.imgix.net',
   's1.ticketm.net',
   'media.ticketmaster.com',

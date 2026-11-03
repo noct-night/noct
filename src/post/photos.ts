@@ -57,12 +57,50 @@ export async function normalisePhoto(input: Buffer): Promise<{ jpeg: Buffer; wid
   }
 }
 
-export async function savePhoto(jpeg: Buffer, width: number, height: number, source: string): Promise<string> {
+export async function savePhoto(
+  jpeg: Buffer, width: number, height: number, source: string, archived = false,
+): Promise<string> {
   const { rows } = await query<{ photo_id: string }>(
-    `insert into ig_photo (bytes, width, height, source) values ($1, $2, $3, $4) returning photo_id`,
-    [jpeg, width, height, source.trim()],
+    `insert into ig_photo (bytes, width, height, source, archived) values ($1, $2, $3, $4, $5) returning photo_id`,
+    [jpeg, width, height, source.trim(), archived],
   );
   return rows[0]!.photo_id;
+}
+
+/** One photograph on the cover shelf, as the studio lists it. The bytes are fetched one at a time. */
+export interface ArchivedPhoto {
+  id: string;
+  source: string;
+  width: number;
+  height: number;
+  added_at: string;
+}
+
+/** The shelf, newest first. Bytes are deliberately not read here: a grid of twenty would be megabytes. */
+export async function archivedPhotos(limit = 60): Promise<ArchivedPhoto[]> {
+  const { rows } = await query<{ photo_id: string; source: string; width: number; height: number; created_at: Date | string }>(
+    `select photo_id, source, width, height, created_at from ig_photo
+      where archived order by created_at desc limit $1`,
+    [limit],
+  );
+  return rows.map((r) => ({
+    id: r.photo_id,
+    source: r.source,
+    width: r.width,
+    height: r.height,
+    added_at: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
+  }));
+}
+
+/** Whether this photo exists, so a slide is never pointed at an id that is not there. */
+export async function photoExists(id: string): Promise<boolean> {
+  const { rows } = await query<{ ok: number }>(`select 1 as ok from ig_photo where photo_id = $1`, [id]);
+  return rows.length > 0;
+}
+
+/** Take a photograph off the shelf. A slide already using it keeps working: the row stays. */
+export async function unshelvePhoto(id: string): Promise<void> {
+  await query(`update ig_photo set archived = false where photo_id = $1`, [id]);
 }
 
 export async function loadPhoto(id: string): Promise<Buffer> {

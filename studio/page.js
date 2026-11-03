@@ -402,7 +402,8 @@
     var tools = '<div class="shot-tools">' + save + '</div>';
     if (!locked) {
       var photo = takesImage
-        ? '<button type="button" data-photo="add" data-slide="' + n + '">' + (img ? 'Change photo' : 'Add photo') + '</button>'
+        ? '<button type="button" data-shelf="' + n + '">From archive</button>'
+          + '<button type="button" data-photo="add" data-slide="' + n + '">' + (img ? 'Change photo' : 'Add photo') + '</button>'
           + (isStudioPhoto(img) ? '<button type="button" data-photo="remove" data-slide="' + n + '">'
               + (img.flyer ? 'Back to flyer' : 'Remove photo') + '</button>' : '')
         : '';
@@ -1011,6 +1012,120 @@
     picker.click();
   }
 
+  // ── the cover shelf ───────────────────────────────────────────────────────
+  // Covers are collected over a week and chosen when the deck is drafted, usually on a phone. The shelf is
+  // where a photograph waits for a post to belong to: added with its credit, picked with one tap.
+
+  var shelfPicker = null;
+
+  function openShelf(postId, n) {
+    var panel = openPanel(postId, 'shelf-form', '<p class="photo-name">Opening the archive\u2026</p>');
+    if (!panel) return;
+    panel.setAttribute('data-slide', n);
+    loadShelf(panel);
+  }
+
+  function loadShelf(panel) {
+    api('/api/photos?archive=1').then(function (res) { paintShelf(panel, res.photos || []); })
+      .catch(function (err) {
+        panel.innerHTML = '<p class="photo-name">' + esc(err.message) + '</p>'
+          + '<div class="photo-acts"><button type="button" class="btn" data-shelf-act="close">Close</button></div>';
+      });
+  }
+
+  function paintShelf(panel, photos) {
+    panel.innerHTML = '<p class="photo-name">Cover archive</p>'
+      + '<p class="panel-note">Tap one to use it on this slide. It stays in the archive for the next post,'
+      + ' and its credit goes in the caption when the post publishes.</p>'
+      + (photos.length
+        ? '<div class="shelf">' + photos.map(function (p) {
+            return '<figure class="shelf-item">'
+              + '<button type="button" data-use="' + esc(p.id) + '" title="' + esc(p.source) + '">'
+              +   '<img src="/api/photos?id=' + encodeURIComponent(p.id) + '" alt="" loading="lazy">'
+              + '</button>'
+              + '<figcaption>' + esc(p.source) + '</figcaption>'
+              + '<button type="button" class="shelf-drop" data-drop="' + esc(p.id) + '" aria-label="Remove from the archive">Remove</button>'
+              + '</figure>';
+          }).join('') + '</div>'
+        : '<p class="panel-note">Nothing in the archive yet.</p>')
+      + '<div class="shelf-add">'
+      +   '<button type="button" class="btn" data-shelf-act="upload">Add photos</button>'
+      +   '<input type="url" data-shelf-url placeholder="or paste an image link" inputmode="url">'
+      +   '<input type="text" data-shelf-source maxlength="200" placeholder="Where it is from, e.g. Pinterest / @nowadaysnyc">'
+      +   '<button type="button" class="btn" data-shelf-act="link">Add link</button>'
+      + '</div>'
+      + '<div class="photo-acts">'
+      +   '<button type="button" class="btn" data-shelf-act="close">Close</button>'
+      +   '<span class="photo-status"></span>'
+      + '</div>';
+  }
+
+  /**
+   * Several photos at once, which on a phone is the camera roll's own multi-select. Each is resized in the
+   * browser and uploaded in turn: one request per photo keeps every one of them under the body limit.
+   */
+  function uploadToShelf(panel) {
+    if (!shelfPicker) {
+      shelfPicker = document.createElement('input');
+      shelfPicker.type = 'file';
+      shelfPicker.accept = 'image/*';
+      shelfPicker.multiple = true;
+      shelfPicker.hidden = true;
+      document.body.appendChild(shelfPicker);
+    }
+    shelfPicker.value = '';
+    shelfPicker.onchange = function () {
+      var files = Array.prototype.slice.call(shelfPicker.files || []);
+      if (!files.length) return;
+      var where = panel.querySelector('[data-shelf-source]');
+      var said = where && where.value.trim();
+      var status = panel.querySelector('.photo-status');
+      var done = 0;
+      status.textContent = 'Adding ' + files.length + '\u2026';
+      files.reduce(function (chain, file) {
+        return chain.then(function () {
+          return resizeToJpeg(file)
+            .then(function (data) {
+              return api('/api/photos?archive=1', { method: 'POST', body: { data: data, source: said || file.name } });
+            })
+            .then(function (res) { done += 1; status.textContent = done + ' of ' + files.length + ' added'; return res; });
+        });
+      }, Promise.resolve()).then(function (res) {
+        paintShelf(panel, (res && res.photos) || []);
+        panel.querySelector('.photo-status').textContent = done + ' added';
+      }).catch(function (err) { status.textContent = err.message; });
+    };
+    shelfPicker.click();
+  }
+
+  function addShelfLink(panel) {
+    var url = panel.querySelector('[data-shelf-url]').value.trim();
+    var said = panel.querySelector('[data-shelf-source]').value.trim();
+    var status = panel.querySelector('.photo-status');
+    if (!url) { status.textContent = 'Paste the link to the image first.'; return; }
+    if (!said) { status.textContent = 'Say where it is from: it goes in the caption.'; return; }
+    status.textContent = 'Fetching\u2026';
+    api('/api/photos?archive=1', { method: 'POST', body: { url: url, source: said } })
+      .then(function (res) { paintShelf(panel, res.photos || []); })
+      .catch(function (err) { status.textContent = err.message; });
+  }
+
+  function useShelfPhoto(panel, photoId) {
+    var postId = panel.getAttribute('data-post');
+    var n = +panel.getAttribute('data-slide');
+    var status = panel.querySelector('.photo-status');
+    status.textContent = 'Using it\u2026';
+    api('/api/photos?post=' + encodeURIComponent(postId) + '&slide=' + n, { method: 'POST', body: { photo: photoId } })
+      .then(function (res) { panel.remove(); replacePost(res.post); })
+      .catch(function (err) { status.textContent = err.message; });
+  }
+
+  function dropShelfPhoto(panel, photoId) {
+    api('/api/photos?archive=1&id=' + encodeURIComponent(photoId), { method: 'DELETE' })
+      .then(function (res) { paintShelf(panel, res.photos || []); })
+      .catch(function (err) { panel.querySelector('.photo-status').textContent = err.message; });
+  }
+
   function resizeToJpeg(file) {
     return new Promise(function (resolve, reject) {
       var url = URL.createObjectURL(file);
@@ -1569,6 +1684,24 @@
         else if (kind === 'copy') copyCaption(id, act);
         else if (kind === 'nights') openNights(id);
         else setStatus(id, kind === 'approve' ? 'approved' : 'passed');
+        return;
+      }
+      var shelfBtn = e.target.closest('button[data-shelf]');
+      if (shelfBtn) {
+        openShelf(shelfBtn.closest('.row').getAttribute('data-id'), +shelfBtn.getAttribute('data-shelf'));
+        return;
+      }
+      var use = e.target.closest('button[data-use]');
+      if (use) { useShelfPhoto(use.closest('.shelf-form'), use.getAttribute('data-use')); return; }
+      var drop = e.target.closest('button[data-drop]');
+      if (drop) { dropShelfPhoto(drop.closest('.shelf-form'), drop.getAttribute('data-drop')); return; }
+      var shelfAct = e.target.closest('button[data-shelf-act]');
+      if (shelfAct) {
+        var spanel = shelfAct.closest('.shelf-form');
+        var what = shelfAct.getAttribute('data-shelf-act');
+        if (what === 'close') spanel.remove();
+        else if (what === 'upload') uploadToShelf(spanel);
+        else addShelfLink(spanel);
         return;
       }
       var photoBtn = e.target.closest('button[data-photo]');
