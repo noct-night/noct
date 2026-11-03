@@ -135,6 +135,13 @@ describe('the page script', () => {
     expect(js).toContain('data-use=');
   });
 
+  it('says what is waiting on the dashboard, and publishes it from there', async () => {
+    const js = await asset('page.js');
+    expect(js).toContain('Waiting for you');
+    // One tap from opening the page on a phone to the post being up, which is why it drafts itself.
+    expect(js).toContain(".waiting-row button[data-act]");
+  });
+
   it('offers the rendered files and the caption, so a deck can go up by hand', async () => {
     const js = await asset('page.js');
     // The same signed URLs the preview draws and Instagram is handed: what is saved is what would post.

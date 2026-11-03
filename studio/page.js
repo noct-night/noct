@@ -1441,6 +1441,33 @@
       + '</div>';
   }
 
+  /**
+   * What is waiting, at the top of the dashboard.
+   *
+   * The weekend deck now drafts itself on Thursday morning (0040), so the first thing the studio should say
+   * is that there is something to read. Approved posts carry their Publish here too: from opening the page
+   * on a phone to the post being up is one tap, which is the whole point of the thing drafting itself.
+   */
+  function waiting() {
+    var rows = decks().filter(function (p) { return p.status === 'queued' || p.status === 'approved'; })
+      .sort(function (a, b) { return (a.status === 'approved' ? 0 : 1) - (b.status === 'approved' ? 0 : 1); })
+      .slice(0, 4);
+    if (!rows.length) return '';
+    return '<section class="waiting"><h2>Waiting for you</h2>'
+      + rows.map(function (p) {
+          return '<div class="waiting-row" data-id="' + esc(p.id) + '">'
+            + '<span class="waiting-what"><b>' + esc(headline(p)) + '</b>'
+            +   '<span>' + esc(p.slot || 'Unscheduled') + '  /  ' + esc(p.series) + '  /  ' + esc(LABEL[p.status] || p.status) + '</span>'
+            + '</span>'
+            + '<button type="button" class="btn" data-open="' + esc(p.id) + '">Review</button>'
+            + (p.status === 'approved'
+              ? '<button type="button" class="btn btn-go" data-act="publish">Publish</button>' : '')
+            + '<span class="state" data-state="' + esc(p.id) + '"></span>'
+            + '</div>';
+        }).join('')
+      + '</section>';
+  }
+
   function renderCalendar(host) {
     // The numbers come from the same report the Traffic tab reads; asking for it here is what makes the
     // dashboard a dashboard rather than a calendar with a link to one.
@@ -1478,7 +1505,8 @@
         + '</div>';
     }
 
-    host.innerHTML = '<section class="cal">'
+    host.innerHTML = waiting()
+      + '<section class="cal">'
       + calStats()
       + '<div class="cal-head">'
       +   '<button type="button" class="cal-nav prev" data-cal="-1" aria-label="Previous month">' + CHEVRON + '</button>'
@@ -1675,6 +1703,19 @@
       // The dashboard's own numbers open the tab they came from.
       var jump = e.target.closest('.cal-stat[data-f]');
       if (jump) { analyticsView = jump.getAttribute('data-f'); render(); return; }
+      // And a post waiting on the dashboard opens where it can be read.
+      var open = e.target.closest('button[data-open]');
+      if (open) {
+        var waitingPost = find(open.getAttribute('data-open'));
+        section = 'post';
+        filter = waitingPost ? waitingPost.status : 'queued';
+        render();
+        var row = document.querySelector('.row[data-id="' + open.getAttribute('data-open') + '"]');
+        if (row) row.scrollIntoView({ block: 'start' });
+        return;
+      }
+      var waitingAct = e.target.closest('.waiting-row button[data-act]');
+      if (waitingAct) { publish(waitingAct.closest('.waiting-row').getAttribute('data-id')); return; }
       var act = e.target.closest('button[data-act]');
       if (act && !act.disabled) {
         var id = act.closest('.row').getAttribute('data-id');
