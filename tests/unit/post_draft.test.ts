@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  candidateNights, CTA_SLIDE, draftWeekend, HERO_MAX, headlineOf, pickHeroes, shareRows, spanLabel, supportingCast,
+  candidateNights, CTA_SLIDE, draftWeekend, HERO_MAX, headlineOf, shareRows, spanLabel, supportingCast,
 } from '../../src/post/draft.js';
+import { curateHeroes } from '../../src/post/curate.js';
 import { daysToFriday, weekendRange } from '../../src/post/weekend.js';
 import { slideSchema, CAROUSEL_MAX, TABLE_ROWS_MAX, type Slide } from '../../src/post/types.js';
 import { HOUSE_LINES, SITE } from '../../src/post/caption.js';
@@ -65,31 +66,31 @@ describe('headlineOf', () => {
   });
 });
 
-describe('pickHeroes', () => {
-  it('ranks by interested, descending', () => {
-    const picked = pickHeroes([
+describe('picking the nights a deck leads with', () => {
+  it('leads with what is most wanted, all else equal', () => {
+    const picked = curateHeroes([
       ev({ id: 'a', venue: 'A', interested: 10 }),
       ev({ id: 'b', venue: 'B', interested: 400 }),
       ev({ id: 'c', venue: 'C', interested: 90 }),
-    ], 2);
+    ], { limit: 2 });
     expect(picked.map((p) => p.id)).toEqual(['b', 'c']);
   });
 
   it('takes at most one event per venue so one big room cannot own the deck', () => {
-    const picked = pickHeroes([
+    const picked = curateHeroes([
       ev({ id: 'a', venue: 'Avant Gardner', interested: 500 }),
       ev({ id: 'b', venue: 'Avant Gardner', interested: 400 }),
       ev({ id: 'c', venue: 'Nowadays', interested: 300 }),
       ev({ id: 'd', venue: 'BASEMENT', interested: 200 }),
-    ], 3);
-    expect(picked.map((p) => p.venue)).toEqual(['Avant Gardner', 'Nowadays', 'BASEMENT']);
+    ], { limit: 3 });
+    expect(new Set(picked.map((p) => p.venue))).toEqual(new Set(['Avant Gardner', 'Nowadays', 'BASEMENT']));
   });
 
   it('fills the deck rather than shipping short when every event shares a venue', () => {
-    const picked = pickHeroes([
+    const picked = curateHeroes([
       ev({ id: 'a', venue: 'Nowadays', interested: 3 }),
       ev({ id: 'b', venue: 'Nowadays', interested: 2 }),
-    ], 4);
+    ], { limit: 4 });
     expect(picked).toHaveLength(2);
     expect(new Set(picked.map((p) => p.id)).size).toBe(2);
   });
@@ -254,9 +255,11 @@ describe('draftWeekend', () => {
     });
 
     it('hands a quiet night’s unused rows back to the busy ones, so the tables are never short', () => {
-      // Sunday has three listings; the fourteen rows are still filled.
+      // Sunday has three listings and one of them leads the deck, so the tables hold what is left of it and
+      // Friday takes the rows Sunday cannot use. Fourteen rows either way.
       const rows = rowsOf(draftWeekend(feed(lopsided)));
-      expect(rows.filter((r) => r.day === 'Sun')).toHaveLength(3);
+      expect(rows).toHaveLength(14);
+      expect(rows.filter((r) => r.day === 'Sun').length).toBeLessThanOrEqual(3);
       expect(rows.filter((r) => r.day === 'Fri').length).toBeGreaterThan(3);
     });
 

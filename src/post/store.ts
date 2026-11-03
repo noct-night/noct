@@ -6,6 +6,7 @@
  * the publish step asks whether this deck was actually signed off.
  */
 import { query, withTx } from '../lib/db.js';
+import { noMemory, venueKey, type Memory } from './curate.js';
 import { carryPhotos } from './photos.js';
 import {
   CAROUSEL_MAX, type Post, type PostKind, type PostPatch, type PostStatus, type Series, type Slide,
@@ -177,6 +178,39 @@ export async function upsertDraft(input: DraftInput): Promise<Post> {
     );
     return toPost(rows[0]!);
   });
+}
+
+/** How far back "lately" goes when deciding a venue has had its turn. */
+export const MEMORY_WEEKS = 5;
+
+/**
+ * What the account has been leading with lately.
+ *
+ * Only the slides a post leads with count -- a venue in a table is a listing, a venue with its own slide is
+ * a recommendation, and it is recommendations that must not repeat. Passed, which is the word for "not
+ * this one", is left out; a queued draft counts, so drafting two posts in a week does not lead with the
+ * same room twice.
+ */
+export async function recentlyFeatured(weeks = MEMORY_WEEKS): Promise<Memory> {
+  const { rows } = await query<{ slides: Slide[] }>(
+    `select slides from ig_post
+      where kind = 'carousel' and status <> 'passed'
+        and coalesce(posted_at, created_at) >= now() - ($1::int * interval '7 days')
+      order by coalesce(posted_at, created_at) desc
+      limit 60`,
+    [weeks],
+  );
+  const memory = noMemory();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    for (const slide of Array.isArray(row.slides) ? row.slides : []) {
+      if (slide.template !== 'event') continue;
+      // "Nowadays / The Backyard" is Nowadays: a second room of the same address is the same address.
+      const venue = venueKey(String(slide.data.venue ?? '').split(' / ')[0] ?? '');
+      if (venue) memory.venues.set(venue, (memory.venues.get(venue) ?? 0) + 1);
+      if (slide.data.ref) memory.events.add(slide.data.ref);
+    }
+  }
+  return memory;
 }
 
 export interface ReelInput {
