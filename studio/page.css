@@ -168,9 +168,40 @@ img{max-width:100%}
   .slide-col{width:100%;max-width:calc(var(--pw) * 1px)}
   .shot{width:100%}
 }
+/* ── On a phone ─────────────────────────────────────────────────────────────
+   The studio is used standing up outside a venue as often as at a desk, so the same page has to be
+   workable with a thumb: slides the width of the screen, controls big enough to hit, and nothing that
+   makes iOS zoom. Nothing is hidden on a phone -- a control you cannot reach is a reason to go and find a
+   laptop, which is the thing this is meant to avoid. */
+@media (max-width:560px){
+  /* The deck fills the screen, with the next slide just showing so the strip reads as swipeable. */
+  .slide-col{width:calc(100vw - 54px);max-width:none}
+  .wrap{padding:18px 16px 120px}
+  .mast h1{font-size:23px}
+
+  /* One line each, scrolled rather than wrapped: three rows of chips pushed the deck off the screen. */
+  .navbar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+  .navbar::-webkit-scrollbar{display:none}
+  .navbar>*{flex:none}
+  .draft-menu{position:static;margin-left:auto}
+  .draft-list{right:16px;left:16px;min-width:0}
+
+  /* Thumbs, not cursors: 44px is the smallest target that can be hit without looking. */
+  .chip,.btn,.shot-tools button,.shot-tools a,.shot-tools select,.nights-pick button,.cal-nav,.tr-range .chip{
+    min-height:40px;display:inline-flex;align-items:center}
+  .shot-tools{gap:8px}
+  .shot-tools button,.shot-tools a,.shot-tools select{font-size:13px;padding:0 12px}
+  .nav{width:44px;height:52px}
+  .dots button{width:10px;height:10px}
+
+  /* 16px or iOS zooms the page the moment a field is focused, and never zooms back. */
+  .field textarea,.panel input,.panel textarea,.gate input{font-size:16px}
+  .acts{gap:8px}
+  .acts .btn{flex:1 1 44%;justify-content:center;text-align:center}
+  .state{margin-left:0;width:100%}
+}
 @media (max-width:440px){
-  :root{--pw:300}
-  .acts .btn{flex:1 1 auto;text-align:center}
+  .cal-stat{flex:1 1 44%}
 }
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.001ms!important;transition-duration:.001ms!important}
