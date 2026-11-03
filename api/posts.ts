@@ -48,7 +48,8 @@ import {
 import { weekendRange } from '../src/post/weekend.js';
 import { createLogger } from '../src/lib/log.js';
 import { firstParam, sendJson } from './_lib/respond.js';
-import { requireStudio } from './_lib/studio.js';
+import { hasStudioSession, requireStudio } from './_lib/studio.js';
+import { isAuthorized } from './_lib/auth.js';
 
 const NO_STORE = { 'cache-control': 'no-store' };
 
@@ -420,8 +421,26 @@ async function patch(req: VercelRequest, res: VercelResponse): Promise<void> {
   }
 }
 
+/**
+ * Who may ask for this.
+ *
+ * The studio, as ever. And, for drafting only, the scheduler: a weekly job builds the weekend deck before
+ * anyone is awake, so Thursday morning there is something to read rather than something to start. It can
+ * draft and nothing else -- reading the queue, editing, approving and publishing all still want a person
+ * with a session, because drafting is the only one of those that cannot say anything in public.
+ */
+export function mayProceed(req: VercelRequest, res: VercelResponse): boolean {
+  if (hasStudioSession(req)) return true;
+  const drafting = req.method === 'POST' && Boolean(firstParam(req.query.draft));
+  if (drafting && isAuthorized(req)) {
+    createLogger('api:posts').info('drafting for the scheduler', { draft: firstParam(req.query.draft) });
+    return true;
+  }
+  return requireStudio(req, res);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
-  if (!requireStudio(req, res)) return;
+  if (!mayProceed(req, res)) return;
   const log = createLogger('api:posts');
   try {
     if (firstParam(req.query.cta) && (req.method === 'GET' || req.method === 'PUT')) return await cta(req, res);

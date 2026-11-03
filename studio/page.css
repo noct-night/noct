@@ -280,6 +280,16 @@ img{max-width:100%}
 /* A name Spotify matched on a guess: said here, and again on the slide once the post exists. */
 .unsure{font-style:normal;color:var(--paper);border-bottom:.7px solid var(--hair-2)}
 
+/* What is waiting, above everything: the first thing the dashboard should say. */
+.waiting{display:flex;flex-direction:column;gap:10px;margin-bottom:26px;padding-bottom:22px;
+  border-bottom:.7px solid var(--hair)}
+.waiting h2{font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:var(--g2)}
+.waiting-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.waiting-what{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 220px}
+.waiting-what b{font-size:16px;font-weight:600;letter-spacing:-.01em;overflow-wrap:anywhere}
+.waiting-what span{font-size:12px;color:var(--g2)}
+.waiting .btn{padding:9px 16px;font-size:13px}
+
 /* The week in numbers, above the calendar: the dashboard's other half, without leaving the page. */
 .cal-stats{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch;width:100%}
 .cal-stat{flex:1 1 150px;min-width:0;border:.7px solid var(--hair);padding:11px 13px;display:flex;

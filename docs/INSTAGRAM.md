@@ -290,6 +290,17 @@ It talks to `https://noct.pro` unless `NOCT_STUDIO_URL` says otherwise, and read
 It stops at a **queued** draft. There is no `--publish` flag, on purpose: publishing goes through
 `/api/publish` behind the studio session, so there is one gated door to the account and not two.
 
+## The week, unattended
+
+The weekend deck drafts itself on Thursday at 14:40 UTC (`0040`, pg_cron calling `/api/posts?draft=weekend`),
+so there is something to read on Thursday morning rather than something to start on Friday night. The
+dashboard opens on **Waiting for you**: the draft, and a **Publish** button on anything already approved.
+
+Drafting is the only step that happens unattended, and that is the whole argument for it: it reads the feed
+and writes a queued post, and says nothing in public. `mayProceed()` in `api/posts.ts` is where this is
+enforced -- the cron bearer may draft and nothing else; reading the queue, editing, approving and publishing
+all still want a studio session.
+
 ## Copy rules
 
 Every caption is drafted between the same two lines: an invitation to follow at the top, and where the link
