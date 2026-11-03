@@ -127,6 +127,14 @@ describe('the page script', () => {
     expect(js).toContain('Changing these changes the next draft');
   });
 
+  it('keeps a shelf of cover photographs that a phone can add to and pick from', async () => {
+    const js = await asset('page.js');
+    expect(js).toContain("api('/api/photos?archive=1')");
+    // The camera roll's own multi-select, and one request per photo so each stays under the body limit.
+    expect(js).toContain('shelfPicker.multiple = true');
+    expect(js).toContain('data-use=');
+  });
+
   it('offers the rendered files and the caption, so a deck can go up by hand', async () => {
     const js = await asset('page.js');
     // The same signed URLs the preview draws and Instagram is handed: what is saved is what would post.
