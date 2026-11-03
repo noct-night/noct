@@ -10,7 +10,8 @@
 import { GENRES } from '../enrich/taxonomy.js';
 import type { FeedEvent, FeedResponse } from '../feed/shape.js';
 import { draftHashtags, HOUSE_LINES, scrubLines, withHouseLines, type HouseLines } from './caption.js';
-import { CTA_SLIDE, draftWeekend, headlineOf, heroSlide, namesNotIn, pickHeroes, supportingCast } from './draft.js';
+import { curateHeroes, type Memory } from './curate.js';
+import { CTA_SLIDE, draftWeekend, headlineOf, heroSlide, namesNotIn, supportingCast } from './draft.js';
 import type { Series, Slide } from './types.js';
 
 export interface EditionDraft {
@@ -81,7 +82,7 @@ export function genreDeckOptions(family: string): { lede: string; captionLead: s
 
 export function draftGenreEditions(
   feed: FeedResponse, limit = EDITIONS_PER_WEEKEND, minEvents = EDITION_MIN_EVENTS, cta: Slide = CTA_SLIDE,
-  house: HouseLines = HOUSE_LINES,
+  house: HouseLines = HOUSE_LINES, memory?: Memory,
 ): EditionDraft[] {
   const byFamily = new Map<string, FeedEvent[]>();
   for (const ev of feed.events) {
@@ -95,7 +96,7 @@ export function draftGenreEditions(
     .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
     .slice(0, limit)
     .flatMap(([family, evs]) => {
-      const deck = draftWeekend({ ...feed, events: evs }, { ...genreDeckOptions(family), cta, house });
+      const deck = draftWeekend({ ...feed, events: evs }, { ...genreDeckOptions(family), cta, house, memory });
       return deck ? [{ series: 'genre' as const, slot: deck.slot, edition: family, slides: deck.slides, caption: deck.caption }] : [];
     });
 }
@@ -120,8 +121,12 @@ const WEEKDAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'F
  */
 export function draftSpotlights(
   feed: FeedResponse, limit = SPOTLIGHTS, cta: Slide = CTA_SLIDE, house: HouseLines = HOUSE_LINES,
+  memory?: Memory,
 ): EditionDraft[] {
-  return pickHeroes(feed.events, limit).map((ev) => spotlightFor(feed, ev, cta, house));
+  // The same curation as a weekend deck, over a fortnight: a spotlight is the most anticipated night, and
+  // "most anticipated" that keeps landing on the same three rooms is just their calendar.
+  return curateHeroes(feed.events, { limit, nights: feed.days.length, memory })
+    .map((ev) => spotlightFor(feed, ev, cta, house));
 }
 
 /**

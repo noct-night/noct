@@ -30,17 +30,18 @@ import {
   ARTIST_SLIDES, draftComingToNewYork, MIN_FOLLOWERS, namesFor, pickBigNames, type BigName,
 } from '../src/post/artists.js';
 import { candidatesFor, cannotChoose, deckSource, deckWindow } from '../src/post/choose.js';
+import { curateHeroes } from '../src/post/curate.js';
 import { ctaSlide, currentCta, currentHouseLines, houseLinesSchema, saveCta, saveHouseLines } from '../src/post/cta.js';
 import type { FeedResponse } from '../src/feed/shape.js';
 import {
-  candidateNights, draftWeekend, headlineOf, HERO_MAX, isNightOut, pickHeroes, type DeckOptions,
+  candidateNights, draftWeekend, headlineOf, HERO_MAX, isNightOut, type DeckOptions,
 } from '../src/post/draft.js';
 import {
   draftGenreEditions, draftSpotlights, draftVenuePosts, spotlightsFor, SPOTLIGHTS, type EditionDraft,
 } from '../src/post/editions.js';
 import { attachCredits } from '../src/post/photos.js';
 import { localDatePlus } from '../src/lib/time.js';
-import { getPost, listPosts, patchPost, PostConflict, upsertDraft } from '../src/post/store.js';
+import { getPost, listPosts, patchPost, PostConflict, recentlyFeatured, upsertDraft } from '../src/post/store.js';
 import {
   ctaDataSchema, postPatchSchema, STATUSES, TABLE_ROWS_TOTAL, type Post, type PostStatus,
 } from '../src/post/types.js';
@@ -71,7 +72,9 @@ async function draft(req: VercelRequest, res: VercelResponse): Promise<void> {
   const log = createLogger('api:posts');
   const { from, to } = weekendRange();
   const feed = await buildFeed({ from, to });
-  const deck = draftWeekend(feed, { cta: ctaSlide(await currentCta()), house: await currentHouseLines() });
+  const deck = draftWeekend(feed, {
+    cta: ctaSlide(await currentCta()), house: await currentHouseLines(), memory: await recentlyFeatured(),
+  });
   if (!deck) {
     sendJson(res, 200, { post: null, note: `the feed has no events for ${from} to ${to}` }, NO_STORE);
     return;
@@ -108,11 +111,12 @@ async function draftEditions(
   const feed = await buildFeed({ from, to });
   const cta = ctaSlide(await currentCta());
   const house = await currentHouseLines();
+  const memory = await recentlyFeatured();
   const drafts: EditionDraft[] = kind === 'genre'
-    ? draftGenreEditions(feed, undefined, undefined, cta, house)
+    ? draftGenreEditions(feed, undefined, undefined, cta, house, memory)
     : kind === 'venue'
       ? draftVenuePosts(feed, undefined, undefined, cta, house)
-      : chosen ? spotlightsFor(feed, chosen, cta, house) : draftSpotlights(feed, undefined, cta, house);
+      : chosen ? spotlightsFor(feed, chosen, cta, house) : draftSpotlights(feed, undefined, cta, house, memory);
   if (drafts.length === 0) {
     const note = kind === 'genre'
       ? `no genre has enough nights for an edition between ${from} and ${to}`
@@ -202,7 +206,7 @@ async function rebuild(req: VercelRequest, res: VercelResponse): Promise<void> {
   }
   const draft = draftWeekend(deck.feed, {
     ...deck.opts, heroIds: body.data.events, rowIds: body.data.rows,
-    cta: ctaSlide(await currentCta()), house: await currentHouseLines(),
+    cta: ctaSlide(await currentCta()), house: await currentHouseLines(), memory: await recentlyFeatured(),
   });
   if (!draft) {
     sendJson(res, 409, { error: 'the feed has no events for this weekend any more' }, NO_STORE);
@@ -313,7 +317,9 @@ async function preview(res: VercelResponse, kind: 'spotlight' | 'artists'): Prom
   const feed = await buildFeed({ from, to });
 
   if (kind === 'spotlight') {
-    const picks = pickHeroes(feed.events, SPOTLIGHTS);
+    const picks = curateHeroes(feed.events, {
+      limit: SPOTLIGHTS, nights: feed.days.length, memory: await recentlyFeatured(),
+    });
     const offered = candidateNights(feed.events.filter(isNightOut), PREVIEW_CANDIDATES);
     const rows = [...picks, ...offered.filter((e) => !picks.includes(e))].map((ev) => nightRow(feed, ev));
     sendJson(res, 200, { kind, picks: picks.map((e) => e.id), candidates: rows, max: SPOTLIGHTS, from, to }, NO_STORE);

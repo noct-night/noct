@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { FeedDay, FeedEvent, FeedResponse } from '../../src/feed/shape.js';
 import { scrubCopy } from '../../src/post/caption.js';
 import { HOUSE_LINES } from '../../src/post/caption.js';
-import { CTA_SLIDE, isNightOut, namesNotIn, pickHeroes } from '../../src/post/draft.js';
+import { curateHeroes } from '../../src/post/curate.js';
+import { CTA_SLIDE, isNightOut, namesNotIn } from '../../src/post/draft.js';
 import {
   draftGenreEditions, draftSpotlights, draftVenuePosts, EDITION_MIN_EVENTS, familyOf, FAMILY_PHRASE,
   spotlightsFor, venueVibe,
@@ -119,8 +120,8 @@ describe('draftSpotlights', () => {
   ];
   const spots = draftSpotlights(feed(events));
 
-  it('spotlights the most anticipated nights, one per venue', () => {
-    expect(spots.map((s) => s.edition)).toEqual(['big', 'two', 'three']);
+  it('spotlights the most anticipated nights, one per venue, soonest first', () => {
+    expect(spots.map((s) => s.edition)).toEqual(['two', 'big', 'three']);
   });
 
   describe('when the nights are chosen in the studio', () => {
@@ -135,7 +136,7 @@ describe('draftSpotlights', () => {
     });
 
     it('builds the same post the automatic pick would have', () => {
-      expect(spotlightsFor(feed(events), ['big'])[0]).toEqual(spots[0]);
+      expect(spotlightsFor(feed(events), ['big'])[0]).toEqual(spots.find((s) => s.edition === 'big'));
     });
   });
 
@@ -151,20 +152,21 @@ describe('draftSpotlights', () => {
   });
 
   it('dates the slide, because a spotlight can be for a night weeks away', () => {
-    expect(spots[0]!.slides[0]).toMatchObject({ data: { position: 'Saturday, Sep 19' } });
-    expect(spots[0]!.slot).toBe('2026-09-19');
+    const big = spots.find((s) => s.edition === 'big')!;
+    expect(big.slides[0]).toMatchObject({ data: { position: 'Saturday, Sep 19' } });
+    expect(big.slot).toBe('2026-09-19');
   });
 
   it('puts only the date, the lineup and the venue on the slide', () => {
-    expect(spots[0]!.slides[0]).toMatchObject({
+    expect(spots.find((s) => s.edition === 'big')!.slides[0]).toMatchObject({
       data: { position: 'Saturday, Sep 19', name: 'Kangding Ray, Juana', venue: 'Brooklyn Storehouse', time: '', genre: '' },
     });
     // No lineup listed: the title stands in rather than leaving the slide blank.
-    expect(spots[1]!.slides[0]).toMatchObject({ data: { name: 'DAY+NIGHT' } });
+    expect(spots.find((s) => s.edition === 'two')!.slides[0]).toMatchObject({ data: { name: 'DAY+NIGHT' } });
   });
 
   it('names the rest of the bill in the caption', () => {
-    expect(spots[0]!.caption).toContain('With Juana.');
+    expect(spots.find((s) => s.edition === 'big')!.caption).toContain('With Juana.');
   });
 });
 
@@ -183,10 +185,10 @@ describe('the fixes these posts surfaced', () => {
   });
 
   it('leaves heroes to nights out even when the pop-up is the most popular listing', () => {
-    const picked = pickHeroes([
+    const picked = curateHeroes([
       ev({ id: 'merch', head: 'Merch Pop Up', venue: 'A', interested: 9999 }),
       ev({ id: 'night', head: 'A proper night', venue: 'B', interested: 10 }),
-    ], 2);
+    ], { limit: 2 });
     expect(picked.map((e) => e.id)).toEqual(['night']);
   });
 

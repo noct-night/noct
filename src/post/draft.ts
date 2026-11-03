@@ -12,6 +12,7 @@
  */
 import type { FeedDay, FeedEvent, FeedResponse } from '../feed/shape.js';
 import { draftWeekendCaption, SITE, type HouseLines } from './caption.js';
+import { curateHeroes, isNightOut, type Memory } from './curate.js';
 import { CAROUSEL_MAX, TABLE_ROWS_MAX, TABLE_ROWS_TOTAL, type Slide, type Tone } from './types.js';
 
 /** How many events get a slide of their own. Four plus a cover plus two tables is the seven-slide deck. */
@@ -75,21 +76,13 @@ function rank(events: FeedEvent[]): FeedEvent[] {
 }
 
 /**
- * Pick the events that get a slide of their own, at most one per venue.
- *
- * Without the venue rule a big room with four rooms of programming takes the whole deck, and the deck stops
- * being a guide to the weekend. The cap is per venue family, so two rooms of Avant Gardner count as one.
+ * The nights offered when choosing a deck's events by hand: everything in the window, best first. Not
+ * filtered to nights out -- the curator is, but a person choosing is allowed to disagree with it.
  */
-/**
- * Whether a listing is a night out rather than something else that happens at a venue.
- *
- * RA lists merch pop-ups, talks and plays alongside parties, and a merch pop-up with a famous name on it can
- * out-rank every club night on "interested". It is still not the post. Deliberately a short list of words
- * that never name a party: tables still list everything, only the slides a whole post leads with are filtered.
- */
-const NOT_A_NIGHT = /\b(pop[- ]?up|merch|market|panel|workshop|talk|screening|lecture|class|exhibition|a play)\b/i;
-export function isNightOut(ev: Pick<FeedEvent, 'head'>): boolean {
-  return !NOT_A_NIGHT.test(ev.head);
+export { isNightOut } from './curate.js';
+
+export function candidateNights(events: FeedEvent[], limit = 40): FeedEvent[] {
+  return rank(events).slice(0, limit);
 }
 
 /**
@@ -103,34 +96,6 @@ export function namesNotIn(headline: string, names: string[]): string[] {
   return names.filter((n) => key(n) && !said.includes(key(n)));
 }
 
-/**
- * The nights offered when choosing a deck's events by hand: everything in the window, best first. Not
- * filtered to nights out -- the automatic pick is, but a person choosing is allowed to disagree with it.
- */
-export function candidateNights(events: FeedEvent[], limit = 40): FeedEvent[] {
-  return rank(events).slice(0, limit);
-}
-
-export function pickHeroes(events: FeedEvent[], limit = HERO_SLIDES): FeedEvent[] {
-  const seen = new Set<string>();
-  const out: FeedEvent[] = [];
-  const nights = events.filter(isNightOut);
-  for (const ev of rank(nights)) {
-    if (out.length >= limit) break;
-    const key = ev.venue.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(ev);
-  }
-  // If venue de-duplication left the deck short, fill it rather than ship a four-slide weekend.
-  if (out.length < limit) {
-    for (const ev of rank(nights)) {
-      if (out.length >= limit) break;
-      if (!out.includes(ev)) out.push(ev);
-    }
-  }
-  return out;
-}
 
 const dayOf = (days: FeedDay[], ev: FeedEvent): FeedDay | undefined => days[ev.d];
 
@@ -288,6 +253,8 @@ export interface DeckOptions {
   rowIds?: string[];
   /** The lines every caption carries, as the studio has them worded. Unset means the defaults. */
   house?: HouseLines;
+  /** What the account has led with lately, so a weekend is not the same four rooms. See curate.ts. */
+  memory?: Memory;
 }
 
 /**
@@ -300,7 +267,7 @@ export function draftWeekend(feed: FeedResponse, opts: DeckOptions = {}): Weeken
 
   const heroes = opts.heroIds
     ? opts.heroIds.flatMap((id) => events.filter((e) => e.id === id).slice(0, 1)).slice(0, HERO_MAX)
-    : pickHeroes(events);
+    : curateHeroes(events, { limit: HERO_SLIDES, nights: days.length, memory: opts.memory });
   const used = new Set(heroes.map((e) => e.id));
   const when = spanLabel(days);
 

@@ -76,12 +76,13 @@ describe('what is offered', () => {
   const deck = draftWeekend(feed(events))!;
 
   it('marks the nights the deck already shows, in slide order', () => {
-    expect(chosenIds(deck.slides, events)).toEqual(['a', 'b', 'x0', 'x1']);
+    // Slide order is night order now, which is the order the deck reads in.
+    expect(chosenIds(deck.slides, events)).toEqual(['a', 'x0', 'x1', 'b']);
   });
 
   it('still recognises the nights of a deck drafted before slides named their event', () => {
     const old = deck.slides.map((s) => (s.template === 'event' ? slideSchema.parse({ ...s, data: { ...s.data, ref: undefined } }) : s));
-    expect(chosenIds(old, events)).toEqual(['a', 'b', 'x0', 'x1']);
+    expect(chosenIds(old, events)).toEqual(['a', 'x0', 'x1', 'b']);
   });
 
   it('knows which nights the tables already list, so they come back ticked', () => {
