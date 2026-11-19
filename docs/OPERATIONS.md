@@ -63,6 +63,8 @@ Schedules installed (UTC):
 | `noct-ingest-venues-elsewhere` / `-goodroom` / `-publicrecords` | `5 9`, `12 9`, `19 9 * * *` | one venue feed each |
 | `noct-ingest-keyed-ticketmaster` / `-edmtrain` | `33 10`, `41 10 * * *` | keyed APIs (skipped when the key is unset) |
 | `noct-enrich` | `40 * * * *` | `POST /api/enrich?limit=60` |
+| `noct-draft-weekend` | `40 14 * * 4` | `POST /api/posts?draft=weekend` (0040) |
+| `noct-token-refresh` | `5 15 * * *` | `POST /api/publish?refresh=token` (0041) |
 
 Re-applying the migration replaces every `noct-*` job. To pause everything:
 `select cron.unschedule(jobid) from cron.job where jobname like 'noct-%';`

@@ -8,8 +8,15 @@
  *
  * So the environment holds a seed, not the truth. The first publish copies `IG_ACCESS_TOKEN` into the
  * database; after that the stored token is the one used, and it is refreshed well before it lapses.
- * Instagram's refresh endpoint returns a fresh 60-day token, so a post every week keeps it alive forever
- * and a gap of two months is the only thing that can break it.
+ * Instagram's refresh endpoint returns a fresh 60-day token, so a refresh every week keeps it alive forever.
+ *
+ * Refreshing used to happen only on the way to a publish, on the reasoning that NOCT posts weekly and a
+ * weekly post is a weekly refresh. It is not: the account posted on 3 November with the token fourteen days
+ * and two hours from lapsing -- two hours outside the window below -- passed on the next week's deck, and
+ * the credential died on 17 November with nothing having gone wrong. A refresh that only happens when
+ * someone publishes is a refresh that stops happening exactly when the account goes quiet, which is when
+ * nobody is looking. `keepTokenAlive` is therefore called by a weekly job of its own (api/publish.ts), and
+ * publishing refreshes as a side effect rather than as the only chance.
  *
  * On storing a credential in Postgres: `ig_token` is closed to every PostgREST role the way `ig_post` is,
  * and reachable only by the pool owner. It is the same trust boundary the token already sits behind in the
@@ -199,6 +206,20 @@ export async function currentToken(log: Logger, source = process.env): Promise<S
     }
     return stored;
   }
+}
+
+/**
+ * Keep the credential alive without publishing anything.
+ *
+ * The weekly job behind this does what a publish used to do incidentally: read the stored token, refresh it
+ * if it is inside the window, and say how long it has. It returns the days left rather than the token --
+ * a caller that only wants the credential to stay valid should not be handed it -- and it lets a TokenError
+ * out, because a token that cannot be refreshed any more is the one thing here worth failing loudly over.
+ */
+export async function keepTokenAlive(log: Logger): Promise<{ days_left: number | null; refreshed: boolean }> {
+  const before = await readStored();
+  const after = await currentToken(log);
+  return { days_left: daysUntilExpiry(after), refreshed: before?.token !== after.token };
 }
 
 /** What the studio shows about the credential, without ever handing the token to the browser. */
