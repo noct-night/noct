@@ -26,6 +26,36 @@ describe('when to refresh the Instagram token', () => {
     expect(shouldRefresh(token({ expiresAt: new Date(NOW.getTime() + 20 * DAY) }), NOW)).toBe(false);
   });
 
+  /**
+   * November 2026, pinned so the reasoning cannot quietly be reverted.
+   *
+   * Refreshing used to happen only on the way to a publish. The account published on the 3rd with the token
+   * fourteen days and two hours from lapsing -- just outside the window -- then passed on the next week's
+   * deck, and the credential was dead on the 17th. Both halves below are correct policy; together they are
+   * a dead account, which is why the refresh now runs daily on a schedule of its own (0041) instead of
+   * riding along with whatever someone happens to publish.
+   */
+  it('cannot keep a token alive on publishes alone, which is why a schedule does it', () => {
+    const published = new Date('2026-11-03T16:32:00.000Z');
+    const lapses = new Date('2026-11-17T19:15:00.000Z');
+    const live = token({ expiresAt: lapses, obtainedAt: new Date('2026-09-18T19:15:00.000Z') });
+
+    // The last publish: two hours outside the window, so nothing was refreshed and nothing was wrong.
+    expect(lapses.getTime() - published.getTime()).toBeGreaterThan(REFRESH_WINDOW_MS);
+    expect(shouldRefresh(live, published)).toBe(false);
+
+    // A fortnight of not posting later, there is nothing left to refresh.
+    const after = new Date('2026-11-19T14:00:00.000Z');
+    expect(shouldRefresh(live, after)).toBe(true);
+    expect(daysUntilExpiry(live, after)).toBeLessThan(0);
+
+    // The daily job's reach: on every one of those days it would have been inside the window.
+    for (let day = 4; day <= 17; day++) {
+      const at = new Date(Date.UTC(2026, 10, day, 15, 5));
+      expect(shouldRefresh(live, at)).toBe(true);
+    }
+  });
+
   it('refreshes once inside the window, with weeks of slack before it actually lapses', () => {
     expect(shouldRefresh(token({ expiresAt: new Date(NOW.getTime() + 13 * DAY) }), NOW)).toBe(true);
     // The boundary itself, to pin the constant rather than assume it.

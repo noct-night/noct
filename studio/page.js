@@ -138,6 +138,11 @@
    * with the window it was fetched for and when, so switching tabs does not refetch and Refresh does.
    */
   var traffic = { days: 30, data: null, at: 0, loading: false, error: null };
+  /**
+   * How many days the Instagram token has left (/api/publish?status=token). Null until asked, and null from
+   * the answer itself while the expiry is still unknown -- neither of which is worth saying anything about.
+   */
+  var token = { asked: false, days: null, present: true };
   var TRAFFIC_WINDOWS = [7, 30, 90];
   var TRAFFIC_FRESH_MS = 60 * 1000;
 
@@ -1442,6 +1447,25 @@
   }
 
   /**
+   * The credential, but only when there is something to do about it.
+   *
+   * An Instagram Login token lasts 60 days. It refreshes itself daily now (0041), so this should stay
+   * invisible forever -- and that is the point: the one time it lapsed, the studio looked completely normal
+   * until Publish failed, and the way to find out had been a dashboard page nobody had reason to open. A
+   * line that appears a fortnight early turns a dead account into an errand.
+   */
+  function credential() {
+    if (!token.asked) return '';
+    if (!token.present) return '<p class="warn">No Instagram credential on this deployment. Publishing will fail until IG_ACCESS_TOKEN is set.</p>';
+    if (token.days === null || token.days > 14) return '';
+    var says = token.days <= 0
+      ? 'The Instagram token has expired. Generate a new one in the Meta app dashboard \u2014 nothing can be published until it is replaced.'
+      : 'The Instagram token lapses in ' + token.days + (token.days === 1 ? ' day' : ' days')
+        + '. It renews itself daily, so this should clear on its own; if it does not, generate a new one.';
+    return '<p class="warn">' + says + '</p>';
+  }
+
+  /**
    * What is waiting, at the top of the dashboard.
    *
    * The weekend deck now drafts itself on Thursday morning (0040), so the first thing the studio should say
@@ -1505,7 +1529,8 @@
         + '</div>';
     }
 
-    host.innerHTML = waiting()
+    host.innerHTML = credential()
+      + waiting()
       + '<section class="cal">'
       + calStats()
       + '<div class="cal-head">'
@@ -1974,6 +1999,12 @@
   // A caption sized against the fallback face is a caption sized wrong; a narrower window rewraps it.
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(sizeAllCaptions);
   window.addEventListener('resize', sizeAllCaptions);
+  // Asked for once, alongside the queue: it is one column of one row, and the answer only ever changes the
+  // dashboard. A failure here says nothing rather than claiming the credential is fine or broken.
+  api('/api/publish?status=token').then(function (body) {
+    token = { asked: true, days: body.days_left === undefined ? null : body.days_left, present: body.present !== false };
+    if (section === 'analytics') render();
+  }).catch(function () {});
   api('/api/posts').then(function (body) {
     posts = body.posts || [];
     render();

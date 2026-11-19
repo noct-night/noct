@@ -9,8 +9,10 @@
  *   3. no other publish is in flight for it (claimed in a transaction, so two clicks cannot both win)
  *   4. the caption passes the house rules, and the deck fits a carousel
  *
- * There is no auto-publish and no cron that calls this. A weekly job may prepare a draft and send a nudge;
- * a person presses the button.
+ * There is no auto-publish. A weekly job may prepare a draft and send a nudge; a person presses the button.
+ * The scheduler does reach one corner of this endpoint -- `POST ?refresh=token` keeps the 60-day credential
+ * from lapsing while the account is quiet (see src/post/token.ts) -- and that is all it can do here: it
+ * cannot name a post, and it never sees the token.
  *
  * Either kind of post can end in a third way. Meta fetches the media itself -- the rendered slides of a
  * deck, the MP4 of a reel -- and `media_publish` refuses the container until it has. A long clip can
@@ -26,7 +28,7 @@ import {
   igUserId, MediaNotReady, publishCarousel, publishReel, PublishError, remainingQuota, resumeCarousel,
   resumeReel, verifyCredentials, warmMedia,
 } from '../src/post/publish.js';
-import { currentToken, daysUntilExpiry, TokenError } from '../src/post/token.js';
+import { currentToken, daysUntilExpiry, keepTokenAlive, tokenStatus, TokenError } from '../src/post/token.js';
 import { signedRenderPath } from '../src/post/sign.js';
 import { RENDER_VERSION } from '../src/post/templates.js';
 import {
@@ -37,7 +39,8 @@ import type { Slide, Treatment } from '../src/post/types.js';
 import { createLogger } from '../src/lib/log.js';
 import { env } from '../src/lib/env.js';
 import { firstParam, sendJson } from './_lib/respond.js';
-import { requireStudio } from './_lib/studio.js';
+import { isAuthorized } from './_lib/auth.js';
+import { hasStudioSession, requireStudio } from './_lib/studio.js';
 
 const NO_STORE = { 'cache-control': 'no-store' };
 
@@ -145,12 +148,67 @@ async function publishTheDeck(
   );
 }
 
+/**
+ * POST /api/publish?refresh=token — the weekly keep-alive. Posts nothing, says nothing in public.
+ *
+ * 503 rather than 500 when the token is past saving: the deployment is one credential away from working,
+ * and the message says which one. The failure is loud on purpose -- it is the only warning anybody gets
+ * before a Thursday deck has nowhere to go.
+ */
+async function refresh(res: VercelResponse): Promise<void> {
+  const log = createLogger('api:publish');
+  try {
+    const { days_left, refreshed } = await keepTokenAlive(log);
+    log.info('token keep-alive', { days_left, refreshed });
+    sendJson(res, 200, { ok: true, refreshed, token_days_left: days_left }, NO_STORE);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.error('token keep-alive failed', { error: message });
+    sendJson(res, 503, { ok: false, error: message }, NO_STORE);
+  }
+}
+
+/**
+ * GET /api/publish?status=token — how long the credential has, read from the row and nothing else.
+ *
+ * Separate from the preflight above because the studio asks this on every dashboard load and the preflight
+ * costs two Graph calls. This one is a single column: enough to put a warning on the dashboard while the
+ * token can still be saved, which is the part that was missing when it lapsed.
+ */
+async function status(res: VercelResponse): Promise<void> {
+  sendJson(res, 200, await tokenStatus(), NO_STORE);
+}
+
+/**
+ * Who may ask for this.
+ *
+ * A studio session, as ever. And the scheduler, for the keep-alive alone: refreshing a credential is the
+ * one thing here that publishes nothing, and it has to happen on weeks when nobody opens the studio --
+ * which is precisely how the token lapsed in November. Everything else on this endpoint still wants a
+ * person, because everything else can speak under NOCT's name.
+ */
+export function mayProceed(req: VercelRequest, res: VercelResponse): boolean {
+  if (hasStudioSession(req)) return true;
+  // Nothing but the keep-alive: a caller that also names a post is not the keep-alive, whichever branch
+  // below would have won, and the scheduler has no reason to know a post id in the first place.
+  const refreshing = req.method === 'POST'
+    && firstParam(req.query.refresh) === 'token'
+    && !firstParam(req.query.id);
+  if (refreshing && isAuthorized(req)) {
+    createLogger('api:publish').info('refreshing the token for the scheduler');
+    return true;
+  }
+  return requireStudio(req, res);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (req.method !== 'POST' && req.method !== 'GET') {
     sendJson(res, 405, { error: 'method not allowed' }, { allow: 'GET, POST' });
     return;
   }
-  if (!requireStudio(req, res)) return;
+  if (!mayProceed(req, res)) return;
+  if (req.method === 'POST' && firstParam(req.query.refresh) === 'token') return await refresh(res);
+  if (req.method === 'GET' && firstParam(req.query.status) === 'token') return await status(res);
   if (req.method === 'GET') return await preflight(req, res);
 
   const log = createLogger('api:publish');

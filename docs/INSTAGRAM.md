@@ -421,7 +421,9 @@ to anyone looking at the account is the wrong default; it is one parameter in `p
 - **`SUPABASE_SERVICE_ROLE_KEY` is a Vercel variable, and only that.** Uploading is a write, so the
   publishable key cannot do it; the key that can read and write every table in the project therefore lives
   on the one deployment and on no laptop. Same rule as `IG_ACCESS_TOKEN`.
-- **Nothing auto-posts.** There is no cron that calls `/api/publish`.
+- **Nothing auto-posts.** A daily job reaches `/api/publish?refresh=token` and nothing else there: it keeps
+  the 60-day credential alive and publishes nothing. The gate refuses that bearer for every other call on
+  the endpoint, a request that also names a post included. Approving and publishing stay a person's.
 - **The token is never in a URL.** `access_token` goes in the POST body, not the query string, so it stays
   out of access logs and error reports.
 
@@ -462,8 +464,21 @@ The carousel flow is identical between the two. What differs:
 That last row is the one with consequences, and it is why `src/post/token.ts` and `0027_ig_token.sql`
 exist. A weekly post reading a token from the environment would work beautifully for two months and then
 fail on a Friday with nobody watching. So `IG_ACCESS_TOKEN` is a **seed**: the first publish copies it into
-`ig_token`, and every later run refreshes it once it is within 14 days of lapsing. A post a week keeps it
-alive indefinitely; only a two-month gap can break it, and there is a test pinning that.
+`ig_token`, and every later run refreshes it once it is within 14 days of lapsing.
+
+That used to be the whole of it, on the reasoning that a weekly post is a weekly refresh. It is not. In
+November 2026 the account published on the 3rd with the token fourteen days and two hours from lapsing --
+two hours outside the window -- passed on the following week's deck, and the credential died on the 17th
+with nothing having gone wrong. A refresh attached to publishing stops happening exactly when an account
+goes quiet, which is when nobody is watching the expiry.
+
+So the refresh has a job of its own: `0041_token_keepalive.sql` calls `POST /api/publish?refresh=token`
+daily, which refreshes the token when it is inside the window and reads one row when it is not. Daily
+rather than weekly because six consecutive failures still leave the credential alive. There are tests
+pinning both halves of the November failure, so the reasoning cannot be reverted by accident.
+
+The studio says so too: inside the last fortnight the dashboard carries a line about it, and a lapsed token
+says to generate a new one. It should never appear -- that is the point of a warning that arrives early.
 
 A refresh failure is deliberately not fatal — the current token is still good for up to two more weeks, so
 the post goes out and the problem is logged rather than blocking a deadline on a credential that still works.
